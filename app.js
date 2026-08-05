@@ -121,35 +121,24 @@ async function checkConn() {
 
   if (!user) return;
 
-  // Check for recent extension activity (any job in last 2 min)
-  const twoMinAgo = new Date(Date.now() - 120000).toISOString();
-  const { data: recent } = await sb.from('jsw_post_jobs')
-    .select('status,updated_at').eq('user_id', user.id)
-    .order('updated_at', { ascending: false }).limit(1);
+  // Check extension heartbeat in jsw_settings
+  const { data: settingsRow } = await sb.from('jsw_settings')
+    .select('ext_heartbeat,pairing_code').eq('user_id', user.id).maybeSingle();
 
-  // Also check pairing code exists
-  const settings = await sbGet('settings') || {};
-  const hasPairing = !!settings.pairing_code;
+  const hasPairing = !!settingsRow?.pairing_code;
+  const hb = settingsRow?.ext_heartbeat;
+  const hbAge = hb ? Date.now() - new Date(hb).getTime() : Infinity;
+  const isOnline = hbAge < 90000; // heartbeat within 90s
 
-  if (recent && recent[0]) {
-    const age = Date.now() - new Date(recent[0].updated_at || 0).getTime();
-    const isRecent = age < 120000;
-    if (recent[0].status === 'processing') {
-      connected = true;
-      bar.className = 'conn-bar connected';
-      dot.className = 'conn-dot on';
-      label.textContent = 'Posting...';
-    } else if (isRecent || hasPairing) {
-      connected = true;
-      bar.className = 'conn-bar connected';
-      dot.className = 'conn-dot on';
-      label.textContent = 'Connected';
-    } else {
-      connected = false;
-      bar.className = 'conn-bar disconnected';
-      dot.className = 'conn-dot off';
-      label.textContent = hasPairing ? 'Extension offline' : 'Not paired';
-    }
+  if (isOnline) {
+    connected = true;
+    bar.className = 'conn-bar connected';
+    dot.className = 'conn-dot on';
+    // Check if currently posting
+    const { data: recent } = await sb.from('jsw_post_jobs')
+      .select('status').eq('user_id', user.id)
+      .order('updated_at', { ascending: false }).limit(1);
+    label.textContent = recent?.[0]?.status === 'processing' ? 'Posting...' : 'Connected';
   } else {
     connected = false;
     bar.className = 'conn-bar disconnected';
@@ -157,10 +146,9 @@ async function checkConn() {
     label.textContent = hasPairing ? 'Extension offline' : 'Not paired';
   }
 
-  if (connected) {
-    cachedData = await fetchAll();
-    loadDashboard();
-  }
+  // Always load data regardless of connection state
+  cachedData = await fetchAll();
+  if (typeof loadSettings === 'function') loadSettings();
 }
 
 async function fetchAll() {
