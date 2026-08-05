@@ -631,10 +631,14 @@ function loadSettings() {
 
   // Status
   const statusEl = document.getElementById('connStatus');
+  const hintEl = document.getElementById('installHint');
   if (statusEl) {
     statusEl.innerHTML = connected
       ? '<span style="color:var(--green);">Connected & ready</span>'
-      : '<span style="color:var(--red);">Extension not paired — generate a code above</span>';
+      : '<span style="color:var(--red);">Extension not paired — enter the code above in your extension</span>';
+  }
+  if (hintEl) {
+    hintEl.style.display = connected ? 'none' : 'block';
   }
 
   if (s.delay) document.getElementById('setDelay').value = s.delay;
