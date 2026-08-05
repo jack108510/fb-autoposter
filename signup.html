@@ -15,7 +15,6 @@
       --text: #f0f0f5;
       --text-2: #9999b0;
       --text-3: #666680;
-      --blue: #3b82f6;
       --green: #10b981;
       --red: #ef4444;
       --gradient: linear-gradient(120deg, #5B6FE8 0%, #9B5DE5 55%, #F368A8 100%);
@@ -34,7 +33,7 @@
     .orb-2 { width: 380px; height: 380px; background: #9B5DE5; bottom: -100px; left: -100px; }
 
     .auth-card {
-      position: relative; z-index: 1; width: 100%; max-width: 420px;
+      position: relative; z-index: 1; width: 100%; max-width: 480px;
       background: rgba(18,18,26,.85); backdrop-filter: blur(20px);
       border: 1px solid var(--border); border-radius: 20px; padding: 40px 36px;
       box-shadow: 0 30px 80px rgba(0,0,0,.5);
@@ -79,14 +78,57 @@
 
     .auth-footer { text-align: center; margin-top: 28px; font-size: 11px; color: var(--text-3); line-height: 1.5; }
     .auth-footer a { color: var(--text-3); text-decoration: none; }
-    .auth-footer a:hover { color: var(--text-2); }
 
     .name-field { display: none; }
     .name-field.show { display: block; }
 
+    /* ─── Setup view (after auth) ─── */
+    .setup-view { display: none; }
+    .setup-view.show { display: block; }
+
+    .setup-step {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 14px; padding: 20px; margin-bottom: 16px;
+    }
+    .setup-step-num {
+      display: inline-flex; align-items: center; justify-content: center;
+      width: 24px; height: 24px; border-radius: 50%; background: var(--gradient);
+      font-size: 12px; font-weight: 700; color: white; margin-right: 10px;
+      vertical-align: middle;
+    }
+    .setup-step h3 { display: inline; font-size: 15px; font-weight: 700; vertical-align: middle; }
+    .setup-step p { font-size: 13px; color: var(--text-2); margin-top: 8px; line-height: 1.5; }
+    .setup-step code {
+      background: var(--surface-2); padding: 3px 8px; border-radius: 5px;
+      font-size: 12px; color: var(--text-2); user-select: all;
+    }
+
+    .pairing-code-box {
+      text-align: center; padding: 24px 0 12px;
+    }
+    .pairing-code-display {
+      font-size: 48px; font-weight: 800; letter-spacing: 10px;
+      font-family: 'SF Mono', 'Monaco', 'Menlo', monospace;
+      background: var(--gradient); -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent; background-clip: text;
+      user-select: all; cursor: pointer;
+    }
+    .pairing-code-label {
+      font-size: 11px; color: var(--text-3); margin-top: 6px;
+      text-transform: uppercase; letter-spacing: 1px;
+    }
+
+    .setup-cta {
+      width: 100%; padding: 14px; border: none; border-radius: 10px;
+      font-size: 14px; font-weight: 700; cursor: pointer; font-family: inherit;
+      background: var(--gradient); color: white; margin-top: 8px;
+      text-decoration: none; display: block; text-align: center;
+    }
+
     @media (max-width: 480px) {
       .auth-card { padding: 32px 24px; }
       .auth-header h1 { font-size: 22px; }
+      .pairing-code-display { font-size: 36px; letter-spacing: 6px; }
     }
   </style>
 </head>
@@ -96,50 +138,96 @@
   <div class="orb orb-2"></div>
 
   <div class="auth-card">
-    <a href="index.html" class="auth-logo">
-      <svg width="36" height="36" viewBox="0 0 40 40" fill="none">
-        <defs><linearGradient id="sG" x1="0%" y1="100%" x2="100%" y2="0%">
-          <stop offset="0%" stop-color="#5B6FE8"/><stop offset="55%" stop-color="#9B5DE5"/><stop offset="100%" stop-color="#F368A8"/>
-        </linearGradient></defs>
-        <path d="M8 20 a8 8 0 1 1 8 8 L16 12 L16 28" stroke="url(#sG)" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
-        <line x1="16" y1="20" x2="28" y2="20" stroke="url(#sG)" stroke-width="3" stroke-linecap="round"/>
-        <circle cx="28" cy="12" r="3" fill="#F368A8"/>
-        <circle cx="32" cy="20" r="3" fill="#F368A8"/>
-        <circle cx="28" cy="28" r="3" fill="#F368A8"/>
-      </svg>
-      <span class="brand-text">amplr</span>
-    </a>
 
-    <div class="auth-header">
-      <h1 id="authTitle">Create your account</h1>
-      <p id="authSubtitle">Start posting to 50+ groups on autopilot.</p>
+    <!-- ═══ AUTH VIEW ═══ -->
+    <div id="authView">
+      <a href="index.html" class="auth-logo">
+        <svg width="36" height="36" viewBox="0 0 40 40" fill="none">
+          <defs><linearGradient id="sG" x1="0%" y1="100%" x2="100%" y2="0%">
+            <stop offset="0%" stop-color="#5B6FE8"/><stop offset="55%" stop-color="#9B5DE5"/><stop offset="100%" stop-color="#F368A8"/>
+          </linearGradient></defs>
+          <path d="M8 20 a8 8 0 1 1 8 8 L16 12 L16 28" stroke="url(#sG)" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+          <line x1="16" y1="20" x2="28" y2="20" stroke="url(#sG)" stroke-width="3" stroke-linecap="round"/>
+          <circle cx="28" cy="12" r="3" fill="#F368A8"/>
+          <circle cx="32" cy="20" r="3" fill="#F368A8"/>
+          <circle cx="28" cy="28" r="3" fill="#F368A8"/>
+        </svg>
+        <span class="brand-text">amplr</span>
+      </a>
+
+      <div class="auth-header">
+        <h1 id="authTitle">Create your account</h1>
+        <p id="authSubtitle">Start posting to 50+ groups on autopilot.</p>
+      </div>
+
+      <div class="auth-error" id="authError"></div>
+
+      <form id="authForm" onsubmit="return false">
+        <div class="form-group name-field" id="nameField">
+          <label>Name</label>
+          <input type="text" id="authName" placeholder="Your name" autocomplete="name" />
+        </div>
+        <div class="form-group">
+          <label>Email</label>
+          <input type="email" id="authEmail" placeholder="you@example.com" autocomplete="email" required />
+        </div>
+        <div class="form-group">
+          <label>Password</label>
+          <input type="password" id="authPassword" placeholder="Create a password" autocomplete="new-password" required />
+        </div>
+        <button class="auth-submit" id="authSubmit" onclick="handleAuth()">Create Account</button>
+      </form>
+
+      <div class="auth-toggle" id="authToggle">
+        Already have an account? <a onclick="toggleMode()">Sign in</a>
+      </div>
+
+      <div class="auth-footer">
+        By continuing you agree to our <a href="#">Terms</a> and <a href="#">Privacy Policy</a>.
+      </div>
     </div>
 
-    <div class="auth-error" id="authError"></div>
+    <!-- ═══ SETUP VIEW (after auth) ═══ -->
+    <div id="setupView" class="setup-view">
+      <a class="auth-logo">
+        <svg width="36" height="36" viewBox="0 0 40 40" fill="none">
+          <defs><linearGradient id="sG2" x1="0%" y1="100%" x2="100%" y2="0%">
+            <stop offset="0%" stop-color="#5B6FE8"/><stop offset="55%" stop-color="#9B5DE5"/><stop offset="100%" stop-color="#F368A8"/>
+          </linearGradient></defs>
+          <path d="M8 20 a8 8 0 1 1 8 8 L16 12 L16 28" stroke="url(#sG2)" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+          <line x1="16" y1="20" x2="28" y2="20" stroke="url(#sG2)" stroke-width="3" stroke-linecap="round"/>
+          <circle cx="28" cy="12" r="3" fill="#F368A8"/>
+          <circle cx="32" cy="20" r="3" fill="#F368A8"/>
+          <circle cx="28" cy="28" r="3" fill="#F368A8"/>
+        </svg>
+        <span class="brand-text">amplr</span>
+      </a>
 
-    <form id="authForm" onsubmit="return false">
-      <div class="form-group name-field" id="nameField">
-        <label>Name</label>
-        <input type="text" id="authName" placeholder="Your name" autocomplete="name" />
+      <div class="auth-header">
+        <h1>Almost there</h1>
+        <p>Pair your Chrome extension in 2 steps.</p>
       </div>
-      <div class="form-group">
-        <label>Email</label>
-        <input type="email" id="authEmail" placeholder="you@example.com" autocomplete="email" required />
-      </div>
-      <div class="form-group">
-        <label>Password</label>
-        <input type="password" id="authPassword" placeholder="Create a password" autocomplete="new-password" required />
-      </div>
-      <button class="auth-submit" id="authSubmit" onclick="handleAuth()">Create Account</button>
-    </form>
 
-    <div class="auth-toggle" id="authToggle">
-      Already have an account? <a onclick="toggleMode()">Sign in</a>
+      <!-- Step 1: Install extension -->
+      <div class="setup-step">
+        <span class="setup-step-num">1</span><h3>Install the extension</h3>
+        <p>Download the extension, then go to <code>chrome://extensions</code>, turn on <strong>Developer mode</strong> (top right), and click <strong>Load unpacked</strong>. Select the downloaded folder.</p>
+        <a href="https://github.com/jack108510/jsw-multipost/archive/refs/heads/main.zip" class="setup-cta" style="margin-top:14px;">Download Extension</a>
+      </div>
+
+      <!-- Step 2: Enter pairing code -->
+      <div class="setup-step">
+        <span class="setup-step-num">2</span><h3>Enter this code in the extension</h3>
+        <p>Click the extension icon, go to the <strong>Dashboard</strong> tab, and type the code below.</p>
+        <div class="pairing-code-box">
+          <div class="pairing-code-display" id="pairingCode" onclick="copyCode()">——————</div>
+          <div class="pairing-code-label" id="pairingLabel">Generating...</div>
+        </div>
+      </div>
+
+      <a href="dashboard.html" class="setup-cta">Go to Dashboard</a>
     </div>
 
-    <div class="auth-footer">
-      By continuing you agree to our <a href="#">Terms</a> and <a href="#">Privacy Policy</a>.
-    </div>
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -149,10 +237,20 @@
     const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
     let mode = 'signup';
 
-    // Redirect if already authenticated
+    // Redirect if already authenticated AND paired
     (async () => {
       const { data } = await sb.auth.getSession();
-      if (data.session) window.location.href = 'dashboard.html';
+      if (data.session) {
+        // Check if they have a pairing code already
+        const { data: settings } = await sb.from('jsw_settings')
+          .select('pairing_code').eq('user_id', data.session.user.id).maybeSingle();
+        if (settings?.pairing_code) {
+          window.location.href = 'dashboard.html';
+        } else {
+          // Logged in but not paired — show setup
+          showSetup(data.session.user);
+        }
+      }
     })();
 
     function toggleMode() {
@@ -172,20 +270,17 @@
 
     function showError(msg) {
       const el = document.getElementById('authError');
-      el.textContent = msg;
-      el.classList.add('show');
+      el.textContent = msg; el.classList.add('show');
     }
 
     async function handleAuth() {
       const email = document.getElementById('authEmail').value.trim();
       const password = document.getElementById('authPassword').value;
-
       if (!email || !email.includes('@')) { showError('Enter a valid email address.'); return; }
       if (password.length < 6) { showError('Password must be at least 6 characters.'); return; }
 
       const btn = document.getElementById('authSubmit');
-      btn.disabled = true;
-      btn.textContent = mode === 'signup' ? 'Creating...' : 'Signing in...';
+      btn.disabled = true; btn.textContent = mode === 'signup' ? 'Creating...' : 'Signing in...';
 
       try {
         let result;
@@ -198,12 +293,11 @@
 
         if (mode === 'signup' && result.data?.user && !result.data?.session) {
           showError('Check your email to confirm your account, then sign in.');
-          btn.disabled = false;
-          btn.textContent = 'Create Account';
+          btn.disabled = false; btn.textContent = 'Create Account';
           return;
         }
         if (result.data?.session) {
-          window.location.href = 'dashboard.html';
+          showSetup(result.data.user);
         }
       } catch (err) {
         showError(err.message || 'Authentication failed');
@@ -212,9 +306,48 @@
       }
     }
 
+    // ─── Setup view ───
+    async function showSetup(user) {
+      document.getElementById('authView').style.display = 'none';
+      document.getElementById('setupView').classList.add('show');
+
+      // Generate pairing code
+      const code = Math.random().toString(36).substring(2, 8).toUpperCase();
+
+      // Store in jsw_settings so extension can find it
+      const { error } = await sb.from('jsw_settings').upsert({
+        user_id: user.id, pairing_code: code,
+        ai_provider: 'openai', ai_model: 'gpt-4o-mini',
+        default_delay: 30, ai_enabled: false,
+      });
+
+      if (error) {
+        document.getElementById('pairingLabel').textContent = 'Error — try again';
+        return;
+      }
+
+      // Also store in amplr_data
+      await sb.from('amplr_data').upsert({
+        user_id: user.id, key: 'settings',
+        value: { pairing_code: code },
+        updated_at: new Date().toISOString(),
+      });
+
+      document.getElementById('pairingCode').textContent = code;
+      document.getElementById('pairingLabel').textContent = 'Tap to copy';
+    }
+
+    function copyCode() {
+      const code = document.getElementById('pairingCode').textContent;
+      navigator.clipboard.writeText(code).then(() => {
+        const label = document.getElementById('pairingLabel');
+        label.textContent = 'Copied!';
+        setTimeout(() => label.textContent = 'Tap to copy', 2000);
+      });
+    }
+
     document.getElementById('authForm').addEventListener('submit', (e) => {
-      e.preventDefault();
-      handleAuth();
+      e.preventDefault(); handleAuth();
     });
   </script>
 
