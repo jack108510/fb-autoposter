@@ -111,7 +111,9 @@ async function sbGet(key) {
 }
 
 async function sbSet(key, value) {
-  await sb.from('amplr_data').upsert({ user_id: user.id, key, value, updated_at: new Date().toISOString() });
+  const { error } = await sb.from('amplr_data').upsert({ user_id: user.id, key, value, updated_at: new Date().toISOString() });
+  if (error) console.error('[Amplr] sbSet error:', key, error.message);
+  return error;
 }
 
 async function checkConn() {
@@ -602,33 +604,39 @@ function extractGroupName(url) {
 }
 
 async function addGroupFromInput() {
-  const input = document.getElementById('groupUrlInput');
-  let url = input.value.trim();
-  if (!url) return toast('Enter a group URL');
+  try {
+    const input = document.getElementById('groupUrlInput');
+    if (!input) return;
+    let url = input.value.trim();
+    if (!url) return toast('Enter a group URL');
 
-  // Normalize URL
-  if (!url.startsWith('http')) url = 'https://www.facebook.com/groups/' + url;
-  url = url.replace(/\/$/, '');
+    // Normalize URL
+    if (!url.startsWith('http')) url = 'https://www.facebook.com/groups/' + url;
+    url = url.replace(/\/$/, '');
 
-  // Check for duplicates
-  const groups = cachedData.groups || [];
-  if (groups.some(g => g.url === url)) return toast('Already added');
+    // Check for duplicates
+    const groups = cachedData.groups || [];
+    if (groups.some(g => g.url === url)) return toast('Already added');
 
-  // Auto-detect name
-  let name = extractGroupName(url);
-  if (!name) {
-    // Try to fetch the page title
-    name = await fetchGroupName(url);
+    // Auto-detect name
+    let name = extractGroupName(url);
+    if (!name) name = url.split('/').pop() || url;
+
+    groups.push({ url, name });
+    cachedData.groups = groups;
+
+    const err = await sbSet('groups', groups);
+    if (err) throw new Error(err.message);
+
+    input.value = '';
+    const hint = document.getElementById('groupAutoName');
+    if (hint) hint.style.display = 'none';
+    toast('Group added');
+    loadGroups();
+  } catch (e) {
+    console.error('[Amplr] addGroup error:', e);
+    toast('Error: ' + e.message);
   }
-
-  groups.push({ url, name: name || url.split('/').pop() });
-  cachedData.groups = groups;
-  await sbSet('groups', groups);
-
-  input.value = '';
-  document.getElementById('groupAutoName').style.display = 'none';
-  toast('Group added');
-  loadGroups();
 }
 
 // Fetch group name by scraping the FB page title (best-effort, may be blocked by FB)
@@ -643,12 +651,18 @@ async function fetchGroupName(url) {
 }
 
 async function removeGroup(url) {
-  if (!confirm('Remove this group?')) return;
-  const groups = (cachedData.groups || []).filter(g => g.url !== url);
-  cachedData.groups = groups;
-  await sbSet('groups', groups);
-  loadGroups();
-  toast('Removed');
+  try {
+    if (!confirm('Remove this group?')) return;
+    const groups = (cachedData.groups || []).filter(g => g.url !== url);
+    cachedData.groups = groups;
+    const err = await sbSet('groups', groups);
+    if (err) throw new Error(err.message);
+    loadGroups();
+    toast('Removed');
+  } catch (e) {
+    console.error('[Amplr] removeGroup error:', e);
+    toast('Error: ' + e.message);
+  }
 }
 
 // ═══ LOGS ═══
