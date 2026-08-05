@@ -404,7 +404,7 @@
   <!-- Connect modal -->
   <div class="modal-bg" id="connectModal">
     <div class="modal">
-      <h2>🔌 Connect Extension</h2>
+      <h2> Connect Extension</h2>
       <p>Pair this dashboard with the Chrome extension to start scheduling posts.</p>
       <div class="modal-steps">
         1. Open <code>chrome://extensions</code><br>
@@ -416,7 +416,7 @@
         <label>Extension ID</label>
         <input type="text" id="extIdInput" placeholder="abcdefghijklmnopqrstuvwxyz..." />
       </div>
-      <button class="btn btn-primary btn-block" onclick="doConnect()">🔗 Connect</button>
+      <button class="btn btn-primary btn-block" onclick="doConnect()"> Connect</button>
       <button class="btn btn-ghost btn-block" style="margin-top:6px;" onclick="closeModal()">Cancel</button>
     </div>
   </div>
@@ -442,22 +442,22 @@
       </div>
       <div class="nav">
         <div class="nav-section">Overview</div>
-        <div class="nav-item active" data-page="dashboard"><span class="icon">📊</span> Dashboard</div>
-        <div class="nav-item" data-page="calendar"><span class="icon">📅</span> Calendar</div>
+        <div class="nav-item active" data-page="dashboard"><span class="icon"></span> Dashboard</div>
+        <div class="nav-item" data-page="calendar"><span class="icon"></span> Calendar</div>
         
         <div class="nav-section">Content</div>
-        <div class="nav-item" data-page="create"><span class="icon">✏️</span> Create Post</div>
-        <div class="nav-item" data-page="scheduled"><span class="icon">📋</span> Scheduled <span class="nav-badge" id="navCount">0</span></div>
-        <div class="nav-item" data-page="templates"><span class="icon">📚</span> Templates</div>
+        <div class="nav-item" data-page="create"><span class="icon"></span> Create Post</div>
+        <div class="nav-item" data-page="scheduled"><span class="icon"></span> Scheduled <span class="nav-badge" id="navCount">0</span></div>
+        <div class="nav-item" data-page="templates"><span class="icon"></span> Templates</div>
         
         <div class="nav-section">Manage</div>
-        <div class="nav-item" data-page="groups"><span class="icon">👥</span> Groups</div>
-        <div class="nav-item" data-page="logs"><span class="icon">📜</span> History</div>
-        <div class="nav-item" data-page="settings"><span class="icon">⚙️</span> Settings</div>
+        <div class="nav-item" data-page="groups"><span class="icon"></span> Groups</div>
+        <div class="nav-item" data-page="logs"><span class="icon"></span> History</div>
+        <div class="nav-item" data-page="settings"><span class="icon"></span> Settings</div>
       </div>
       <div class="sidebar-footer">
         <div class="theme-toggle" onclick="toggleTheme()">
-          <span>🌙 Dark Mode</span>
+          <span> Dark Mode</span>
           <div class="toggle-switch" id="themeToggle"></div>
         </div>
       </div>
@@ -472,22 +472,22 @@
         
         <div class="stats-row">
           <div class="stat blue">
-            <div class="stat-icon">📋</div>
+            <div class="stat-icon"></div>
             <div class="stat-val" id="sActive">—</div>
             <div class="stat-lbl">Active Posts</div>
           </div>
           <div class="stat green">
-            <div class="stat-icon">✅</div>
+            <div class="stat-icon"></div>
             <div class="stat-val" id="sSuccess">—</div>
             <div class="stat-lbl">Successful</div>
           </div>
           <div class="stat red">
-            <div class="stat-icon">❌</div>
+            <div class="stat-icon"></div>
             <div class="stat-val" id="sFailed">—</div>
             <div class="stat-lbl">Failed</div>
           </div>
           <div class="stat purple">
-            <div class="stat-icon">👥</div>
+            <div class="stat-icon"></div>
             <div class="stat-val" id="sGroups">—</div>
             <div class="stat-lbl">Groups</div>
           </div>
@@ -497,7 +497,7 @@
           <div>
             <div class="card">
               <div class="card-header">
-                <div class="card-title">📈 Success Rate (Last 7 Days)</div>
+                <div class="card-title"> Success Rate (Last 7 Days)</div>
               </div>
               <div class="chart-bar" id="chart7day">
                 <div class="chart-col"><div class="chart-bar-fill green" style="height:0%"></div><div class="chart-label">—</div></div>
@@ -505,7 +505,7 @@
             </div>
             <div class="card">
               <div class="card-header">
-                <div class="card-title">🕐 Upcoming Posts</div>
+                <div class="card-title"> Upcoming Posts</div>
                 <button class="btn btn-primary btn-sm" onclick="nav('create')">+ New</button>
               </div>
               <div id="dashUpcoming"></div>
@@ -514,15 +514,15 @@
           <div>
             <div class="card">
               <div class="card-header">
-                <div class="card-title">⚡ Quick Actions</div>
+                <div class="card-title"> Quick Actions</div>
               </div>
-              <button class="btn btn-primary btn-block" style="margin-bottom:8px;" onclick="nav('create')">✏️ New Post</button>
-              <button class="btn btn-secondary btn-block" style="margin-bottom:8px;" onclick="nav('calendar')">📅 View Calendar</button>
-              <button class="btn btn-secondary btn-block" onclick="nav('templates')">📚 Templates</button>
+              <button class="btn btn-primary btn-block" style="margin-bottom:8px;" onclick="nav('create')"> New Post</button>
+              <button class="btn btn-secondary btn-block" style="margin-bottom:8px;" onclick="nav('calendar')"> View Calendar</button>
+              <button class="btn btn-secondary btn-block" onclick="nav('templates')"> Templates</button>
             </div>
             <div class="card">
               <div class="card-header">
-                <div class="card-title">🏆 Top Groups</div>
+                <div class="card-title"> Top Groups</div>
               </div>
               <div id="dashTopGroups"></div>
             </div>
@@ -559,13 +559,13 @@
                 <label>Post Content <span class="spin-badge" id="spinInfo" style="display:none;">SPINTAX ✓</span></label>
                 <textarea id="createText" placeholder="Write your post... Use {option1|option2|option3} for spintax variations" style="min-height:180px;"></textarea>
                 <div class="hint">
-                  💡 <b>Spintax:</b> Wrap alternate text in curly braces: <code>{Hey|Hi|Hello}</code> — each group gets a unique variation to avoid duplicate detection
+                   <b>Spintax:</b> Wrap alternate text in curly braces: <code>{Hey|Hi|Hello}</code> — each group gets a unique variation to avoid duplicate detection
                 </div>
               </div>
               <div class="form-group">
                 <label>Groups</label>
                 <div id="createGroups"></div>
-                <button class="add-group-btn" onclick="addGroupRow()">➕ Add Group</button>
+                <button class="add-group-btn" onclick="addGroupRow()"> Add Group</button>
               </div>
             </div>
           </div>
@@ -580,9 +580,9 @@
                 <div class="days" id="createDays"></div>
               </div>
               <div class="divider"></div>
-              <button class="btn btn-primary btn-block" style="margin-bottom:8px;" onclick="savePost()">💾 Save & Schedule</button>
-              <button class="btn btn-secondary btn-block" style="margin-bottom:8px;" onclick="postNow()">🚀 Post Now</button>
-              <button class="btn btn-ghost btn-block" onclick="saveTemplate()">💾 Save as Template</button>
+              <button class="btn btn-primary btn-block" style="margin-bottom:8px;" onclick="savePost()"> Save & Schedule</button>
+              <button class="btn btn-secondary btn-block" style="margin-bottom:8px;" onclick="postNow()"> Post Now</button>
+              <button class="btn btn-ghost btn-block" onclick="saveTemplate()"> Save as Template</button>
             </div>
             <div class="card">
               <div class="card-title" style="margin-bottom: 10px;">Quick Templates</div>
@@ -626,7 +626,7 @@
             <tbody id="groupsBody"></tbody>
           </table>
           <div id="groupsEmpty" class="empty hidden">
-            <span class="emoji">👥</span>
+            <span class="emoji"></span>
             <p>No groups yet. Add groups when creating a post, or click + Add Group.</p>
           </div>
         </div>
@@ -640,8 +640,8 @@
           <div class="card-header">
             <div class="card-title">Activity Log</div>
             <div style="display:flex;gap:8px;">
-              <button class="btn btn-secondary btn-sm" onclick="exportLogs()">📥 Export CSV</button>
-              <button class="btn btn-danger btn-sm" onclick="clearLogs()">🗑 Clear</button>
+              <button class="btn btn-secondary btn-sm" onclick="exportLogs()"> Export CSV</button>
+              <button class="btn btn-danger btn-sm" onclick="clearLogs()"> Clear</button>
             </div>
           </div>
           <div id="logsList"></div>
@@ -654,7 +654,7 @@
         <div class="page-subtitle">Extension connection and posting configuration</div>
         
         <div class="card">
-          <div class="card-title" style="margin-bottom:14px;">🔌 Connection</div>
+          <div class="card-title" style="margin-bottom:14px;"> Connection</div>
           <div class="form-group">
             <label>Extension ID</label>
             <div class="row">
@@ -669,7 +669,7 @@
         </div>
         
         <div class="card">
-          <div class="card-title" style="margin-bottom:14px;">⚙️ Posting Settings</div>
+          <div class="card-title" style="margin-bottom:14px;"> Posting Settings</div>
           <div class="row">
             <div class="form-group">
               <label>Delay Between Groups (sec)</label>
@@ -695,14 +695,14 @@
               <option value="mobile">Mobile FB only</option>
             </select>
           </div>
-          <button class="btn btn-primary" onclick="saveSettings()">💾 Save Settings</button>
+          <button class="btn btn-primary" onclick="saveSettings()"> Save Settings</button>
         </div>
         
         <div class="card">
-          <div class="card-title" style="margin-bottom:14px;color:var(--red);">⚠️ Danger Zone</div>
+          <div class="card-title" style="margin-bottom:14px;color:var(--red);"> Danger Zone</div>
           <div style="display:flex;gap:12px;flex-wrap:wrap;">
-            <button class="btn btn-danger" onclick="deleteAllPosts()">🗑 Delete All Posts</button>
-            <button class="btn btn-danger" onclick="resetAll()">🔄 Factory Reset</button>
+            <button class="btn btn-danger" onclick="deleteAllPosts()"> Delete All Posts</button>
+            <button class="btn btn-danger" onclick="resetAll()"> Factory Reset</button>
           </div>
         </div>
       </div>
