@@ -618,8 +618,10 @@ async function loadLogs() {
 }
 
 // ═══ SETTINGS ═══
-function loadSettings() {
-  const s = cachedData.settings || {};
+async function loadSettings() {
+  // Always fetch fresh settings to ensure pairing code is shown
+  cachedData.settings = await sbGet('settings') || cachedData.settings || {};
+  const s = cachedData.settings;
   // Show pairing code section
   const codeEl = document.getElementById('pairingCodeDisplay');
   if (codeEl) {
