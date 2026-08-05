@@ -351,10 +351,10 @@ document.addEventListener('input', (e) => {
 async function savePost() {
   const text = document.getElementById('createText').value.trim();
   const time = document.getElementById('createTime').value;
-  if (!text) return toast('Post text required');
-  if (selDays.length === 0) return toast('Select at least one day');
-  const groups = getGroupsFromForm();
-  if (groups.length === 0) return toast('Add at least one group');
+  if (!text) return toast('Write something first');
+  if (selDays.length === 0) return toast('Pick at least one day');
+  const groups = getSelectedGroups();
+  if (groups.length === 0) return toast('Select at least one group');
   const post = {
     id: Date.now().toString(), text, imageUrl: '', groups,
     schedule: { time, days: [...selDays] }, enabled: true,
@@ -363,7 +363,8 @@ async function savePost() {
   };
   const posts = [...(cachedData.posts || []), post];
   cachedData.posts = posts;
-  await sbSet('posts', posts);
+  const err = await sbSet('posts', posts);
+  if (err) return toast('Error: ' + err.message);
   toast('Scheduled!');
   document.getElementById('createText').value = '';
   document.getElementById('spinInfo').style.display = 'none';
@@ -372,23 +373,36 @@ async function savePost() {
 
 async function postNow() {
   const text = document.getElementById('createText').value.trim();
-  if (!text) return toast('Post text required');
-  const groups = getGroupsFromForm();
-  if (groups.length === 0) return toast('Add at least one group');
+  if (!text) return toast('Write something first');
+  const groups = getSelectedGroups();
+  if (groups.length === 0) return toast('Select at least one group');
+
+  const waiting = document.getElementById('postWaiting');
+  if (waiting) waiting.style.display = 'block';
+
   try {
-    await createJob({ text, imageUrl: '', groups });
-    toast('Post job sent — extension will pick it up');
-  } catch (e) { toast(e.message); }
+    const { error } = await sb.from('jsw_post_jobs').insert({
+      user_id: user.id,
+      message: text,
+      groups: groups.map(g => g.url),
+      delay: cachedData.settings?.delay || 30,
+      status: 'pending',
+    });
+    if (error) throw new Error(error.message);
+
+    if (waiting) waiting.style.display = 'none';
+    toast('Sent — extension will post it');
+    document.getElementById('createText').value = '';
+    document.getElementById('spinInfo').style.display = 'none';
+    document.querySelectorAll('#createGroupSelect .group-chip.selected').forEach(c => c.classList.remove('selected'));
+  } catch (e) {
+    if (waiting) waiting.style.display = 'none';
+    toast('Error: ' + e.message);
+  }
 }
 
 function getGroupsFromForm() {
-  const groups = [];
-  document.querySelectorAll('#createGroups .group-entry').forEach(e => {
-    const url = e.querySelector('.gu').value.trim();
-    const name = e.querySelector('.gn').value.trim() || url;
-    if (url) groups.push({ url, name });
-  });
-  return groups;
+  return getSelectedGroups();
 }
 
 async function saveTemplate() {
@@ -404,6 +418,8 @@ async function saveTemplate() {
 }
 
 async function loadTemplates() {
+  cachedData = await fetchAll();
+  renderGroupChips();
   const templates = cachedData.templates || [];
   document.getElementById('quickTemplates').innerHTML = templates.length === 0
     ? '<div style="font-size:12px;color:var(--text-3);">No saved templates yet</div>'
@@ -412,6 +428,44 @@ async function loadTemplates() {
         <div class="template-name">${esc(t.name)}</div>
         <div class="template-preview">${esc(t.text.substring(0, 80))}...</div>
       </div>`).join('');
+}
+
+function renderGroupChips() {
+  const groups = cachedData.groups || [];
+  const container = document.getElementById('createGroupSelect');
+  const noGroups = document.getElementById('createNoGroups');
+  if (!container) return;
+
+  if (groups.length === 0) {
+    container.innerHTML = '';
+    if (noGroups) noGroups.style.display = 'block';
+    return;
+  }
+  if (noGroups) noGroups.style.display = 'none';
+
+  container.innerHTML = groups.map((g, i) => {
+    const c = GCOLORS[i % GCOLORS.length];
+    return `<div class="group-chip" onclick="this.classList.toggle('selected')" data-url="${esc(g.url)}" data-name="${esc(g.name)}"
+      style="display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border-radius:20px;font-size:12px;cursor:pointer;border:1px solid var(--border);background:var(--surface);transition:all .15s;">
+      <div style="width:8px;height:8px;border-radius:50%;background:${c};"></div>
+      ${esc(g.name)}
+    </div>`;
+  }).join('');
+
+  // Add selected style dynamically
+  if (!document.getElementById('chipSelectedStyle')) {
+    const style = document.createElement('style');
+    style.id = 'chipSelectedStyle';
+    style.textContent = '.group-chip.selected { background: rgba(91,111,232,.15) !important; border-color: #5B6FE8 !important; color: #5B6FE8; }';
+    document.head.appendChild(style);
+  }
+}
+
+function getSelectedGroups() {
+  return [...document.querySelectorAll('#createGroupSelect .group-chip.selected')].map(c => ({
+    url: c.dataset.url,
+    name: c.dataset.name,
+  }));
 }
 
 function useTemplate(id) {

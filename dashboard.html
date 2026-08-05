@@ -89,6 +89,7 @@
     .conn-dot.on { background: var(--green); box-shadow: 0 0 6px var(--green); }
     .conn-dot.off { background: var(--red); animation: pulse 1.5s infinite; }
     @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: .3; } }
+    @keyframes spin { to { transform: rotate(360deg); } }
     
     /* ─── Layout ─── */
     .app { display: flex; min-height: 100vh; }
@@ -569,7 +570,7 @@
       <!-- ═══ CREATE ═══ -->
       <div class="page" id="page-create">
         <div class="page-title">Create Post</div>
-        <div class="page-subtitle">Write your content, pick groups, set a schedule</div>
+        <div class="page-subtitle">Write your content and post to your groups</div>
         <div class="two-col">
           <div>
             <div class="card">
@@ -581,25 +582,31 @@
                 </div>
               </div>
               <div class="form-group">
-                <label>Groups</label>
-                <div id="createGroups"></div>
-                <button class="add-group-btn" onclick="addGroupRow()">Add Group</button>
+                <label>Post to Groups</label>
+                <div id="createGroupSelect" style="display:flex;flex-wrap:wrap;gap:8px;"></div>
+                <div id="createNoGroups" style="font-size:12px;color:var(--text-3);">
+                  No groups yet. <a href="#" onclick="nav('groups');return false;" style="color:#5B6FE8;">Add some first &rarr;</a>
+                </div>
               </div>
             </div>
           </div>
           <div>
             <div class="card">
+              <button class="btn btn-primary btn-block" style="margin-bottom:8px;padding:14px;" onclick="postNow()">Post Now</button>
+              <div id="postWaiting" style="display:none;text-align:center;padding:20px 0;color:var(--text-2);font-size:13px;">
+                <div style="display:inline-block;width:20px;height:20px;border:2px solid var(--border);border-top-color:#5B6FE8;border-radius:50%;animation:spin 1s linear infinite;margin-bottom:8px;"></div>
+                <div>Sending to extension...</div>
+              </div>
+              <div class="divider"></div>
               <div class="form-group">
-                <label>Schedule Time</label>
+                <label>Schedule (optional)</label>
                 <input type="time" id="createTime" value="09:00" />
               </div>
               <div class="form-group">
                 <label>Repeat Days</label>
                 <div class="days" id="createDays"></div>
               </div>
-              <div class="divider"></div>
-              <button class="btn btn-primary btn-block" style="margin-bottom:8px;" onclick="savePost()">Save & Schedule</button>
-              <button class="btn btn-secondary btn-block" style="margin-bottom:8px;" onclick="postNow()">Post Now</button>
+              <button class="btn btn-secondary btn-block" style="margin-bottom:8px;" onclick="savePost()">Save Schedule</button>
               <button class="btn btn-ghost btn-block" onclick="saveTemplate()">Save as Template</button>
             </div>
             <div class="card">
