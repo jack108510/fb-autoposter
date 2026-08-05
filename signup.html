@@ -142,18 +142,22 @@
     </div>
   </div>
 
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script>
+    const SUPABASE_URL = 'https://xacehhtgvubcqdoltazg.supabase.co';
+    const SUPABASE_KEY = 'sb_publishable_1TNu5hqotJ7GGQXfjliivQ_ttK51EAA';
+    const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
     let mode = 'signup';
 
     // Redirect if already authenticated
-    if (localStorage.getItem('amplr_auth')) {
-      window.location.href = 'dashboard.html';
-    }
+    (async () => {
+      const { data } = await sb.auth.getSession();
+      if (data.session) window.location.href = 'dashboard.html';
+    })();
 
     function toggleMode() {
       mode = mode === 'signup' ? 'login' : 'signup';
       const isSignup = mode === 'signup';
-
       document.getElementById('authTitle').textContent = isSignup ? 'Create your account' : 'Welcome back';
       document.getElementById('authSubtitle').textContent = isSignup ? 'Start posting to 50+ groups on autopilot.' : 'Sign in to your dashboard.';
       document.getElementById('nameField').classList.toggle('show', isSignup);
@@ -163,7 +167,6 @@
       document.getElementById('authToggle').innerHTML = isSignup
         ? 'Already have an account? <a onclick="toggleMode()">Sign in</a>'
         : 'Don\'t have an account? <a onclick="toggleMode()">Create one</a>';
-
       document.getElementById('authError').classList.remove('show');
     }
 
@@ -173,40 +176,42 @@
       el.classList.add('show');
     }
 
-    function handleAuth() {
+    async function handleAuth() {
       const email = document.getElementById('authEmail').value.trim();
       const password = document.getElementById('authPassword').value;
 
-      if (!email || !email.includes('@')) {
-        showError('Enter a valid email address.');
-        return;
-      }
-      if (password.length < 6) {
-        showError(mode === 'signup' ? 'Password must be at least 6 characters.' : 'Enter your password.');
-        return;
-      }
+      if (!email || !email.includes('@')) { showError('Enter a valid email address.'); return; }
+      if (password.length < 6) { showError('Password must be at least 6 characters.'); return; }
 
-      if (mode === 'signup') {
-        const name = document.getElementById('authName').value.trim() || email.split('@')[0];
-        localStorage.setItem('amplr_auth', JSON.stringify({
-          name, email, createdAt: new Date().toISOString()
-        }));
-      } else {
-        // Sign in — store session
-        const existing = JSON.parse(localStorage.getItem('amplr_auth') || '{}');
-        if (existing.email && existing.email !== email) {
-          // Allow re-login with different email, overwrite
+      const btn = document.getElementById('authSubmit');
+      btn.disabled = true;
+      btn.textContent = mode === 'signup' ? 'Creating...' : 'Signing in...';
+
+      try {
+        let result;
+        if (mode === 'signup') {
+          result = await sb.auth.signUp({ email, password });
+        } else {
+          result = await sb.auth.signInWithPassword({ email, password });
         }
-        localStorage.setItem('amplr_auth', JSON.stringify({
-          name: existing.name || email.split('@')[0],
-          email, createdAt: existing.createdAt || new Date().toISOString()
-        }));
-      }
+        if (result.error) throw result.error;
 
-      window.location.href = 'dashboard.html';
+        if (mode === 'signup' && result.data?.user && !result.data?.session) {
+          showError('Check your email to confirm your account, then sign in.');
+          btn.disabled = false;
+          btn.textContent = 'Create Account';
+          return;
+        }
+        if (result.data?.session) {
+          window.location.href = 'dashboard.html';
+        }
+      } catch (err) {
+        showError(err.message || 'Authentication failed');
+        btn.disabled = false;
+        btn.textContent = mode === 'signup' ? 'Create Account' : 'Sign In';
+      }
     }
 
-    // Enter key submits
     document.getElementById('authForm').addEventListener('submit', (e) => {
       e.preventDefault();
       handleAuth();
