@@ -46,6 +46,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     footer.insertBefore(userInfo, footer.firstChild);
   }
 
+  // Load settings + pairing code immediately
+  cachedData = await fetchAll();
+  loadSettings();
+  
   await checkConn();
   setInterval(checkConn, 30000);
   startScheduleChecker();
@@ -641,6 +645,18 @@ function loadSettings() {
     hintEl.style.display = connected ? 'none' : 'block';
   }
 
+  // Show/hide pairing banner on dashboard
+  const banner = document.getElementById('pairingBanner');
+  const bannerCode = document.getElementById('bannerCode');
+  if (banner && bannerCode) {
+    if (!connected && s.pairing_code) {
+      banner.style.display = 'block';
+      bannerCode.textContent = s.pairing_code;
+    } else {
+      banner.style.display = 'none';
+    }
+  }
+
   if (s.delay) document.getElementById('setDelay').value = s.delay;
   if (s.maxGroups) document.getElementById('setMaxGroups').value = s.maxGroups;
   if (s.jitter) document.getElementById('setJitter').value = s.jitter;
@@ -732,6 +748,15 @@ function startScheduleChecker() {
 async function logout() {
   await sb.auth.signOut();
   window.location.href = 'signup.html';
+}
+
+// ═══ BANNER ═══
+function copyBannerCode() {
+  const code = document.getElementById('bannerCode')?.textContent || '';
+  if (!code || code.includes('—')) return;
+  navigator.clipboard.writeText(code).then(() => {
+    toast('Code copied!');
+  });
 }
 
 // ═══ MODAL ═══

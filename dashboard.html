@@ -474,6 +474,20 @@
         <div class="page-title">Dashboard</div>
         <div class="page-subtitle">Overview of your Facebook Groups posting activity</div>
         
+        <!-- Pairing banner (shown when not connected) -->
+        <div id="pairingBanner" style="display:none;background:linear-gradient(120deg,rgba(91,111,232,.1),rgba(155,93,229,.1),rgba(243,104,168,.1));border:1px solid var(--border);border-radius:14px;padding:20px;margin-bottom:20px;">
+          <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:16px;">
+            <div>
+              <div style="font-size:15px;font-weight:700;margin-bottom:4px;">Pair your extension</div>
+              <div style="font-size:13px;color:var(--text-2);">Enter this code in your Chrome extension to connect.</div>
+            </div>
+            <div style="display:flex;align-items:center;gap:16px;">
+              <div id="bannerCode" style="font-size:32px;font-weight:800;letter-spacing:6px;font-family:'SF Mono','Monaco','Menlo',monospace;background:linear-gradient(120deg,#5B6FE8,#9B5DE5,#F368A8);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;cursor:pointer;" onclick="copyBannerCode()">——————</div>
+              <button class="btn btn-primary" onclick="nav('settings')">Setup</button>
+            </div>
+          </div>
+        </div>
+        
         <div class="stats-row">
           <div class="stat blue">
             
