@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Postwave — Post to 50+ Facebook Groups on Autopilot</title>
-  <meta name="description" content="Postwave automates your Facebook Groups marketing. Write once, spin variations, schedule across dozens of groups, and track results — all from one dashboard.">
+  <title>Amplr — Post to 50+ Facebook Groups on Autopilot</title>
+  <meta name="description" content="Amplr automates your Facebook Groups marketing. Write once, spin variations, schedule across dozens of groups, and track results — all from one dashboard.">
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
 
@@ -25,8 +25,8 @@
       --purple-light: rgba(139,92,246,.15);
       --pink: #ec4899;
       --yellow: #f59e0b;
-      --gradient: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 50%, #ec4899 100%);
-      --gradient-text: linear-gradient(135deg, #60a5fa 0%, #a78bfa 50%, #f472b6 100%);
+      --gradient: linear-gradient(120deg, #5B6FE8 0%, #9B5DE5 55%, #F368A8 100%);
+      --gradient-text: linear-gradient(120deg, #5B6FE8 0%, #9B5DE5 55%, #F368A8 100%);
     }
 
     html { scroll-behavior: smooth; }
@@ -46,9 +46,9 @@
       position: fixed; border-radius: 50%; filter: blur(120px);
       opacity: .3; z-index: 0; pointer-events: none;
     }
-    .orb-1 { width: 500px; height: 500px; background: var(--blue); top: -150px; right: -100px; }
-    .orb-2 { width: 400px; height: 400px; background: var(--purple); top: 400px; left: -150px; }
-    .orb-3 { width: 350px; height: 350px; background: var(--pink); top: 1200px; right: -50px; }
+    .orb-1 { width: 500px; height: 500px; background: #5B6FE8; top: -150px; right: -100px; }
+    .orb-2 { width: 400px; height: 400px; background: #9B5DE5; top: 400px; left: -150px; }
+    .orb-3 { width: 350px; height: 350px; background: #F368A8; top: 1200px; right: -50px; }
 
     /* ─── Nav ─── */
     nav {
@@ -58,10 +58,8 @@
       border-bottom: 1px solid var(--border);
     }
     .nav-logo { display: flex; align-items: center; gap: 10px; font-size: 18px; font-weight: 800; }
-    .nav-logo .logo-icon {
-      width: 32px; height: 32px; border-radius: 8px; background: var(--gradient);
-      display: flex; align-items: center; justify-content: center; font-size: 16px;
-    }
+    .nav-logo .logo-icon { width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; }
+    .nav-logo .brand-text { font-weight: 600; letter-spacing: .01em; }
     .nav-links { display: flex; align-items: center; gap: 32px; }
     .nav-links a { font-size: 14px; color: var(--text-2); font-weight: 500; transition: color .2s; }
     .nav-links a:hover { color: var(--text); }
@@ -140,15 +138,15 @@
     .mockup-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
     .mockup-stat { background: var(--surface); border-radius: 8px; padding: 14px; position: relative; }
     .mockup-stat::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px; border-radius: 8px 8px 0 0; }
-    .mockup-stat.b::before { background: var(--blue); }
+    .mockup-stat.b::before { background: #5B6FE8; }
     .mockup-stat.g::before { background: var(--green); }
-    .mockup-stat.p::before { background: var(--purple); }
+    .mockup-stat.p::before { background: #9B5DE5; }
     .mockup-stat .val { font-size: 20px; font-weight: 800; }
     .mockup-stat .lbl { font-size: 10px; color: var(--text-3); margin-top: 2px; }
     .mockup-bars { background: var(--surface); border-radius: 8px; padding: 16px; flex: 1; display: flex; align-items: flex-end; gap: 8px; }
     .mockup-bar { flex: 1; border-radius: 4px 4px 0 0; min-height: 20px; }
     .mockup-bar.g { background: var(--green); opacity: .8; }
-    .mockup-bar.b { background: var(--blue); opacity: .5; }
+    .mockup-bar.b { background: #5B6FE8; opacity: .5; }
 
     /* ─── Sections ─── */
     section { padding: 100px 0; position: relative; z-index: 1; }
@@ -320,8 +318,17 @@
   <!-- ─── Nav ─── -->
   <nav>
     <a href="/" class="nav-logo">
-      <div class="logo-icon">🌊</div>
-      Postwave
+      <div class="logo-icon">
+        <svg width="36" height="36" viewBox="0 0 40 40" fill="none">
+          <defs><linearGradient id="navG" x1="0%" y1="100%" x2="100%" y2="0%"><stop offset="0%" stop-color="#5B6FE8"/><stop offset="55%" stop-color="#9B5DE5"/><stop offset="100%" stop-color="#F368A8"/></linearGradient></defs>
+          <path d="M8 20 a8 8 0 1 1 8 8 L16 12 L16 28" stroke="url(#navG)" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+          <line x1="16" y1="20" x2="28" y2="20" stroke="url(#navG)" stroke-width="3" stroke-linecap="round"/>
+          <circle cx="28" cy="12" r="3" fill="#F368A8"/>
+          <circle cx="32" cy="20" r="3" fill="#F368A8"/>
+          <circle cx="28" cy="28" r="3" fill="#F368A8"/>
+        </svg>
+      </div>
+      <span class="brand-text">amplr</span>
     </a>
     <div class="nav-links">
       <a href="#features">Features</a>
@@ -344,7 +351,7 @@
         Post to <span class="gradient">50+ Facebook Groups</span> on autopilot.
       </h1>
       <p>
-        Write once. Postwave spins unique variations, schedules across every group, and tracks results — all from one dashboard. No manual posting. No duplicate flags.
+        Write once. Amplr spins unique variations, schedules across every group, and tracks results — all from one dashboard. No manual posting. No duplicate flags.
       </p>
       <div class="hero-ctas">
         <a href="dashboard.html" class="btn-lg btn-gradient">Launch Dashboard →</a>
@@ -360,8 +367,17 @@
         <div class="hero-mockup-inner">
           <div class="mockup-sidebar">
             <div class="ms-head">
-              <div class="icon">🌊</div>
-              Postwave
+              <div class="icon">
+                <svg width="22" height="22" viewBox="0 0 40 40" fill="none">
+                  <defs><linearGradient id="mG" x1="0%" y1="100%" x2="100%" y2="0%"><stop offset="0%" stop-color="#5B6FE8"/><stop offset="55%" stop-color="#9B5DE5"/><stop offset="100%" stop-color="#F368A8"/></linearGradient></defs>
+                  <path d="M8 20 a8 8 0 1 1 8 8 L16 12 L16 28" stroke="url(#mG)" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+                  <line x1="16" y1="20" x2="28" y2="20" stroke="url(#mG)" stroke-width="3" stroke-linecap="round"/>
+                  <circle cx="28" cy="12" r="3" fill="#F368A8"/>
+                  <circle cx="32" cy="20" r="3" fill="#F368A8"/>
+                  <circle cx="28" cy="28" r="3" fill="#F368A8"/>
+                </svg>
+              </div>
+              amplr
             </div>
             <div class="mockup-nav-item active">📊 Dashboard</div>
             <div class="mockup-nav-item">📅 Calendar</div>
@@ -429,7 +445,7 @@
       <div class="section-center">
         <div class="section-tag">⚡ Features</div>
         <h2 class="section-title center">Everything you need to scale group posting.</h2>
-        <p class="section-sub center">From writing to scheduling to tracking — Postwave handles the entire workflow so you can focus on content, not busywork.</p>
+        <p class="section-sub center">From writing to scheduling to tracking — Amplr handles the entire workflow so you can focus on content, not busywork.</p>
       </div>
       <div class="features">
         <div class="feature-card">
@@ -440,7 +456,7 @@
         <div class="feature-card">
           <div class="feature-icon">📅</div>
           <h3>Smart Scheduling</h3>
-          <p>Pick days, set times, and Postwave handles the rest. Posts go out automatically with human-like delays.</p>
+          <p>Pick days, set times, and Amplr handles the rest. Posts go out automatically with human-like delays.</p>
         </div>
         <div class="feature-card">
           <div class="feature-icon">👥</div>
@@ -488,7 +504,7 @@
         <div class="step">
           <div class="step-num">3</div>
           <h3>Posts Go Out Automatically</h3>
-          <p>Postwave delivers to each group with smart delays. Track results in the analytics dashboard.</p>
+          <p>Amplr delivers to each group with smart delays. Track results in the analytics dashboard.</p>
         </div>
       </div>
     </div>
@@ -501,7 +517,7 @@
         <div>
           <div class="section-tag">🌀 Spintax</div>
           <h2 class="section-title">One post. Hundreds of variations.</h2>
-          <p class="section-sub">Facebook flags duplicate content. Postwave's spintax engine automatically generates a unique version of your post for every single group — different wording, same message. Zero manual rewriting.</p>
+          <p class="section-sub">Facebook flags duplicate content. Amplr's spintax engine automatically generates a unique version of your post for every single group — different wording, same message. Zero manual rewriting.</p>
           <a href="dashboard.html" class="btn-lg btn-gradient" style="margin-top: 8px;">Try it free →</a>
         </div>
         <div class="split-card">
@@ -589,15 +605,15 @@
       <div class="faq-list">
         <div class="faq-item">
           <div class="faq-q" onclick="toggleFaq(this)">Is this safe for my Facebook account? <span class="arrow">⌄</span></div>
-          <div class="faq-a">Postwave uses human-like delays, randomized jitter, and smart posting strategies to mimic natural behavior. However, like any automation tool, use it responsibly and within Facebook's group posting norms.</div>
+          <div class="faq-a">Amplr uses human-like delays, randomized jitter, and smart posting strategies to mimic natural behavior. However, like any automation tool, use it responsibly and within Facebook's group posting norms.</div>
         </div>
         <div class="faq-item">
           <div class="faq-q" onclick="toggleFaq(this)">Do I need to give you my Facebook password? <span class="arrow">⌄</span></div>
-          <div class="faq-a">Never. Postwave is a Chrome extension that runs in your browser using your active Facebook session. No credentials are stored or transmitted anywhere.</div>
+          <div class="faq-a">Never. Amplr is a Chrome extension that runs in your browser using your active Facebook session. No credentials are stored or transmitted anywhere.</div>
         </div>
         <div class="faq-item">
           <div class="faq-q" onclick="toggleFaq(this)">How does spintax work? <span class="arrow">⌄</span></div>
-          <div class="faq-a">Wrap alternate phrases in curly braces separated by pipes: <code style="background:var(--surface-2);padding:2px 6px;border-radius:4px;">{Hello|Hi|Hey}</code>. Postwave randomly picks one variation per group, so every post looks unique.</div>
+          <div class="faq-a">Wrap alternate phrases in curly braces separated by pipes: <code style="background:var(--surface-2);padding:2px 6px;border-radius:4px;">{Hello|Hi|Hey}</code>. Amplr randomly picks one variation per group, so every post looks unique.</div>
         </div>
         <div class="faq-item">
           <div class="faq-q" onclick="toggleFaq(this)">Can I schedule posts for specific days? <span class="arrow">⌄</span></div>
@@ -626,10 +642,19 @@
   <footer>
     <div class="footer-left">
       <div class="nav-logo" style="font-size: 15px;">
-        <div class="logo-icon" style="width:24px;height:24px;font-size:12px;">🌊</div>
-        Postwave
+        <div class="logo-icon" style="width:24px;height:24px;">
+          <svg width="24" height="24" viewBox="0 0 40 40" fill="none">
+            <defs><linearGradient id="fG" x1="0%" y1="100%" x2="100%" y2="0%"><stop offset="0%" stop-color="#5B6FE8"/><stop offset="55%" stop-color="#9B5DE5"/><stop offset="100%" stop-color="#F368A8"/></linearGradient></defs>
+            <path d="M8 20 a8 8 0 1 1 8 8 L16 12 L16 28" stroke="url(#fG)" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+            <line x1="16" y1="20" x2="28" y2="20" stroke="url(#fG)" stroke-width="3" stroke-linecap="round"/>
+            <circle cx="28" cy="12" r="3" fill="#F368A8"/>
+            <circle cx="32" cy="20" r="3" fill="#F368A8"/>
+            <circle cx="28" cy="28" r="3" fill="#F368A8"/>
+          </svg>
+        </div>
+        <span style="font-weight:600;">amplr</span>
       </div>
-      <span style="color: var(--text-3); font-size: 12px;">© 2026 Postwave. All rights reserved.</span>
+      <span style="color: var(--text-3); font-size: 12px;">© 2026 Amplr. All rights reserved.</span>
     </div>
     <div class="footer-links">
       <a href="#features">Features</a>

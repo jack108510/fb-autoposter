@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Postwave — Dashboard</title>
+  <title>Amplr — Dashboard</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     
@@ -104,7 +104,7 @@
     }
     .brand-icon {
       width: 32px; height: 32px; border-radius: var(--radius-sm);
-      background: linear-gradient(135deg, var(--blue), var(--purple));
+      background: linear-gradient(120deg, #5B6FE8, #9B5DE5 55%, #F368A8);
       display: flex; align-items: center; justify-content: center;
       font-size: 16px; color: white;
     }
@@ -409,7 +409,7 @@
       <div class="modal-steps">
         1. Open <code>chrome://extensions</code><br>
         2. Enable <strong>Developer mode</strong><br>
-        3. Find <strong>Postwave</strong> → copy the ID<br>
+        3. Find <strong>amplr</strong> → copy the ID<br>
         4. Paste below
       </div>
       <div class="form-group">
@@ -425,9 +425,18 @@
     <!-- Sidebar -->
     <div class="sidebar" id="sidebar">
       <div class="brand">
-        <div class="brand-icon">🌊</div>
+        <div class="brand-icon" style="background:none;">
+          <svg width="30" height="30" viewBox="0 0 40 40" fill="none">
+            <defs><linearGradient id="dG" x1="0%" y1="100%" x2="100%" y2="0%"><stop offset="0%" stop-color="#5B6FE8"/><stop offset="55%" stop-color="#9B5DE5"/><stop offset="100%" stop-color="#F368A8"/></linearGradient></defs>
+            <path d="M8 20 a8 8 0 1 1 8 8 L16 12 L16 28" stroke="url(#dG)" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+            <line x1="16" y1="20" x2="28" y2="20" stroke="url(#dG)" stroke-width="3" stroke-linecap="round"/>
+            <circle cx="28" cy="12" r="3" fill="#F368A8"/>
+            <circle cx="32" cy="20" r="3" fill="#F368A8"/>
+            <circle cx="28" cy="28" r="3" fill="#F368A8"/>
+          </svg>
+        </div>
         <div>
-          <div class="brand-text">Postwave</div>
+          <div class="brand-text">amplr</div>
           <div class="brand-sub">FB Groups</div>
         </div>
       </div>
