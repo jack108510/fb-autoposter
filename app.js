@@ -124,7 +124,7 @@ async function fetchAll() {
       settings: data?.settings || {},
     };
   } catch (e) {
-    toast('⚠️ Cannot reach extension');
+    toast('Cannot reach extension');
     return cachedData;
   }
 }
@@ -196,16 +196,16 @@ async function loadDashboard() {
   // Upcoming
   const upcoming = posts.filter(p => p.enabled).slice(0, 5);
   document.getElementById('dashUpcoming').innerHTML = upcoming.length === 0
-    ? '<div class="empty"><span class="emoji">📭</span><p>No scheduled posts</p></div>'
+    ? '''<div class="empty"><p>No scheduled posts</p></div>''
     : upcoming.map(p => {
         const days = p.schedule.days.map(d => DAYS[d]).join(', ');
         const spin = hasSpintax(p.text) ? ' <span class="spin-badge">SPIN</span>' : '';
         return `<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--border);">
           <div style="flex:1;">
             <div style="font-weight:600;font-size:13px;">${esc(p.text.substring(0, 50))}${p.text.length > 50 ? '...' : ''}${spin}</div>
-            <div style="font-size:11px;color:var(--text-3);margin-top:2px;">⏰ ${p.schedule.time} • ${days} • ${p.groups.length} groups</div>
+            <div style="font-size:11px;color:var(--text-3);margin-top:2px;">${p.schedule.time} • ${days} • ${p.groups.length} groups</div>
           </div>
-          <button class="btn btn-primary btn-xs" onclick="firePost('${p.id}')">🚀</button>
+          <button class="btn btn-primary btn-xs" onclick="firePost('${p.id}')">Post</button>
         </div>`;
       }).join('');
 
@@ -278,7 +278,7 @@ function renderCalendar() {
     const events = dayPosts.map(p => {
       const colors = ['blue', 'green', 'purple'];
       const c = colors[p.id.charCodeAt(0) % 3];
-      const spin = hasSpintax(p.text) ? ' 🎲' : '';
+      const spin = hasSpintax(p.text) ? ' ' : '';
       return `<div class="cal-event ${c}" onclick="nav('scheduled')" title="${esc(p.text.substring(0, 40))}...">${p.schedule.time} ${esc(p.text.substring(0, 20))}${spin}...</div>`;
     }).join('');
 
@@ -329,7 +329,7 @@ function addGroupRow(pre = {}) {
     <div class="gc" style="background:${c}"></div>
     <input type="url" class="gu" placeholder="https://www.facebook.com/groups/..." value="${pre.url || ''}" />
     <input type="text" class="gn" placeholder="Name" style="flex:.5;" value="${pre.name || ''}" />
-    <button class="btn btn-ghost btn-sm" onclick="this.parentElement.remove()">✕</button>
+    <button class="btn btn-ghost btn-sm" onclick="this.parentElement.remove()">x</button>
   `;
   document.getElementById('createGroups').appendChild(div);
 }
@@ -370,11 +370,11 @@ async function savePost() {
 
   try {
     await sendExt({ type: 'save-post', post });
-    toast('✅ Scheduled!');
+    toast('Scheduled!');
     document.getElementById('createText').value = '';
     document.getElementById('spinInfo').style.display = 'none';
     nav('scheduled');
-  } catch (e) { toast('⚠️ ' + e.message); }
+  } catch (e) { toast(e.message); }
 }
 
 async function postNow() {
@@ -386,8 +386,8 @@ async function postNow() {
   const post = { id: 'temp-' + Date.now(), text, imageUrl: '', groups, schedule: { time: 'now', days: [] }, enabled: false };
   try {
     await sendExt({ type: 'post-now-custom', post });
-    toast('🚀 Posting now!');
-  } catch (e) { toast('⚠️ ' + e.message); }
+    toast('Posting now!');
+  } catch (e) { toast(e.message); }
 }
 
 function getGroupsFromForm() {
@@ -410,8 +410,8 @@ async function saveTemplate() {
   cachedData.templates = templates;
   try {
     await sendExt({ type: 'save-templates', templates });
-    toast('📝 Template saved');
-  } catch (e) { toast('⚠️ ' + e.message); }
+    toast('Template saved');
+  } catch (e) { toast(e.message); }
 }
 
 async function loadTemplates() {
@@ -441,7 +441,7 @@ async function loadTemplatesPage() {
   const templates = cachedData.templates || [];
   const el = document.getElementById('templatesList');
   if (templates.length === 0) {
-    el.innerHTML = '<div class="empty"><span class="emoji">📚</span><p>No templates yet. Create a post and "Save as Template".</p></div>';
+    el.innerHTML = '''<div class="empty"><p>No templates yet. Create a post and "Save as Template".</p></div>'';
     return;
   }
   el.innerHTML = templates.map(t => `
@@ -449,7 +449,7 @@ async function loadTemplatesPage() {
       <div class="template-name">${esc(t.name)} ${hasSpintax(t.text) ? '<span class="spin-badge">SPINTAX</span>' : ''}</div>
       <div class="template-preview">${esc(t.text.substring(0, 120))}...</div>
       <div style="margin-top:8px;">
-        <button class="btn btn-danger btn-xs" onclick="event.stopPropagation(); deleteTemplate('${t.id}')">🗑 Delete</button>
+        <button class="btn btn-danger btn-xs" onclick="event.stopPropagation(); deleteTemplate('${t.id}')">Delete</button>
       </div>
     </div>
   `).join('');
@@ -471,7 +471,7 @@ async function loadScheduled() {
   const el = document.getElementById('scheduledList');
 
   if (posts.length === 0) {
-    el.innerHTML = '<div class="empty"><span class="emoji">📋</span><p>No scheduled posts yet</p><button class="btn btn-primary" style="margin-top:16px;" onclick="nav(\'create\')">Create Post</button></div>';
+    el.innerHTML = '''<div class="empty"><p>No scheduled posts yet</p><button class="btn btn-primary" style="margin-top:16px;" onclick="nav(\'create\')">Create Post</button></div>';
     return;
   }
 
@@ -482,36 +482,36 @@ async function loadScheduled() {
     return `<div class="post-card">
       <div class="post-text">${esc(p.text)}</div>
       <div class="post-meta">
-        <span>⏰ ${p.schedule.time}</span>
-        <span>📅 ${days}</span>
-        <span class="badge ${p.enabled ? 'badge-on' : 'badge-off'}">${p.enabled ? '● Active' : '⏸ Paused'}</span>
+        <span>${p.schedule.time}</span>
+        <span>${days}</span>
+        <span class="badge ${p.enabled ? 'badge-on' : 'badge-off'}">${p.enabled ? 'Active' : 'Paused'}</span>
         ${spin}
       </div>
       <div style="margin-bottom:10px;">${tags}</div>
       <div class="post-actions">
-        <button class="btn btn-primary btn-sm" onclick="firePost('${p.id}')">🚀 Post Now</button>
-        <button class="btn btn-secondary btn-sm" onclick="togglePost('${p.id}')">${p.enabled ? '⏸ Pause' : '▶ Resume'}</button>
-        <button class="btn btn-ghost btn-sm" onclick="editPost('${p.id}')">✏️ Edit</button>
-        <button class="btn btn-danger btn-sm" onclick="delPost('${p.id}')">🗑</button>
+        <button class="btn btn-primary btn-sm" onclick="firePost('${p.id}')">Post Now</button>
+        <button class="btn btn-secondary btn-sm" onclick="togglePost('${p.id}')">${p.enabled ? 'Pause' : 'Resume'}</button>
+        <button class="btn btn-ghost btn-sm" onclick="editPost('${p.id}')">Edit</button>
+        <button class="btn btn-danger btn-sm" onclick="delPost('${p.id}')">Delete</button>
       </div>
     </div>`;
   }).join('');
 }
 
 async function firePost(id) {
-  try { await sendExt({ type: 'post-now', id }); toast('🚀 Posting!'); }
-  catch (e) { toast('⚠️ ' + e.message); }
+  try { await sendExt({ type: 'post-now', id }); toast('Posting!'); }
+  catch (e) { toast(e.message); }
 }
 
 async function togglePost(id) {
   try { await sendExt({ type: 'toggle-post', id }); loadScheduled(); }
-  catch (e) { toast('⚠️ ' + e.message); }
+  catch (e) { toast(e.message); }
 }
 
 async function delPost(id) {
   if (!confirm('Delete this post?')) return;
   try { await sendExt({ type: 'delete-post', id }); loadScheduled(); toast('Deleted'); }
-  catch (e) { toast('⚠️ ' + e.message); }
+  catch (e) { toast(e.message); }
 }
 
 function editPost(id) {
@@ -596,7 +596,7 @@ async function loadLogs() {
   const el = document.getElementById('logsList');
 
   if (logs.length === 0) {
-    el.innerHTML = '<div class="empty"><span class="emoji">📜</span><p>No activity yet</p></div>';
+    el.innerHTML = '''<div class="empty"><p>No activity yet</p></div>'';
     return;
   }
 
@@ -605,12 +605,12 @@ async function loadLogs() {
     const ok = results.filter(r => r.success).length;
     const fail = results.length - ok;
     const iconClass = ok > 0 && fail > 0 ? 'mix' : ok > 0 ? 'ok' : 'fail';
-    const icon = ok > 0 && fail > 0 ? '⚡' : ok > 0 ? '✅' : '❌';
+    const icon = ok > 0 && fail > 0 ? 'MIX' : ok > 0 ? 'OK' : 'FAIL';
 
     const resultDetails = results.map(r =>
       r.success
-        ? `<span style="color:var(--green);">✅ ${esc(r.group)}</span> <span style="color:var(--text-3);font-size:10px;">(${r.strategy || '?'})</span>`
-        : `<span style="color:var(--red);">❌ ${esc(r.group)}: ${esc(r.error || 'failed')}</span>`
+        ? `<span style="color:var(--green);">OK ${esc(r.group)}</span> <span style="color:var(--text-3);font-size:10px;">(${r.strategy || '?'})</span>`
+        : `<span style="color:var(--red);">FAIL ${esc(r.group)}: ${esc(r.error || 'failed')}</span>`
     ).join('<br>');
 
     return `<div class="log-row">
@@ -627,7 +627,7 @@ async function loadLogs() {
 async function clearLogs() {
   if (!confirm('Clear all logs?')) return;
   try { await sendExt({ type: 'clear-logs' }); loadLogs(); toast('Cleared'); }
-  catch (e) { toast('⚠️ ' + e.message); }
+  catch (e) { toast(e.message); }
 }
 
 function exportLogs() {
@@ -649,7 +649,7 @@ function exportLogs() {
   a.download = `autoposter-logs-${new Date().toISOString().split('T')[0]}.csv`;
   a.click();
   URL.revokeObjectURL(url);
-  toast('📥 Exported');
+  toast('Exported');
 }
 
 // ═══ SETTINGS ═══
@@ -681,20 +681,20 @@ async function saveSettings() {
     jitter: parseInt(document.getElementById('setJitter').value) || 5,
     strategy: document.getElementById('setStrategy').value,
   };
-  try { await sendExt({ type: 'save-settings', settings }); toast('⚙️ Saved'); }
-  catch (e) { toast('⚠️ ' + e.message); }
+  try { await sendExt({ type: 'save-settings', settings }); toast('Settings saved'); }
+  catch (e) { toast(e.message); }
 }
 
 async function deleteAllPosts() {
   if (!confirm('Delete ALL scheduled posts?')) return;
   try { await sendExt({ type: 'delete-all-posts' }); toast('All posts deleted'); loadScheduled(); }
-  catch (e) { toast('⚠️ ' + e.message); }
+  catch (e) { toast(e.message); }
 }
 
 async function resetAll() {
   if (!confirm('Reset EVERYTHING?')) return;
   try { await sendExt({ type: 'factory-reset' }); toast('Reset complete'); location.reload(); }
-  catch (e) { toast('⚠️ ' + e.message); }
+  catch (e) { toast(e.message); }
 }
 
 // ═══ MODAL ═══
