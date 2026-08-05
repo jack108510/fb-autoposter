@@ -626,12 +626,12 @@ async function loadSettings() {
   const codeEl = document.getElementById('pairingCodeDisplay');
   if (codeEl) {
     if (s.pairing_code) {
-      codeEl.innerHTML = `<div class="pairing-code">${s.pairing_code}</div>
-        <div style="font-size:12px;color:var(--text-3);margin-top:8px;">Enter this code in your Chrome extension popup to pair.</div>
-        <button class="btn btn-ghost" style="margin-top:8px;" onclick="generatePairingCode()">Regenerate Code</button>`;
+      codeEl.innerHTML = `<div style="display:flex;align-items:center;gap:12px;">
+        <div style="font-size:24px;font-weight:800;letter-spacing:4px;font-family:'SF Mono','Monaco','Menlo',monospace;background:linear-gradient(120deg,#5B6FE8,#9B5DE5,#F368A8);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;cursor:pointer;" onclick="copyBannerCode()">${s.pairing_code}</div>
+        <button class="btn btn-ghost btn-sm" onclick="generatePairingCode()">New</button>
+      </div>`;
     } else {
-      codeEl.innerHTML = `<button class="btn btn-primary" onclick="generatePairingCode()">Generate Pairing Code</button>
-        <div style="font-size:12px;color:var(--text-3);margin-top:8px;">Then enter the code in your extension.</div>`;
+      codeEl.innerHTML = `<button class="btn btn-primary btn-sm" onclick="generatePairingCode()">Generate Code</button>`;
     }
   }
 
@@ -662,7 +662,6 @@ async function loadSettings() {
   if (s.delay) document.getElementById('setDelay').value = s.delay;
   if (s.maxGroups) document.getElementById('setMaxGroups').value = s.maxGroups;
   if (s.jitter) document.getElementById('setJitter').value = s.jitter;
-  if (s.strategy) document.getElementById('setStrategy').value = s.strategy;
 }
 
 async function generatePairingCode() {
@@ -690,7 +689,6 @@ async function saveSettings() {
     delay: parseInt(document.getElementById('setDelay').value) || 10,
     maxGroups: parseInt(document.getElementById('setMaxGroups').value) || 10,
     jitter: parseInt(document.getElementById('setJitter').value) || 5,
-    strategy: document.getElementById('setStrategy').value,
   };
   cachedData.settings = settings;
   await sbSet('settings', settings);

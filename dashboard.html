@@ -669,59 +669,52 @@
       <!-- ═══ SETTINGS ═══ -->
       <div class="page" id="page-settings">
         <div class="page-title">Settings</div>
-        <div class="page-subtitle">Extension connection and posting configuration</div>
-        
-        <div class="card">
-          <div class="card-title" style="margin-bottom:14px;">Extension Pairing</div>
-          <div id="pairingCodeDisplay" style="text-align:center;padding:16px 0;"></div>
-          <div class="form-group">
-            <label>Connection Status</label>
-            <div id="connStatus" style="font-size:13px;font-weight:600;">—</div>
+
+        <!-- Connection -->
+        <div class="card" style="margin-bottom:16px;">
+          <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:16px;">
+            <div>
+              <div style="font-size:15px;font-weight:700;margin-bottom:2px;">Extension</div>
+              <div id="connStatus" style="font-size:13px;color:var(--text-2);">—</div>
+            </div>
+            <div id="pairingCodeDisplay"></div>
           </div>
-          <div id="installHint" style="display:none;font-size:12px;color:var(--text-3);margin-top:10px;line-height:1.6;">
-            <strong>How to pair:</strong><br>
+          <div id="installHint" style="display:none;margin-top:16px;padding-top:16px;border-top:1px solid var(--border);font-size:12px;color:var(--text-3);line-height:1.8;">
+            <strong style="color:var(--text-2);">Not connected? Here's how:</strong><br>
             1. Download the extension from GitHub<br>
-            2. Go to <code>chrome://extensions</code> → enable Developer mode → Load unpacked<br>
-            3. Click the Amplr extension icon → Dashboard tab<br>
-            4. Type the code above
+            2. <code>chrome://extensions</code> → enable Developer mode → Load unpacked<br>
+            3. Click the Amplr extension icon → Dashboard tab → type the code
           </div>
         </div>
-        
-        <div class="card">
-          <div class="card-title" style="margin-bottom:14px;"> Posting Settings</div>
-          <div class="row">
-            <div class="form-group">
-              <label>Delay Between Groups (sec)</label>
-              <input type="number" id="setDelay" value="10" min="3" max="120" />
-              <div class="hint">Wait time between each group to avoid spam flags</div>
+
+        <!-- Posting -->
+        <div class="card" style="margin-bottom:16px;">
+          <div class="card-title" style="margin-bottom:18px;">Posting</div>
+          <div class="row" style="margin-bottom:16px;">
+            <div class="form-group" style="margin:0;">
+              <label>Delay (sec)</label>
+              <input type="number" id="setDelay" value="10" min="3" max="120" style="width:80px;" />
             </div>
-            <div class="form-group">
-              <label>Max Groups per Run</label>
-              <input type="number" id="setMaxGroups" value="10" min="1" max="50" />
+            <div class="form-group" style="margin:0;">
+              <label>Max groups</label>
+              <input type="number" id="setMaxGroups" value="10" min="1" max="50" style="width:80px;" />
+            </div>
+            <div class="form-group" style="margin:0;">
+              <label>Jitter ±</label>
+              <input type="number" id="setJitter" value="5" min="0" max="30" style="width:80px;" />
             </div>
           </div>
-          <div class="form-group">
-            <label>Randomize Delay ±</label>
-            <input type="number" id="setJitter" value="5" min="0" max="30" />
-            <div class="hint">Add random seconds to delay so posts don't look automated</div>
-          </div>
-          <div class="form-group">
-            <label>Posting Strategy</label>
-            <select id="setStrategy">
-              <option value="all">Smart (try all strategies)</option>
-              <option value="composer">Composer URL only</option>
-              <option value="grouppage">Group page only</option>
-              <option value="mobile">Mobile FB only</option>
-            </select>
-          </div>
-          <button class="btn btn-primary" onclick="saveSettings()">Save Settings</button>
+          <button class="btn btn-primary" onclick="saveSettings()">Save</button>
         </div>
-        
+
+        <!-- Danger zone -->
         <div class="card">
-          <div class="card-title" style="margin-bottom:14px;color:var(--red);">Danger Zone</div>
-          <div style="display:flex;gap:12px;flex-wrap:wrap;">
-            <button class="btn btn-danger" onclick="deleteAllPosts()">Delete All Posts</button>
-            <button class="btn btn-danger" onclick="resetAll()">Factory Reset</button>
+          <div style="display:flex;align-items:center;justify-content:space-between;">
+            <div style="font-size:13px;color:var(--text-3);">Delete all data</div>
+            <div style="display:flex;gap:8px;">
+              <button class="btn btn-danger btn-sm" onclick="deleteAllPosts()">Clear Posts</button>
+              <button class="btn btn-danger btn-sm" onclick="resetAll()">Reset All</button>
+            </div>
           </div>
         </div>
       </div>
