@@ -518,34 +518,137 @@ function editPost(id) {
 // ═══ GROUPS ═══
 async function loadGroups() {
   cachedData = await fetchAll();
-  const posts = cachedData.posts || [];
-  const groupMap = new Map();
-  posts.forEach(p => p.groups.forEach(g => {
-    if (!groupMap.has(g.url)) groupMap.set(g.url, { ...g, posts: 0, ok: 0, fail: 0 });
-    groupMap.get(g.url).posts++;
-  }));
-  (cachedData.logs || []).forEach(l => {
-    (l.results || []).forEach(r => {
-      const g = Array.from(groupMap.values()).find(x => x.name === r.group);
-      if (g) { if (r.success) g.ok++; else g.fail++; }
+  const groups = cachedData.groups || [];
+  const list = document.getElementById('groupsList');
+  const empty = document.getElementById('groupsEmpty');
+  const countEl = document.getElementById('groupCount');
+
+  if (countEl) countEl.textContent = `(${groups.length})`;
+
+  if (groups.length === 0) {
+    if (list) list.innerHTML = '';
+    if (empty) empty.style.display = 'block';
+    return;
+  }
+  if (empty) empty.style.display = 'none';
+
+  // Build post counts per group from posts
+  const postCounts = {};
+  (cachedData.posts || []).forEach(p => {
+    (p.groups || []).forEach(g => {
+      const url = typeof g === 'string' ? g : g.url;
+      if (url) postCounts[url] = (postCounts[url] || 0) + 1;
     });
   });
-  const groups = Array.from(groupMap.values());
-  const tbody = document.getElementById('groupsBody');
-  const empty = document.getElementById('groupsEmpty');
-  if (groups.length === 0) { tbody.innerHTML = ''; empty.classList.remove('hidden'); return; }
-  empty.classList.add('hidden');
-  tbody.innerHTML = groups.map(g => {
-    const total = g.ok + g.fail;
-    const rate = total > 0 ? Math.round(g.ok / total * 100) : null;
-    return `<tr>
-      <td><strong>${esc(g.name)}</strong></td>
-      <td style="font-size:11px;color:var(--text-3);max-width:250px;overflow:hidden;text-overflow:ellipsis;">${esc(g.url)}</td>
-      <td><span class="badge badge-blue">${g.posts}</span></td>
-      <td>${rate !== null ? `<div style="display:flex;align-items:center;gap:6px;"><div style="width:40px;height:5px;background:var(--surface-2);border-radius:3px;overflow:hidden;"><div style="width:${rate}%;height:100%;background:${rate > 80 ? 'var(--green)' : rate > 50 ? 'var(--yellow)' : 'var(--red)'};"></div></div><span style="font-size:11px;color:var(--text-3);">${rate}%</span></div>` : '—'}</td>
-      <td></td>
-    </tr>`;
+
+  if (list) list.innerHTML = groups.map((g, i) => {
+    const posts = postCounts[g.url] || 0;
+    return `<div style="display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid var(--border);">
+      <div style="width:32px;height:32px;border-radius:50%;background:linear-gradient(120deg,#5B6FE8,#F368A8);flex-shrink:0;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:13px;">${esc((g.name || '?')[0].toUpperCase())}</div>
+      <div style="flex:1;min-width:0;">
+        <div style="font-weight:600;font-size:14px;">${esc(g.name)}</div>
+        <div style="font-size:11px;color:var(--text-3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(g.url)}</div>
+      </div>
+      ${posts > 0 ? `<span class="badge badge-blue" style="flex-shrink:0;">${posts} posts</span>` : ''}
+      <button class="btn btn-danger btn-sm" style="flex-shrink:0;" onclick="removeGroup('${esc(g.url)}')">Remove</button>
+    </div>`;
   }).join('');
+}
+
+// Auto-detect group name from URL as user types/pastes
+document.addEventListener('input', (e) => {
+  if (e.target.id === 'groupUrlInput') {
+    const url = e.target.value.trim();
+    const hint = document.getElementById('groupAutoName');
+    if (!hint) return;
+    const name = extractGroupName(url);
+    if (name) {
+      hint.style.display = 'block';
+      hint.querySelector('strong').textContent = name;
+    } else {
+      hint.style.display = 'none';
+    }
+  }
+});
+
+// Also auto-detect on paste (immediate)
+document.addEventListener('paste', (e) => {
+  if (e.target.id === 'groupUrlInput') {
+    setTimeout(() => {
+      const url = e.target.value.trim();
+      const hint = document.getElementById('groupAutoName');
+      if (!hint) return;
+      const name = extractGroupName(url);
+      if (name) {
+        hint.style.display = 'block';
+        hint.querySelector('strong').textContent = name;
+      }
+    }, 0);
+  }
+});
+
+function extractGroupName(url) {
+  if (!url) return null;
+  // Match facebook.com/groups/NAME or ID
+  const m = url.match(/facebook\.com\/groups\/([^\/\?]+)/i);
+  if (m) {
+    const slug = decodeURIComponent(m[1]);
+    // If it's a numeric ID, can't auto-name
+    if (/^\d+$/.test(slug)) return null;
+    // Convert slug to readable name
+    return slug.replace(/[-_]/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+  }
+  return null;
+}
+
+async function addGroupFromInput() {
+  const input = document.getElementById('groupUrlInput');
+  let url = input.value.trim();
+  if (!url) return toast('Enter a group URL');
+
+  // Normalize URL
+  if (!url.startsWith('http')) url = 'https://www.facebook.com/groups/' + url;
+  url = url.replace(/\/$/, '');
+
+  // Check for duplicates
+  const groups = cachedData.groups || [];
+  if (groups.some(g => g.url === url)) return toast('Already added');
+
+  // Auto-detect name
+  let name = extractGroupName(url);
+  if (!name) {
+    // Try to fetch the page title
+    name = await fetchGroupName(url);
+  }
+
+  groups.push({ url, name: name || url.split('/').pop() });
+  cachedData.groups = groups;
+  await sbSet('groups', groups);
+
+  input.value = '';
+  document.getElementById('groupAutoName').style.display = 'none';
+  toast('Group added');
+  loadGroups();
+}
+
+// Fetch group name by scraping the FB page title (best-effort, may be blocked by FB)
+async function fetchGroupName(url) {
+  try {
+    const resp = await fetch(url, { method: 'GET', mode: 'no-cors' });
+    // no-cors gives opaque response, can't read body — but try anyway
+    return null;
+  } catch (e) {
+    return null;
+  }
+}
+
+async function removeGroup(url) {
+  if (!confirm('Remove this group?')) return;
+  const groups = (cachedData.groups || []).filter(g => g.url !== url);
+  cachedData.groups = groups;
+  await sbSet('groups', groups);
+  loadGroups();
+  toast('Removed');
 }
 
 // ═══ LOGS ═══

@@ -633,19 +633,23 @@
       <!-- ═══ GROUPS ═══ -->
       <div class="page" id="page-groups">
         <div class="page-title">Groups</div>
-        <div class="page-subtitle">Manage your Facebook Groups</div>
+        <div class="page-subtitle">Paste a Facebook Group URL to add it</div>
+
+        <div class="card" style="margin-bottom:16px;">
+          <div style="display:flex;gap:10px;align-items:flex-start;">
+            <input type="text" id="groupUrlInput" placeholder="https://www.facebook.com/groups/your-group-name" style="flex:1;">
+            <button class="btn btn-primary" style="flex:0;" onclick="addGroupFromInput()">Add</button>
+          </div>
+          <div id="groupAutoName" style="display:none;font-size:12px;color:var(--text-2);margin-top:8px;">Auto-detected: <strong></strong></div>
+        </div>
+
         <div class="card">
           <div class="card-header">
-            <div class="card-title">All Groups</div>
-            <button class="btn btn-primary btn-sm" onclick="showAddGroup()">+ Add Group</button>
+            <div class="card-title">Your Groups <span id="groupCount" style="color:var(--text-3);font-weight:400;">(0)</span></div>
           </div>
-          <table class="table">
-            <thead><tr><th>Name</th><th>URL</th><th>Posts</th><th>Success Rate</th><th></th></tr></thead>
-            <tbody id="groupsBody"></tbody>
-          </table>
-          <div id="groupsEmpty" class="empty hidden">
-            
-            <p>No groups yet. Add groups when creating a post, or click + Add Group.</p>
+          <div id="groupsList"></div>
+          <div id="groupsEmpty" class="empty">
+            <p>No groups yet. Paste a URL above to get started.</p>
           </div>
         </div>
       </div>
