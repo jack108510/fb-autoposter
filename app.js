@@ -159,6 +159,55 @@ async function checkConn() {
 
   // Check for resolved group names from extension
   await pollGroupNames();
+
+  // Fetch extension logs
+  await pollExtLogs();
+}
+
+// ─── Extension logs ───
+async function pollExtLogs() {
+  try {
+    const { data: logs } = await sb.from('jsw_ext_logs')
+      .select('level, message, created_at')
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: false })
+      .limit(30);
+
+    const el = document.getElementById('extLogList');
+    if (!el) return;
+
+    if (!logs || !logs.length) {
+      if (!el.querySelector('[data-empty]')) {
+        el.innerHTML = '<div data-empty style="color:var(--text-3);padding:20px;text-align:center;">No activity yet. Extension logs will appear here.</div>';
+      }
+      return;
+    }
+
+    const colors = { error: 'var(--red)', warn: 'var(--yellow)', info: 'var(--text-2)' };
+    el.innerHTML = logs.map(l => {
+      const time = new Date(l.created_at).toLocaleTimeString('en-US', { hour12: false });
+      const color = colors[l.level] || 'var(--text-2)';
+      return `<div style="display:flex;gap:8px;padding:3px 0;border-bottom:1px solid var(--border);">
+        <span style="color:var(--text-3);flex-shrink:0;">${time}</span>
+        <span style="color:${color};font-weight:${l.level === 'error' ? '700' : '400'};word-break:break-word;">${esc(l.message)}</span>
+      </div>`;
+    }).join('');
+
+    // Auto-cleanup old logs (>1 hour)
+    await sb.from('jsw_ext_logs')
+      .delete()
+      .lt('created_at', new Date(Date.now() - 3600000).toISOString());
+  } catch (e) { /* silent */ }
+}
+
+async function clearExtLogs() {
+  try {
+    await sb.from('jsw_ext_logs').delete().eq('user_id', user.id);
+    const el = document.getElementById('extLogList');
+    if (el) el.innerHTML = '<div style="color:var(--text-3);padding:20px;text-align:center;">Logs cleared.</div>';
+  } catch (e) {
+    toast('Could not clear logs');
+  }
 }
 
 // ─── Auto-name resolution ───
