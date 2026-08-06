@@ -210,7 +210,7 @@ async function loadDashboard() {
   const ok = (logs || []).reduce((s, l) => s + (l.results || []).filter(r => r.success).length, 0);
   const fail = (logs || []).reduce((s, l) => s + (l.results || []).filter(r => !r.success).length, 0);
   const groupUrls = new Set();
-  posts.forEach(p => p.groups.forEach(g => groupUrls.add(g.url)));
+  posts.forEach(p => (p.groups || []).forEach(g => groupUrls.add(g.url)));
 
   document.getElementById('sActive').textContent = active;
   document.getElementById('sSuccess').textContent = ok;
@@ -401,9 +401,7 @@ async function postNow() {
   }
 }
 
-function getGroupsFromForm() {
-  return getSelectedGroups();
-}
+// (dead code removed — getGroupsFromForm and fetchGroupName)
 
 async function saveTemplate() {
   const text = document.getElementById('createText').value.trim();
@@ -557,18 +555,30 @@ async function delPost(id) {
   toast('Deleted');
 }
 
-function editPost(id) {
+async function editPost(id) {
   const p = (cachedData.posts || []).find(x => x.id === id);
   if (!p) return;
   document.getElementById('createText').value = p.text;
-  document.getElementById('createTime').value = p.schedule.time;
-  selDays = [...p.schedule.days]; renderDays();
-  document.getElementById('createGroups').innerHTML = ''; groupCount = 0;
-  p.groups.forEach(g => addGroupRow(g));
+  document.getElementById('createTime').value = p.schedule?.time || '09:00';
+  selDays = [...(p.schedule?.days || [])]; renderDays();
   document.getElementById('createText').dispatchEvent(new Event('input'));
-  delPost(id);
+
+  // Pre-select the groups that were on this post
+  await loadTemplates(); // renders group chips
+  if (p.groups) {
+    p.groups.forEach(pg => {
+      const chip = [...document.querySelectorAll('#createGroupSelect .group-chip')].find(c => c.dataset.url === pg.url);
+      if (chip) chip.classList.add('selected');
+    });
+  }
+
+  // Delete the old post silently (no confirm, no toast, no reload)
+  const posts = (cachedData.posts || []).filter(x => x.id !== id);
+  cachedData.posts = posts;
+  await sbSet('posts', posts);
+
   nav('create');
-  toast('Edit and save to update');
+  toast('Editing — save to update');
 }
 
 // ═══ GROUPS ═══
@@ -693,16 +703,7 @@ async function addGroupFromInput() {
   }
 }
 
-// Fetch group name by scraping the FB page title (best-effort, may be blocked by FB)
-async function fetchGroupName(url) {
-  try {
-    const resp = await fetch(url, { method: 'GET', mode: 'no-cors' });
-    // no-cors gives opaque response, can't read body — but try anyway
-    return null;
-  } catch (e) {
-    return null;
-  }
-}
+// (dead code removed — fetchGroupName)
 
 async function removeGroup(url) {
   try {
@@ -774,6 +775,42 @@ async function loadLogs() {
       </div>
     </div>`;
   }).join('');
+}
+
+async function clearLogs() {
+  if (!confirm('Clear all logs?')) return;
+  try {
+    cachedData.logs = [];
+    await sbSet('logs', []);
+    loadLogs();
+    toast('Logs cleared');
+  } catch (e) {
+    toast('Error: ' + e.message);
+  }
+}
+
+function exportLogs() {
+  const logs = cachedData.logs || [];
+  if (logs.length === 0) return toast('No logs to export');
+
+  // Also include Supabase job history
+  const { data: jobs } = sb.from('jsw_post_jobs').select('*').eq('user_id', user.id).order('created_at', { ascending: false }).limit(50);
+  const rows = [['Timestamp', 'Preview', 'Group', 'Success', 'Error']];
+  logs.forEach(l => {
+    (l.results || []).forEach(r => {
+      rows.push([l.timestamp, l.postPreview || '', r.group || '', r.success ? 'YES' : 'NO', r.error || '']);
+    });
+  });
+
+  const csv = rows.map(r => r.map(c => `"${(c || '').toString().replace(/"/g, '""')}"`).join(',')).join('\n');
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `amplr-logs-${new Date().toISOString().split('T')[0]}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+  toast('Exported');
 }
 
 // ═══ SETTINGS ═══
