@@ -26,7 +26,6 @@ document.addEventListener('DOMContentLoaded', async () => {
   initTheme();
   renderDays();
   renderCalNames();
-  addGroupRow();
   setupNav();
 
   // Check Supabase session
@@ -46,7 +45,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     footer.insertBefore(userInfo, footer.firstChild);
   }
 
-  // Load settings + pairing code immediately
+  // Load settings immediately
   cachedData = await fetchAll();
   loadSettings();
   
@@ -323,19 +322,6 @@ function renderDays() {
 }
 function toggleDay(d) { selDays = selDays.includes(d) ? selDays.filter(x => x !== d) : [...selDays, d].sort(); renderDays(); }
 
-function addGroupRow(pre = {}) {
-  groupCount++;
-  const c = GCOLORS[(groupCount - 1) % GCOLORS.length];
-  const div = document.createElement('div');
-  div.className = 'group-entry';
-  div.innerHTML = `
-    <div class="gc" style="background:${c}"></div>
-    <input type="url" class="gu" placeholder="https://www.facebook.com/groups/..." value="${pre.url || ''}" />
-    <input type="text" class="gn" placeholder="Name" style="flex:.5;" value="${pre.name || ''}" />
-    <button class="btn btn-ghost btn-sm" onclick="this.parentElement.remove()">x</button>`;
-  document.getElementById('createGroups').appendChild(div);
-}
-
 document.addEventListener('input', (e) => {
   if (e.target.id === 'createText') {
     const has = hasSpintax(e.target.value);
@@ -563,6 +549,7 @@ async function editPost(id) {
   document.getElementById('createText').dispatchEvent(new Event('input'));
 
   // Pre-select the groups that were on this post
+  nav('create');
   await loadTemplates(); // renders group chips
   if (p.groups) {
     p.groups.forEach(pg => {
@@ -576,7 +563,6 @@ async function editPost(id) {
   cachedData.posts = posts;
   await sbSet('posts', posts);
 
-  nav('create');
   toast('Editing — save to update');
 }
 
