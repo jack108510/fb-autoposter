@@ -647,23 +647,29 @@
       <!-- ═══ GROUPS ═══ -->
       <div class="page" id="page-groups">
         <div class="page-title">Groups</div>
-        <div class="page-subtitle">Paste a Facebook Group URL to add it</div>
+        <div class="page-subtitle">Add Facebook groups to post to</div>
 
+        <!-- Add group -->
         <div class="card" style="margin-bottom:16px;">
-          <div style="display:flex;gap:10px;align-items:flex-start;">
-            <input type="text" id="groupUrlInput" placeholder="https://www.facebook.com/groups/your-group-name" style="flex:1;">
+          <div style="display:flex;gap:10px;align-items:center;">
+            <input type="text" id="groupUrlInput" placeholder="Paste Facebook Group URL..." style="flex:1;">
             <button class="btn btn-primary" style="flex:0;" onclick="addGroupFromInput()">Add</button>
           </div>
-          <div id="groupAutoName" style="display:none;font-size:12px;color:var(--text-2);margin-top:8px;">Auto-detected: <strong></strong></div>
+          <div id="groupAutoName" style="display:none;font-size:12px;color:var(--green);margin-top:8px;display:flex;align-items:center;gap:6px;">
+            <span style="width:6px;height:6px;border-radius:50%;background:var(--green);"></span>
+            Auto-detected: <strong style="color:var(--text);"></strong>
+          </div>
         </div>
 
+        <!-- Groups list -->
         <div class="card">
-          <div class="card-header">
-            <div class="card-title">Your Groups <span id="groupCount" style="color:var(--text-3);font-weight:400;">(0)</span></div>
+          <div class="card-header" style="margin-bottom:4px;">
+            <div class="card-title">Your Groups <span id="groupCount" style="color:var(--text-3);font-weight:400;font-size:14px;">(0)</span></div>
           </div>
           <div id="groupsList"></div>
-          <div id="groupsEmpty" class="empty">
-            <p>No groups yet. Paste a URL above to get started.</p>
+          <div id="groupsEmpty" class="empty" style="padding:40px 20px;text-align:center;">
+            <div style="font-size:32px;margin-bottom:8px;">👥</div>
+            <p style="color:var(--text-3);font-size:13px;">No groups yet. Paste a URL above to get started.</p>
           </div>
         </div>
       </div>

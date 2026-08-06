@@ -153,6 +153,48 @@ async function checkConn() {
   // Always load data regardless of connection state
   cachedData = await fetchAll();
   if (typeof loadSettings === 'function') loadSettings();
+
+  // Check for resolved group names from extension
+  await pollGroupNames();
+}
+
+// ─── Auto-name resolution ───
+async function pollGroupNames() {
+  try {
+    const { data: resolved } = await sb.from('jsw_group_lookups')
+      .select('group_url, group_name, status')
+      .eq('user_id', user.id)
+      .eq('status', 'done')
+      .not('group_name', 'is', null)
+      .limit(20);
+
+    if (!resolved || !resolved.length) return;
+
+    let changed = false;
+    const groups = cachedData.groups || [];
+    resolved.forEach(r => {
+      const g = groups.find(g => g.url === r.group_url);
+      if (g && g.name !== r.group_name) {
+        g.name = r.group_name;
+        g.namePending = false;
+        changed = true;
+      }
+    });
+
+    if (changed) {
+      cachedData.groups = groups;
+      await sbSet('groups', groups);
+      const groupPageVisible = document.querySelector('[data-page="groups"]')?.classList.contains('active');
+      if (groupPageVisible) loadGroups();
+    }
+
+    // Clean up resolved lookups older than 1 hour
+    await sb.from('jsw_group_lookups')
+      .delete()
+      .eq('user_id', user.id)
+      .eq('status', 'done')
+      .lt('resolved_at', new Date(Date.now() - 3600000).toISOString());
+  } catch (e) { /* silent */ }
 }
 
 async function fetchAll() {
@@ -598,14 +640,22 @@ async function loadGroups() {
 
   if (list) list.innerHTML = groups.map((g, i) => {
     const posts = postCounts[g.url] || 0;
-    return `<div style="display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid var(--border);">
-      <div style="width:32px;height:32px;border-radius:50%;background:linear-gradient(120deg,#5B6FE8,#F368A8);flex-shrink:0;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:13px;">${esc((g.name || '?')[0].toUpperCase())}</div>
+    const colors = ['#5B6FE8','#9B5DE5','#F368A8','#10b981','#f59e0b','#06b6d4'];
+    const color = colors[i % colors.length];
+    const isPending = g.namePending;
+    return `<div style="display:flex;align-items:center;gap:14px;padding:14px 0;border-bottom:1px solid var(--border);transition:background .15s;" onmouseover="this.style.background='var(--surface-2)'" onmouseout="this.style.background=''">
+      <div style="width:40px;height:40px;border-radius:10px;background:${color};flex-shrink:0;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800;font-size:16px;">${esc((g.name || '?')[0].toUpperCase())}</div>
       <div style="flex:1;min-width:0;">
-        <div style="font-weight:600;font-size:14px;">${esc(g.name)}</div>
-        <div style="font-size:11px;color:var(--text-3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(g.url)}</div>
+        <div style="font-weight:600;font-size:14px;display:flex;align-items:center;gap:8px;">
+          <span>${esc(g.name)}</span>
+          ${isPending ? '<span style="font-size:10px;padding:2px 8px;border-radius:10px;background:var(--yellow-light);color:var(--yellow);font-weight:600;text-transform:uppercase;letter-spacing:0.5px;">Fetching name...</span>' : ''}
+        </div>
+        <a href="${esc(g.url)}" target="_blank" style="font-size:11px;color:var(--text-3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block;max-width:100%;">${esc(g.url)}</a>
       </div>
-      ${posts > 0 ? `<span class="badge badge-blue" style="flex-shrink:0;">${posts} posts</span>` : ''}
-      <button class="btn btn-danger btn-sm" style="flex-shrink:0;" onclick="removeGroup('${esc(g.url)}')">Remove</button>
+      ${posts > 0 ? `<span class="badge badge-blue" style="flex-shrink:0;">${posts} ${posts === 1 ? 'post' : 'posts'}</span>` : ''}
+      <button class="btn btn-ghost btn-sm" style="flex-shrink:0;color:var(--red);border-color:transparent;padding:6px 10px;" onclick="removeGroup('${esc(g.url)}')" title="Remove group">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 4h10M5 4V2.5C5 2 5.5 1.5 6 1.5h4c0.5 0 1 0.5 1 1V4M6 7v6M10 7v6M4 4l1 10c0 0.5 0.5 1 1 1h4c0.5 0 1-0.5 1-1l1-10"/></svg>
+      </button>
     </div>`;
   }).join('');
 }
@@ -675,7 +725,7 @@ async function addGroupFromInput() {
     let name = extractGroupName(url);
     if (!name) name = url.split('/').pop() || url;
 
-    groups.push({ url, name });
+    groups.push({ url, name, namePending: !extractGroupName(url) });
     cachedData.groups = groups;
 
     const err = await sbSet('groups', groups);
@@ -684,8 +734,19 @@ async function addGroupFromInput() {
     input.value = '';
     const hint = document.getElementById('groupAutoName');
     if (hint) hint.style.display = 'none';
-    toast('Group added');
+    toast('Group added — fetching name...');
     loadGroups();
+
+    // If no clean name, create a lookup job for the extension
+    if (!extractGroupName(url)) {
+      try {
+        await sb.from('jsw_group_lookups').insert({
+          user_id: user.id, group_url: url
+        });
+      } catch (e) {
+        console.warn('[Amplr] Could not create lookup:', e.message);
+      }
+    }
   } catch (e) {
     console.error('[Amplr] addGroup error:', e);
     toast('Error: ' + e.message);
