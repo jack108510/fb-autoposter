@@ -114,7 +114,10 @@ async function sbGet(key) {
 }
 
 async function sbSet(key, value) {
-  const { error } = await sb.from('amplr_data').upsert({ user_id: user.id, key, value, updated_at: new Date().toISOString() });
+  const { error } = await sb.from('amplr_data').upsert(
+    { user_id: user.id, key, value, updated_at: new Date().toISOString() },
+    { onConflict: 'user_id,key' }
+  );
   if (error) console.error('[Amplr] sbSet error:', key, error.message);
   return error;
 }
