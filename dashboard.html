@@ -584,98 +584,103 @@
       <!-- ═══ CREATE ═══ -->
       <div class="page" id="page-create">
         <div class="page-title">Create Post</div>
-        <div class="page-subtitle">Write your content and post to your groups</div>
+        <div class="page-subtitle">Write once, post to every group</div>
         <div class="two-col">
+          <!-- LEFT: Editor -->
           <div>
             <div class="card">
-              <!-- Emoji quick-bar -->
-              <div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:10px;">
-                <button type="button" class="emoji-btn" onclick="insertEmoji('🔥')">🔥</button>
-                <button type="button" class="emoji-btn" onclick="insertEmoji('✅')">✅</button>
-                <button type="button" class="emoji-btn" onclick="insertEmoji('💡')">💡</button>
-                <button type="button" class="emoji-btn" onclick="insertEmoji('🎯')">🎯</button>
-                <button type="button" class="emoji-btn" onclick="insertEmoji('💰')">💰</button>
-                <button type="button" class="emoji-btn" onclick="insertEmoji('🚀')">🚀</button>
-                <button type="button" class="emoji-btn" onclick="insertEmoji('👋')">👋</button>
-                <button type="button" class="emoji-btn" onclick="insertEmoji('💪')">💪</button>
-                <button type="button" class="emoji-btn" onclick="insertEmoji('❤️')">❤️</button>
-                <button type="button" class="emoji-btn" onclick="insertEmoji('🎉')">🎉</button>
-                <button type="button" class="emoji-btn" onclick="insertEmoji('⭐')">⭐</button>
-                <button type="button" class="emoji-btn" onclick="insertEmoji('👀')">👀</button>
-              </div>
-
+              <!-- Post content -->
               <div class="form-group">
-                <label>Post Content <span class="spin-badge" id="spinInfo" style="display:none;">SPINTAX</span></label>
-                <textarea id="createText" placeholder="Write your post... Use {option1|option2|option3} for spintax variations" style="min-height:180px;"></textarea>
-                <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-top:5px;">
-                  <div class="hint" style="flex:1;">
-                    <b>Spintax:</b> <code>{Hey|Hi|Hello}</code> — each group gets a unique variation
-                  </div>
-                  <div id="charCounter" style="font-size:11px;font-weight:600;color:var(--green);margin-left:10px;white-space:nowrap;flex-shrink:0;">0 / 63,206</div>
+                <label style="display:flex;align-items:center;gap:8px;">
+                  Post Content
+                  <span class="spin-badge" id="spinInfo" style="display:none;">SPINTAX</span>
+                  <span style="margin-left:auto;display:flex;gap:6px;">
+                    <button type="button" class="emoji-btn" onclick="insertEmoji('🔥')" title="Fire">🔥</button>
+                    <button type="button" class="emoji-btn" onclick="insertEmoji('✅')" title="Check">✅</button>
+                    <button type="button" class="emoji-btn" onclick="insertEmoji('💡')" title="Idea">💡</button>
+                    <button type="button" class="emoji-btn" onclick="insertEmoji('🎯')" title="Target">🎯</button>
+                    <button type="button" class="emoji-btn" onclick="insertEmoji('💰')" title="Money">💰</button>
+                    <button type="button" class="emoji-btn" onclick="insertEmoji('🚀')" title="Rocket">🚀</button>
+                    <button type="button" class="emoji-btn" onclick="insertEmoji('👀')" title="Eyes">👀</button>
+                    <button type="button" class="emoji-btn" onclick="insertEmoji('🎉')" title="Party">🎉</button>
+                  </span>
+                </label>
+                <textarea id="createText" placeholder="What do you want to post?
+
+Tip: Use {Hi|Hey|Hello} to generate unique variations per group." style="min-height:200px;font-size:15px;line-height:1.6;"></textarea>
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-top:6px;">
+                  <span style="font-size:11px;color:var(--text-3);">{option1|option2} = spintax</span>
+                  <span id="charCounter" style="font-size:11px;font-weight:600;color:var(--green);">0</span>
                 </div>
               </div>
 
-              <!-- Image URL field -->
+              <!-- Image URL -->
               <div class="form-group">
-                <label>Image URL <span style="color:var(--text-3);font-weight:400;">(optional)</span></label>
+                <label>Image <span style="color:var(--text-3);font-weight:400;">(optional)</span></label>
                 <input type="url" id="createImageUrl" placeholder="https://example.com/image.jpg">
                 <div id="imagePreviewThumb" style="display:none;margin-top:8px;">
                   <img id="imagePreviewImg" style="max-width:100%;border-radius:8px;border:1px solid var(--border);display:block;" src="" alt="Preview" onerror="this.parentElement.style.display='none'">
                 </div>
               </div>
 
+              <!-- Groups -->
               <div class="form-group">
                 <label style="display:flex;align-items:center;gap:8px;">
                   Post to Groups
+                  <span id="selectedGroupCount" style="font-size:12px;color:var(--text-3);font-weight:400;">0 selected</span>
                   <span style="margin-left:auto;display:flex;gap:8px;">
-                    <a href="#" onclick="selectAllGroups();return false;" style="font-size:11px;color:var(--blue);font-weight:600;text-decoration:none;">Select All</a>
+                    <a href="#" onclick="selectAllGroups();return false;" style="font-size:11px;color:var(--blue);font-weight:600;text-decoration:none;">All</a>
                     <span style="color:var(--text-3);">·</span>
-                    <a href="#" onclick="deselectAllGroups();return false;" style="font-size:11px;color:var(--text-3);font-weight:600;text-decoration:none;">Deselect All</a>
+                    <a href="#" onclick="deselectAllGroups();return false;" style="font-size:11px;color:var(--text-3);font-weight:600;text-decoration:none;">None</a>
                   </span>
                 </label>
                 <div id="createGroupSelect" style="display:flex;flex-wrap:wrap;gap:8px;"></div>
-                <div id="createNoGroups" style="font-size:12px;color:var(--text-3);">
-                  No groups yet. <a href="#" onclick="nav('groups');return false;" style="color:#5B6FE8;">Add some first &rarr;</a>
+                <div id="createNoGroups" style="font-size:13px;color:var(--text-3);padding:16px;text-align:center;">
+                  No groups yet. <a href="#" onclick="nav('groups');return false;" style="color:#5B6FE8;font-weight:600;">Add some &rarr;</a>
                 </div>
               </div>
             </div>
           </div>
+
+          <!-- RIGHT: Actions -->
           <div>
             <div class="card">
-              <button class="btn btn-primary btn-block" style="margin-bottom:8px;padding:14px;" onclick="postNow()">Post Now</button>
+              <button class="btn btn-primary btn-block" style="margin-bottom:8px;padding:16px;font-size:15px;" onclick="postNow()">⚡ Post Now</button>
               <div id="postWaiting" style="display:none;text-align:center;padding:20px 0;color:var(--text-2);font-size:13px;">
                 <div style="display:inline-block;width:20px;height:20px;border:2px solid var(--border);border-top-color:#5B6FE8;border-radius:50%;animation:spin 1s linear infinite;margin-bottom:8px;"></div>
                 <div>Sending to extension...</div>
               </div>
-              <div class="divider"></div>
-              <div class="form-group">
-                <label>Schedule (optional)</label>
-                <input type="time" id="createTime" value="09:00" oninput="updateNextFire()" />
+
+              <div class="divider" style="margin:16px 0;"></div>
+
+              <div class="form-group" style="margin-bottom:12px;">
+                <label style="font-size:12px;color:var(--text-3);">Schedule</label>
+                <input type="time" id="createTime" value="09:00" oninput="updateNextFire()" style="font-size:14px;" />
               </div>
-              <div class="form-group">
-                <label>Repeat Days</label>
+              <div class="form-group" style="margin-bottom:12px;">
+                <label style="font-size:12px;color:var(--text-3);">Repeat Days</label>
                 <div class="days" id="createDays"></div>
-                <!-- Next fire indicator -->
                 <div id="nextFireIndicator" style="display:none;margin-top:8px;padding:8px 12px;border-radius:var(--radius-xs);background:var(--blue-light);font-size:12px;color:var(--blue);font-weight:500;">
                   📅 Next: <strong id="nextFireText"></strong>
                 </div>
               </div>
-              <button class="btn btn-secondary btn-block" style="margin-bottom:8px;" onclick="savePost()">Save Schedule</button>
-              <button class="btn btn-ghost btn-block" onclick="saveTemplate()">Save as Template</button>
+
+              <button class="btn btn-secondary btn-block" style="margin-bottom:8px;" onclick="savePost()">📅 Save Schedule</button>
+              <button class="btn btn-ghost btn-block" onclick="saveTemplate()">📋 Save as Template</button>
             </div>
 
-            <!-- Facebook-style live preview -->
+            <!-- Live Preview -->
             <div class="card">
-              <div class="card-title" style="margin-bottom:12px;">Live Preview</div>
+              <div class="card-title" style="margin-bottom:12px;font-size:13px;color:var(--text-3);">Preview</div>
               <div id="fbPreview" style="border:1px solid #e4e6eb;border-radius:12px;overflow:hidden;background:#fff;">
                 <div style="padding:12px 12px 8px;display:flex;align-items:center;gap:10px;" class="fb-preview-header">
-                  <div style="width:40px;height:40px;border-radius:50%;background:linear-gradient(135deg,#5B6FE8,#F368A8);flex-shrink:0;"></div>
+                  <div style="width:36px;height:36px;border-radius:50%;background:linear-gradient(135deg,#5B6FE8,#F368A8);flex-shrink:0;"></div>
                   <div>
                     <span style="font-weight:700;font-size:13px;display:block;color:#050505;">Your Page</span>
                     <small style="font-size:11px;color:#65676b;">Just now · 🌐</small>
                   </div>
                 </div>
-                <div id="fbPreviewText" style="color:var(--text-3);font-style:italic;">Start typing to see a preview…</div>
+                <div id="fbPreviewText" style="color:var(--text-3);font-style:italic;font-size:13px;">Start typing to see preview…</div>
                 <div id="fbPreviewImgWrap" style="display:none;">
                   <img id="fbPreviewImgEl" style="width:100%;display:block;" src="" alt="" onerror="this.parentElement.style.display='none'">
                 </div>
@@ -683,7 +688,7 @@
             </div>
 
             <div class="card">
-              <div class="card-title" style="margin-bottom: 10px;">Quick Templates</div>
+              <div class="card-title" style="margin-bottom:10px;font-size:13px;color:var(--text-3);">Quick Templates</div>
               <div id="quickTemplates"></div>
             </div>
           </div>

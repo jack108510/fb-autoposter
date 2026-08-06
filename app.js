@@ -1122,11 +1122,26 @@ function restoreDraft() {
 
 function selectAllGroups() {
   document.querySelectorAll('#createGroupSelect .group-chip').forEach(c => c.classList.add('selected'));
+  updateSelectedCount();
 }
 
 function deselectAllGroups() {
   document.querySelectorAll('#createGroupSelect .group-chip').forEach(c => c.classList.remove('selected'));
+  updateSelectedCount();
 }
+
+function updateSelectedCount() {
+  const count = document.querySelectorAll('#createGroupSelect .group-chip.selected').length;
+  const el = document.getElementById('selectedGroupCount');
+  if (el) el.textContent = count + ' selected';
+}
+
+// Update count when chips are toggled
+document.addEventListener('click', (e) => {
+  if (e.target.classList?.contains('group-chip')) {
+    setTimeout(updateSelectedCount, 0);
+  }
+});
 
 function insertEmoji(emoji) {
   const ta = document.getElementById('createText');
