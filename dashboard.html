@@ -734,6 +734,17 @@
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script>
+    // ─── Auth gate handled by Supabase (#authScreen) ───
+    // If not logged in, dashboard.html shows its own Supabase sign-in screen.
+    // No separate signup page needed.
+
+    function logout() {
+      if (window.sb) sb.auth.signOut();
+      sessionStorage.clear();
+      window.location.href = 'dashboard.html';
+    }
+  </script>
   <script src="app.js"></script>
 </body>
 </html>
