@@ -31,10 +31,14 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Check Supabase session
   const { data } = await sb.auth.getSession();
   if (!data.session) {
-    window.location.href = 'dashboard.html';
+    // Show login screen instead of redirecting
+    document.getElementById('authScreen').style.display = 'flex';
     return;
   }
   user = data.session.user;
+
+  // Show the app
+  document.getElementById('app').style.display = '';
 
   // Show user email in sidebar
   const footer = document.querySelector('.sidebar-footer');

@@ -405,7 +405,46 @@
     <span id="connLabel">Not connected</span>
   </div>
 
-  <div class="app">
+  <!-- Auth Screen -->
+  <div id="authScreen" style="display:none;position:fixed;inset:0;z-index:9999;background:#0a0a0f;align-items:center;justify-content:center;">
+    <div style="width:100%;max-width:380px;padding:40px 36px;background:rgba(18,18,26,.95);border:1px solid #252535;border-radius:20px;box-shadow:0 30px 80px rgba(0,0,0,.5);">
+      <div style="display:flex;align-items:center;justify-content:center;gap:10px;margin-bottom:32px;">
+        <svg width="32" height="32" viewBox="0 0 40 40" fill="none">
+          <defs><linearGradient id="aG" x1="0%" y1="100%" x2="100%" y2="0%"><stop offset="0%" stop-color="#5B6FE8"/><stop offset="55%" stop-color="#9B5DE5"/><stop offset="100%" stop-color="#F368A8"/></linearGradient></defs>
+          <path d="M8 20 a8 8 0 1 1 8 8 L16 12 L16 28" stroke="url(#aG)" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+          <line x1="16" y1="20" x2="28" y2="20" stroke="url(#aG)" stroke-width="3" stroke-linecap="round"/>
+          <circle cx="28" cy="12" r="3" fill="#F368A8"/>
+          <circle cx="32" cy="20" r="3" fill="#F368A8"/>
+          <circle cx="28" cy="28" r="3" fill="#F368A8"/>
+        </svg>
+        <span style="font-size:22px;font-weight:700;color:#f0f0f5;">amplr</span>
+      </div>
+      <h1 style="text-align:center;font-size:22px;font-weight:800;color:#f0f0f5;margin-bottom:6px;" id="authTitle">Welcome back</h1>
+      <p style="text-align:center;font-size:13px;color:#9999b0;margin-bottom:24px;" id="authSubtitle">Sign in to your dashboard.</p>
+      <div id="authError" style="display:none;background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.3);border-radius:10px;padding:10px 14px;font-size:13px;color:#f87171;margin-bottom:16px;"></div>
+      <form id="authForm" onsubmit="handleAuth(event)">
+        <div style="margin-bottom:16px;">
+          <label style="display:block;font-size:12px;font-weight:600;color:#9999b0;margin-bottom:6px;">Email</label>
+          <input type="email" id="authEmail" placeholder="you@example.com" autocomplete="email" required style="width:100%;padding:12px 14px;border:1px solid #252535;border-radius:10px;font-size:14px;background:#12121a;color:#f0f0f5;font-family:inherit;outline:none;" onfocus="this.style.borderColor='#5B6FE8'" onblur="this.style.borderColor='#252535'">
+        </div>
+        <div style="margin-bottom:20px;">
+          <label style="display:block;font-size:12px;font-weight:600;color:#9999b0;margin-bottom:6px;">Password</label>
+          <input type="password" id="authPassword" placeholder="Min 6 characters" autocomplete="current-password" required style="width:100%;padding:12px 14px;border:1px solid #252535;border-radius:10px;font-size:14px;background:#12121a;color:#f0f0f5;font-family:inherit;outline:none;" onfocus="this.style.borderColor='#5B6FE8'" onblur="this.style.borderColor='#252535'">
+        </div>
+        <button type="submit" id="authSubmit" style="width:100%;padding:13px;border:none;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;background:linear-gradient(120deg,#5B6FE8 0%,#9B5DE5 55%,#F368A8 100%);color:white;">
+          <span id="authBtnText">Sign In</span>
+        </button>
+      </form>
+      <div style="text-align:center;margin-top:22px;font-size:13px;color:#666680;" id="authToggleText">
+        Don't have an account? <a onclick="toggleAuthMode()" style="color:#5B6FE8;font-weight:600;cursor:pointer;text-decoration:none;">Create one</a>
+      </div>
+      <div style="text-align:center;margin-top:16px;font-size:11px;color:#666680;">
+        <a href="index.html" style="color:#666680;text-decoration:none;">← Back to home</a>
+      </div>
+    </div>
+  </div>
+
+  <div class="app" id="app" style="display:none">
     <!-- Sidebar -->
     <div class="sidebar" id="sidebar">
       <div class="brand">
@@ -702,14 +741,62 @@
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script>
-    // ─── Auth gate handled by Supabase (#authScreen) ───
-    // If not logged in, dashboard.html shows its own Supabase sign-in screen.
-    // No separate signup page needed.
+    // ─── Auth ───
+    let authMode = 'signin';
+
+    function toggleAuthMode() {
+      authMode = authMode === 'signin' ? 'signup' : 'signin';
+      const isSignup = authMode === 'signup';
+      document.getElementById('authTitle').textContent = isSignup ? 'Create your account' : 'Welcome back';
+      document.getElementById('authSubtitle').textContent = isSignup ? 'Start posting to 50+ groups on autopilot.' : 'Sign in to your dashboard.';
+      document.getElementById('authBtnText').textContent = isSignup ? 'Create Account' : 'Sign In';
+      document.getElementById('authToggleText').innerHTML = isSignup
+        ? 'Already have an account? <a onclick="toggleAuthMode()" style="color:#5B6FE8;font-weight:600;cursor:pointer;text-decoration:none;">Sign in</a>'
+        : 'Don\'t have an account? <a onclick="toggleAuthMode()" style="color:#5B6FE8;font-weight:600;cursor:pointer;text-decoration:none;">Create one</a>';
+      document.getElementById('authError').style.display = 'none';
+    }
+
+    function showAuthError(msg) {
+      const el = document.getElementById('authError');
+      el.textContent = msg;
+      el.style.display = 'block';
+    }
+
+    async function handleAuth(e) {
+      e.preventDefault();
+      const email = document.getElementById('authEmail').value.trim();
+      const password = document.getElementById('authPassword').value;
+      const btn = document.getElementById('authSubmit');
+      const errEl = document.getElementById('authError');
+      errEl.style.display = 'none';
+      btn.disabled = true;
+
+      try {
+        let result;
+        if (authMode === 'signin') {
+          result = await sb.auth.signInWithPassword({ email, password });
+        } else {
+          result = await sb.auth.signUp({ email, password });
+        }
+        if (result.error) throw result.error;
+        if (authMode === 'signup' && result.data?.user && !result.data?.session) {
+          showAuthError('Check your email to confirm your account, then sign in.');
+          btn.disabled = false;
+          return;
+        }
+        if (result.data?.session) {
+          // Success — reload to init the app
+          window.location.reload();
+        }
+      } catch (err) {
+        showAuthError(err.message || 'Authentication failed');
+        btn.disabled = false;
+      }
+    }
 
     function logout() {
       if (window.sb) sb.auth.signOut();
-      sessionStorage.clear();
-      window.location.href = 'dashboard.html';
+      window.location.reload();
     }
   </script>
   <script src="app.js"></script>
