@@ -405,7 +405,249 @@
       .two-col { grid-template-columns: 1fr; }
       .cal-day { min-height: 60px; }
     }
-    
+
+    /* ─── Create Post Premium ─── */
+    .cp-layout {
+      display: grid;
+      grid-template-columns: 1fr 316px;
+      gap: 20px;
+      align-items: start;
+    }
+
+    /* Unified editor card */
+    .cp-editor-col {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+
+    /* Writing surface */
+    .cp-write {
+      padding: 32px 36px 24px;
+    }
+
+    .cp-textarea {
+      display: block;
+      width: 100%;
+      min-height: 210px;
+      border: none !important;
+      outline: none !important;
+      box-shadow: none !important;
+      padding: 0 !important;
+      background: transparent !important;
+      font-size: 16px;
+      line-height: 1.75;
+      color: var(--text);
+      resize: vertical;
+      font-family: inherit;
+      border-radius: 0 !important;
+    }
+
+    .cp-textarea::placeholder { color: var(--text-3); font-size: 16px; }
+
+    .cp-toolbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding-top: 14px;
+      margin-top: 16px;
+      border-top: 1px solid var(--border);
+    }
+
+    .cp-emoji-strip { display: flex; gap: 1px; }
+
+    .cp-emoji {
+      width: 28px; height: 28px;
+      display: flex; align-items: center; justify-content: center;
+      border: none; background: transparent; border-radius: 5px;
+      font-size: 15px; cursor: pointer; transition: background .1s;
+      font-family: inherit; line-height: 1;
+    }
+    .cp-emoji:hover { background: var(--surface-2); }
+
+    .cp-meta { display: flex; align-items: center; gap: 10px; }
+
+    .cp-char-count {
+      font-size: 11px; font-weight: 500; color: var(--text-3);
+      font-variant-numeric: tabular-nums;
+    }
+
+    /* Sections within the editor card (image, groups) */
+    .cp-section {
+      padding: 22px 36px;
+      border-top: 1px solid var(--border);
+    }
+
+    .cp-section-hd {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 10px;
+    }
+
+    .cp-label {
+      font-size: 10px; font-weight: 700;
+      text-transform: uppercase; letter-spacing: .8px; color: var(--text-3);
+    }
+
+    .cp-label-count {
+      font-size: 11px; font-weight: 400;
+      text-transform: none; letter-spacing: 0; color: var(--text-3); margin-left: 6px;
+    }
+
+    .cp-actions-row { display: flex; align-items: center; gap: 4px; }
+
+    .cp-link {
+      color: var(--blue); font-weight: 600; text-decoration: none;
+      font-size: 11px; padding: 2px 4px; border-radius: 3px; transition: background .1s;
+    }
+    .cp-link:hover { background: var(--blue-light); text-decoration: none; }
+
+    .cp-link-dim { color: var(--text-3); }
+    .cp-link-dim:hover { color: var(--text-2); background: var(--surface-2); }
+
+    .cp-dot-sep { color: var(--border); font-size: 14px; line-height: 1; }
+
+    .cp-url-input {
+      width: 100%; padding: 9px 13px;
+      border: 1px solid var(--border) !important;
+      border-radius: var(--radius-sm) !important;
+      font-size: 13px; font-family: inherit;
+      background: var(--bg) !important; color: var(--text);
+      outline: none; transition: border .15s, box-shadow .15s, background .15s;
+    }
+    .cp-url-input:focus {
+      border-color: var(--blue) !important;
+      box-shadow: 0 0 0 3px var(--blue-light) !important;
+      background: var(--surface) !important;
+    }
+    .cp-url-input::placeholder { color: var(--text-3); }
+
+    .cp-groups-wrap { display: flex; flex-wrap: wrap; gap: 7px; }
+
+    .cp-empty-groups {
+      font-size: 13px; color: var(--text-3); padding: 20px 0; text-align: center;
+    }
+
+    /* Right sticky panel */
+    .cp-panel-col { position: sticky; top: 32px; }
+
+    .cp-panel {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius); box-shadow: var(--shadow); overflow: hidden;
+    }
+
+    .cp-panel-sec { padding: 18px 20px; }
+
+    .cp-panel-hr { height: 1px; background: var(--border); }
+
+    .cp-panel-lbl {
+      font-size: 10px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: .8px; color: var(--text-3); margin-bottom: 12px;
+    }
+
+    /* Publish button */
+    .cp-btn-publish {
+      width: 100%; padding: 13px 20px;
+      background: var(--blue); color: white;
+      border: none; border-radius: var(--radius-sm);
+      font-size: 14px; font-weight: 700; font-family: inherit;
+      cursor: pointer; display: flex; align-items: center;
+      justify-content: center; gap: 8px;
+      transition: background .15s, transform .15s, box-shadow .15s;
+      letter-spacing: -.01em;
+    }
+    .cp-btn-publish:hover {
+      background: var(--blue-dark); transform: translateY(-1px);
+      box-shadow: 0 6px 20px rgba(59,130,246,.3);
+    }
+    .cp-btn-publish:active { transform: translateY(0); box-shadow: none; }
+
+    /* Waiting */
+    .cp-waiting {
+      display: flex; align-items: center; gap: 8px;
+      padding: 10px 0 0; font-size: 12px; color: var(--text-2);
+    }
+    .cp-spinner {
+      width: 14px; height: 14px;
+      border: 2px solid var(--border); border-top-color: var(--blue);
+      border-radius: 50%; animation: spin .8s linear infinite; flex-shrink: 0;
+    }
+
+    /* Schedule fields */
+    .cp-field { margin-bottom: 14px; }
+
+    .cp-field-lbl {
+      font-size: 10px; font-weight: 600; color: var(--text-3);
+      margin-bottom: 6px; text-transform: uppercase; letter-spacing: .5px;
+    }
+
+    .cp-time {
+      width: 100%; padding: 9px 12px;
+      border: 1px solid var(--border) !important;
+      border-radius: var(--radius-sm) !important;
+      font-size: 13px; font-family: inherit;
+      background: var(--bg); color: var(--text);
+      outline: none; transition: border .15s, box-shadow .15s;
+    }
+    .cp-time:focus {
+      border-color: var(--blue) !important;
+      box-shadow: 0 0 0 3px var(--blue-light) !important;
+    }
+
+    .cp-next-fire {
+      margin-top: 8px; padding: 7px 11px; border-radius: 7px;
+      background: var(--blue-light); font-size: 11px; color: var(--blue); font-weight: 500;
+    }
+
+    .cp-btn-schedule {
+      width: 100%; padding: 10px 16px;
+      background: var(--surface-2); color: var(--text);
+      border: 1px solid var(--border); border-radius: var(--radius-sm);
+      font-size: 13px; font-weight: 600; font-family: inherit;
+      cursor: pointer; display: flex; align-items: center; justify-content: center;
+      transition: background .15s; margin-bottom: 6px;
+    }
+    .cp-btn-schedule:hover { background: var(--border); }
+
+    .cp-btn-tpl {
+      width: 100%; padding: 9px 16px;
+      background: transparent; color: var(--text-3);
+      border: none; border-radius: var(--radius-sm);
+      font-size: 12px; font-weight: 600; font-family: inherit;
+      cursor: pointer; display: flex; align-items: center; justify-content: center;
+      transition: background .15s, color .15s;
+    }
+    .cp-btn-tpl:hover { background: var(--surface-2); color: var(--text-2); }
+
+    /* FB Preview */
+    .cp-preview-wrap {
+      border-radius: 9px; overflow: hidden;
+      background: var(--surface-2); border: 1px solid var(--border);
+    }
+
+    .cp-fb-hd {
+      padding: 11px 13px; display: flex; align-items: center; gap: 9px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .cp-fb-av {
+      width: 34px; height: 34px; border-radius: 50%;
+      background: linear-gradient(135deg, #5B6FE8, #F368A8);
+      flex-shrink: 0; display: flex; align-items: center;
+      justify-content: center; color: white; font-weight: 800; font-size: 12px;
+    }
+
+    .cp-fb-name { font-weight: 700; font-size: 12px; display: block; color: var(--text); }
+    .cp-fb-sub { font-size: 10px; color: var(--text-3); display: block; }
+
+    @media (max-width: 900px) {
+      .cp-layout { grid-template-columns: 1fr; }
+      .cp-panel-col { position: static; }
+      .cp-write { padding: 24px; }
+      .cp-section { padding: 18px 24px; }
+    }
+
 </style>
 </head>
 <body>
@@ -586,106 +828,117 @@
         <div class="page-title">Create Post</div>
         <div class="page-subtitle">Write once. Amplr posts unique variations to every group.</div>
 
-        <div class="two-col" style="grid-template-columns: 1.4fr 1fr; gap: 24px;">
+        <div class="cp-layout">
           <!-- LEFT: Editor -->
-          <div>
-            <div class="card" style="padding:28px;">
-              <!-- Post content -->
-              <div class="form-group" style="margin-bottom:24px;">
-                <textarea id="createText" placeholder="What do you want to share?
+          <div class="cp-editor-col">
+            <!-- Writing surface -->
+            <div class="cp-write">
+              <textarea id="createText" class="cp-textarea" placeholder="What do you want to share?
 
-Use {Hi|Hey|Hello} to spin unique variations — each group gets a different version." style="min-height:220px;font-size:15px;line-height:1.7;border:none;padding:0;background:transparent;resize:vertical;"></textarea>
-                <div style="display:flex;justify-content:space-between;align-items:center;margin-top:12px;padding-top:12px;border-top:1px solid var(--border);">
-                  <div style="display:flex;gap:4px;">
-                    <button type="button" class="emoji-btn" onclick="insertEmoji('🔥')">🔥</button>
-                    <button type="button" class="emoji-btn" onclick="insertEmoji('✅')">✅</button>
-                    <button type="button" class="emoji-btn" onclick="insertEmoji('💡')">💡</button>
-                    <button type="button" class="emoji-btn" onclick="insertEmoji('🎯')">🎯</button>
-                    <button type="button" class="emoji-btn" onclick="insertEmoji('💰')">💰</button>
-                    <button type="button" class="emoji-btn" onclick="insertEmoji('🚀')">🚀</button>
-                    <button type="button" class="emoji-btn" onclick="insertEmoji('👀')">👀</button>
-                    <button type="button" class="emoji-btn" onclick="insertEmoji('🎉')">🎉</button>
-                  </div>
-                  <div style="display:flex;align-items:center;gap:10px;">
-                    <span class="spin-badge" id="spinInfo" style="display:none;">SPINTAX</span>
-                    <span id="charCounter" style="font-size:12px;font-weight:500;color:var(--text-3);">0</span>
-                  </div>
+Use {Hi|Hey|Hello} to spin unique variations — each group gets a different version."></textarea>
+              <div class="cp-toolbar">
+                <div class="cp-emoji-strip">
+                  <button type="button" class="cp-emoji" onclick="insertEmoji('🔥')">🔥</button>
+                  <button type="button" class="cp-emoji" onclick="insertEmoji('✅')">✅</button>
+                  <button type="button" class="cp-emoji" onclick="insertEmoji('💡')">💡</button>
+                  <button type="button" class="cp-emoji" onclick="insertEmoji('🎯')">🎯</button>
+                  <button type="button" class="cp-emoji" onclick="insertEmoji('💰')">💰</button>
+                  <button type="button" class="cp-emoji" onclick="insertEmoji('🚀')">🚀</button>
+                  <button type="button" class="cp-emoji" onclick="insertEmoji('👀')">👀</button>
+                  <button type="button" class="cp-emoji" onclick="insertEmoji('🎉')">🎉</button>
+                </div>
+                <div class="cp-meta">
+                  <span class="spin-badge" id="spinInfo" style="display:none;">SPINTAX</span>
+                  <span class="cp-char-count" id="charCounter">0</span>
                 </div>
               </div>
+            </div>
 
-              <!-- Image -->
-              <div class="form-group" style="margin-bottom:24px;">
-                <label style="font-size:13px;font-weight:600;color:var(--text);">Image <span style="color:var(--text-3);font-weight:400;">(optional)</span></label>
-                <input type="url" id="createImageUrl" placeholder="Paste image URL...">
-                <div id="imagePreviewThumb" style="display:none;margin-top:10px;">
-                  <img id="imagePreviewImg" style="max-width:100%;border-radius:12px;border:1px solid var(--border);display:block;" src="" alt="Preview" onerror="this.parentElement.style.display='none'">
+            <!-- Image section -->
+            <div class="cp-section">
+              <div class="cp-section-hd">
+                <span class="cp-label">Image <span class="cp-label-count">optional</span></span>
+              </div>
+              <input type="url" id="createImageUrl" class="cp-url-input" placeholder="Paste image URL...">
+              <div id="imagePreviewThumb" style="display:none;margin-top:10px;">
+                <img id="imagePreviewImg" style="max-width:100%;border-radius:9px;border:1px solid var(--border);display:block;" src="" alt="Preview" onerror="this.parentElement.style.display='none'">
+              </div>
+            </div>
+
+            <!-- Groups section -->
+            <div class="cp-section">
+              <div class="cp-section-hd">
+                <span class="cp-label">Post to <span class="cp-label-count" id="selectedGroupCount">0 groups</span></span>
+                <div class="cp-actions-row">
+                  <a href="#" class="cp-link" onclick="selectAllGroups();return false;">Select all</a>
+                  <span class="cp-dot-sep">·</span>
+                  <a href="#" class="cp-link cp-link-dim" onclick="deselectAllGroups();return false;">Clear</a>
                 </div>
               </div>
-
-              <!-- Groups -->
-              <div class="form-group" style="margin-bottom:0;">
-                <label style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;color:var(--text);">
-                  Post to
-                  <span id="selectedGroupCount" style="font-size:12px;color:var(--text-3);font-weight:400;">0 groups</span>
-                  <span style="margin-left:auto;display:flex;gap:6px;">
-                    <a href="#" onclick="selectAllGroups();return false;" style="font-size:11px;color:var(--blue);font-weight:600;text-decoration:none;">Select all</a>
-                    <span style="color:var(--border);">|</span>
-                    <a href="#" onclick="deselectAllGroups();return false;" style="font-size:11px;color:var(--text-3);font-weight:600;text-decoration:none;">Clear</a>
-                  </span>
-                </label>
-                <div id="createGroupSelect" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:10px;"></div>
-                <div id="createNoGroups" style="font-size:13px;color:var(--text-3);padding:24px;text-align:center;">
-                  No groups yet. <a href="#" onclick="nav('groups');return false;" style="color:var(--blue);font-weight:600;">Add your first group &rarr;</a>
-                </div>
+              <div id="createGroupSelect" class="cp-groups-wrap"></div>
+              <div id="createNoGroups" class="cp-empty-groups">
+                No groups yet. <a href="#" onclick="nav('groups');return false;" style="color:var(--blue);font-weight:600;text-decoration:none;">Add your first group &rarr;</a>
               </div>
             </div>
           </div>
 
-          <!-- RIGHT: Publish + Schedule + Preview -->
-          <div style="display:flex;flex-direction:column;gap:20px;">
-            <!-- Publish -->
-            <div class="card" style="padding:24px;">
-              <div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:16px;">Publish</div>
-              <button class="btn btn-primary btn-block" style="padding:16px;font-size:15px;margin-bottom:12px;" onclick="postNow()">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/></svg>
-                Post Now
-              </button>
-              <div id="postWaiting" style="display:none;text-align:center;padding:16px 0;color:var(--text-2);font-size:13px;">
-                <div style="display:inline-block;width:20px;height:20px;border:2px solid var(--border);border-top-color:var(--blue);border-radius:50%;animation:spin 1s linear infinite;margin-bottom:8px;"></div>
-                <div>Sending to extension...</div>
+          <!-- RIGHT: Sticky publish panel -->
+          <div class="cp-panel-col">
+            <div class="cp-panel">
+              <!-- Publish -->
+              <div class="cp-panel-sec">
+                <button class="cp-btn-publish" onclick="postNow()">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/></svg>
+                  Post Now
+                </button>
+                <div id="postWaiting" class="cp-waiting" style="display:none;">
+                  <div class="cp-spinner"></div>
+                  <span>Sending to extension...</span>
+                </div>
               </div>
 
-              <div style="margin-top:20px;padding-top:20px;border-top:1px solid var(--border);">
-                <div class="form-group" style="margin-bottom:14px;">
-                  <label style="font-size:12px;color:var(--text-3);">Time</label>
-                  <input type="time" id="createTime" value="09:00" oninput="updateNextFire()" style="font-size:14px;" />
+              <div class="cp-panel-hr"></div>
+
+              <!-- Schedule -->
+              <div class="cp-panel-sec">
+                <div class="cp-field">
+                  <div class="cp-field-lbl">Time</div>
+                  <input type="time" id="createTime" class="cp-time" value="09:00" oninput="updateNextFire()" />
                 </div>
-                <div class="form-group" style="margin-bottom:14px;">
-                  <label style="font-size:12px;color:var(--text-3);">Repeat on</label>
+                <div class="cp-field" style="margin-bottom:0;">
+                  <div class="cp-field-lbl">Repeat on</div>
                   <div class="days" id="createDays"></div>
-                  <div id="nextFireIndicator" style="display:none;margin-top:10px;padding:10px 14px;border-radius:10px;background:var(--blue-light);font-size:12px;color:var(--blue);font-weight:500;">
+                  <div id="nextFireIndicator" class="cp-next-fire" style="display:none;">
                     Next: <strong id="nextFireText"></strong>
                   </div>
                 </div>
-                <button class="btn btn-secondary btn-block" style="margin-bottom:8px;" onclick="savePost()">Save Schedule</button>
-                <button class="btn btn-ghost btn-block" onclick="saveTemplate()">Save as Template</button>
               </div>
-            </div>
 
-            <!-- Facebook Preview -->
-            <div class="card" style="padding:20px;">
-              <div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:14px;">Preview</div>
-              <div id="fbPreview" style="border:none;border-radius:14px;overflow:hidden;background:var(--surface-2);">
-                <div style="padding:14px;display:flex;align-items:center;gap:10px;">
-                  <div style="width:40px;height:40px;border-radius:50%;background:linear-gradient(135deg,#5B6FE8,#F368A8);flex-shrink:0;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800;font-size:14px;">A</div>
-                  <div>
-                    <span style="font-weight:700;font-size:14px;display:block;color:var(--text);">Your Page</span>
-                    <small style="font-size:11px;color:var(--text-3);">Just now · 🌐</small>
+              <div class="cp-panel-hr"></div>
+
+              <!-- Actions -->
+              <div class="cp-panel-sec" style="padding-top:14px;padding-bottom:14px;">
+                <button class="cp-btn-schedule" onclick="savePost()">Save Schedule</button>
+                <button class="cp-btn-tpl" onclick="saveTemplate()">Save as Template</button>
+              </div>
+
+              <div class="cp-panel-hr"></div>
+
+              <!-- FB Preview -->
+              <div class="cp-panel-sec">
+                <div class="cp-panel-lbl">Preview</div>
+                <div id="fbPreview" class="cp-preview-wrap">
+                  <div class="cp-fb-hd">
+                    <div class="cp-fb-av">A</div>
+                    <div>
+                      <span class="cp-fb-name">Your Page</span>
+                      <small class="cp-fb-sub">Just now · 🌐</small>
+                    </div>
                   </div>
-                </div>
-                <div id="fbPreviewText" style="padding:0 14px 14px;color:var(--text-3);font-style:italic;font-size:14px;line-height:1.5;">Your post will appear here...</div>
-                <div id="fbPreviewImgWrap" style="display:none;">
-                  <img id="fbPreviewImgEl" style="width:100%;display:block;" src="" alt="" onerror="this.parentElement.style.display='none'">
+                  <div id="fbPreviewText" style="padding:11px 13px;color:var(--text-3);font-style:italic;font-size:13px;line-height:1.5;">Your post will appear here...</div>
+                  <div id="fbPreviewImgWrap" style="display:none;">
+                    <img id="fbPreviewImgEl" style="width:100%;display:block;" src="" alt="" onerror="this.parentElement.style.display='none'">
+                  </div>
                 </div>
               </div>
             </div>
