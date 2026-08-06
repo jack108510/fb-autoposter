@@ -418,16 +418,44 @@ function renderDays() {
     `<div class="day-chip ${selDays.includes(i) ? 'selected' : ''}" onclick="toggleDay(${i})">${name}</div>`
   ).join('');
 }
-function toggleDay(d) { selDays = selDays.includes(d) ? selDays.filter(x => x !== d) : [...selDays, d].sort(); renderDays(); }
+function toggleDay(d) { selDays = selDays.includes(d) ? selDays.filter(x => x !== d) : [...selDays, d].sort(); renderDays(); updateNextFire(); }
 
 document.addEventListener('input', (e) => {
   if (e.target.id === 'createText') {
-    const has = hasSpintax(e.target.value);
+    const val = e.target.value;
+
+    // Spintax badge
+    const has = hasSpintax(val);
     const badge = document.getElementById('spinInfo');
     if (has) {
       badge.style.display = 'inline-flex';
-      badge.textContent = `${countVariations(e.target.value)} VARIATIONS`;
+      badge.textContent = `${countVariations(val)} VARIATIONS`;
     } else { badge.style.display = 'none'; }
+
+    // Character counter
+    updateCharCounter(val.length);
+
+    // FB live preview
+    updateFbPreview(val);
+
+    // Auto-save draft
+    clearTimeout(window._draftTimer);
+    window._draftTimer = setTimeout(() => {
+      localStorage.setItem('amplr_draft', val);
+    }, 2000);
+  }
+
+  if (e.target.id === 'createImageUrl') {
+    const url = e.target.value.trim();
+    const isValid = url.startsWith('http');
+    const thumb = document.getElementById('imagePreviewThumb');
+    const img = document.getElementById('imagePreviewImg');
+    const wrap = document.getElementById('fbPreviewImgWrap');
+    const fbImg = document.getElementById('fbPreviewImgEl');
+    if (thumb) thumb.style.display = isValid ? 'block' : 'none';
+    if (img && isValid) img.src = url;
+    if (wrap) wrap.style.display = isValid ? 'block' : 'none';
+    if (fbImg && isValid) fbImg.src = url;
   }
 });
 
@@ -438,8 +466,9 @@ async function savePost() {
   if (selDays.length === 0) return toast('Pick at least one day');
   const groups = getSelectedGroups();
   if (groups.length === 0) return toast('Select at least one group');
+  const imageUrl = document.getElementById('createImageUrl')?.value.trim() || '';
   const post = {
-    id: Date.now().toString(), text, imageUrl: '', groups,
+    id: Date.now().toString(), text, imageUrl, groups,
     schedule: { time, days: [...selDays] }, enabled: true,
     createdAt: new Date().toISOString(),
     hasSpintax: hasSpintax(text), variations: countVariations(text),
@@ -449,8 +478,7 @@ async function savePost() {
   const err = await sbSet('posts', posts);
   if (err) return toast('Error: ' + err.message);
   toast('Scheduled!');
-  document.getElementById('createText').value = '';
-  document.getElementById('spinInfo').style.display = 'none';
+  clearCreateForm();
   nav('scheduled');
 }
 
@@ -459,6 +487,7 @@ async function postNow() {
   if (!text) return toast('Write something first');
   const groups = getSelectedGroups();
   if (groups.length === 0) return toast('Select at least one group');
+  const imageUrl = document.getElementById('createImageUrl')?.value.trim() || '';
 
   const waiting = document.getElementById('postWaiting');
   if (waiting) waiting.style.display = 'block';
@@ -467,6 +496,7 @@ async function postNow() {
     const { error } = await sb.from('jsw_post_jobs').insert({
       user_id: user.id,
       message: text,
+      image_url: imageUrl || null,
       groups: groups.map(g => g.url),
       delay: cachedData.settings?.delay || 30,
       status: 'pending',
@@ -475,9 +505,7 @@ async function postNow() {
 
     if (waiting) waiting.style.display = 'none';
     toast('Sent — extension will post it');
-    document.getElementById('createText').value = '';
-    document.getElementById('spinInfo').style.display = 'none';
-    document.querySelectorAll('#createGroupSelect .group-chip.selected').forEach(c => c.classList.remove('selected'));
+    clearCreateForm();
   } catch (e) {
     if (waiting) waiting.style.display = 'none';
     toast('Error: ' + e.message);
@@ -501,6 +529,8 @@ async function saveTemplate() {
 async function loadTemplates() {
   cachedData = await fetchAll();
   renderGroupChips();
+  restoreDraft();
+  updateNextFire();
   const templates = cachedData.templates || [];
   document.getElementById('quickTemplates').innerHTML = templates.length === 0
     ? '<div style="font-size:12px;color:var(--text-3);">No saved templates yet</div>'
@@ -1008,4 +1038,105 @@ function toast(msg) {
   const t = document.createElement('div'); t.className = 'toast'; t.textContent = msg;
   document.body.appendChild(t);
   setTimeout(() => t.remove(), 3000);
+}
+
+// ─── Create page helpers ───
+
+function clearCreateForm() {
+  const ta = document.getElementById('createText');
+  if (ta) { ta.value = ''; ta.dispatchEvent(new Event('input')); }
+  const imgInput = document.getElementById('createImageUrl');
+  if (imgInput) { imgInput.value = ''; imgInput.dispatchEvent(new Event('input')); }
+  document.getElementById('spinInfo').style.display = 'none';
+  document.querySelectorAll('#createGroupSelect .group-chip.selected').forEach(c => c.classList.remove('selected'));
+  localStorage.removeItem('amplr_draft');
+}
+
+function restoreDraft() {
+  const draft = localStorage.getItem('amplr_draft');
+  const ta = document.getElementById('createText');
+  if (draft && ta && !ta.value.trim()) {
+    ta.value = draft;
+    ta.dispatchEvent(new Event('input'));
+  }
+}
+
+function selectAllGroups() {
+  document.querySelectorAll('#createGroupSelect .group-chip').forEach(c => c.classList.add('selected'));
+}
+
+function deselectAllGroups() {
+  document.querySelectorAll('#createGroupSelect .group-chip').forEach(c => c.classList.remove('selected'));
+}
+
+function insertEmoji(emoji) {
+  const ta = document.getElementById('createText');
+  if (!ta) return;
+  const start = ta.selectionStart;
+  const end = ta.selectionEnd;
+  ta.value = ta.value.slice(0, start) + emoji + ta.value.slice(end);
+  ta.selectionStart = ta.selectionEnd = start + emoji.length;
+  ta.focus();
+  ta.dispatchEvent(new Event('input'));
+}
+
+function updateCharCounter(len) {
+  const el = document.getElementById('charCounter');
+  if (!el) return;
+  const max = 63206;
+  el.textContent = `${len.toLocaleString()} / ${max.toLocaleString()}`;
+  if (len > 60000) {
+    el.style.color = 'var(--red)';
+  } else if (len > 50000) {
+    el.style.color = 'var(--yellow)';
+  } else {
+    el.style.color = 'var(--green)';
+  }
+}
+
+function updateFbPreview(text) {
+  const el = document.getElementById('fbPreviewText');
+  if (!el) return;
+  if (!text.trim()) {
+    el.textContent = 'Start typing to see a preview…';
+    el.style.fontStyle = 'italic';
+    el.style.color = 'var(--text-3)';
+  } else {
+    el.textContent = text;
+    el.style.fontStyle = '';
+    el.style.color = '';
+  }
+}
+
+function updateNextFire() {
+  const indicator = document.getElementById('nextFireIndicator');
+  const nextFireText = document.getElementById('nextFireText');
+  const timeInput = document.getElementById('createTime');
+  if (!indicator || !nextFireText || !timeInput) return;
+
+  if (selDays.length === 0) { indicator.style.display = 'none'; return; }
+
+  const [hours, minutes] = timeInput.value.split(':').map(Number);
+  const now = new Date();
+  let next = null;
+
+  for (let ahead = 0; ahead <= 7; ahead++) {
+    const candidate = new Date(now);
+    candidate.setDate(now.getDate() + ahead);
+    candidate.setHours(hours, minutes, 0, 0);
+    if (selDays.includes(candidate.getDay()) && candidate > now) {
+      next = candidate;
+      break;
+    }
+  }
+
+  if (next) {
+    indicator.style.display = 'block';
+    const dayName = DAYS[next.getDay()];
+    const dateStr = next.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    const timeStr = next.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+    nextFireText.textContent = `${dayName} ${dateStr} at ${timeStr}`;
+  } else {
+    indicator.style.display = 'none';
+  }
 }

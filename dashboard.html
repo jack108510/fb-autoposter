@@ -379,6 +379,17 @@
       transition: all .15s;
     }
     .add-group-btn:hover { border-color: var(--blue); color: var(--blue); }
+    .emoji-btn {
+      font-size: 18px; padding: 4px 7px; border: 1px solid var(--border); border-radius: 6px;
+      background: var(--surface); cursor: pointer; transition: transform .1s, background .1s;
+      line-height: 1; font-family: inherit;
+    }
+    .emoji-btn:hover { background: var(--surface-2); transform: scale(1.15); }
+    #fbPreviewText { padding: 12px; font-size: 14px; line-height: 1.6; color: #050505; white-space: pre-wrap; min-height: 44px; word-break: break-word; }
+    [data-theme="dark"] #fbPreview { background: #242526; border-color: #3a3b3c; }
+    [data-theme="dark"] #fbPreviewText { color: #e4e6eb; }
+    [data-theme="dark"] .fb-preview-header span { color: #e4e6eb; }
+    [data-theme="dark"] .fb-preview-header small { color: #b0b3b8; }
     .spin-badge {
       display: inline-flex; align-items: center; gap: 3px;
       background: var(--purple-light); color: var(--purple);
@@ -581,15 +592,51 @@
         <div class="two-col">
           <div>
             <div class="card">
+              <!-- Emoji quick-bar -->
+              <div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:10px;">
+                <button type="button" class="emoji-btn" onclick="insertEmoji('🔥')">🔥</button>
+                <button type="button" class="emoji-btn" onclick="insertEmoji('✅')">✅</button>
+                <button type="button" class="emoji-btn" onclick="insertEmoji('💡')">💡</button>
+                <button type="button" class="emoji-btn" onclick="insertEmoji('🎯')">🎯</button>
+                <button type="button" class="emoji-btn" onclick="insertEmoji('💰')">💰</button>
+                <button type="button" class="emoji-btn" onclick="insertEmoji('🚀')">🚀</button>
+                <button type="button" class="emoji-btn" onclick="insertEmoji('👋')">👋</button>
+                <button type="button" class="emoji-btn" onclick="insertEmoji('💪')">💪</button>
+                <button type="button" class="emoji-btn" onclick="insertEmoji('❤️')">❤️</button>
+                <button type="button" class="emoji-btn" onclick="insertEmoji('🎉')">🎉</button>
+                <button type="button" class="emoji-btn" onclick="insertEmoji('⭐')">⭐</button>
+                <button type="button" class="emoji-btn" onclick="insertEmoji('👀')">👀</button>
+              </div>
+
               <div class="form-group">
                 <label>Post Content <span class="spin-badge" id="spinInfo" style="display:none;">SPINTAX</span></label>
                 <textarea id="createText" placeholder="Write your post... Use {option1|option2|option3} for spintax variations" style="min-height:180px;"></textarea>
-                <div class="hint">
-                   <b>Spintax:</b> Wrap alternate text in curly braces: <code>{Hey|Hi|Hello}</code> — each group gets a unique variation to avoid duplicate detection
+                <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-top:5px;">
+                  <div class="hint" style="flex:1;">
+                    <b>Spintax:</b> <code>{Hey|Hi|Hello}</code> — each group gets a unique variation
+                  </div>
+                  <div id="charCounter" style="font-size:11px;font-weight:600;color:var(--green);margin-left:10px;white-space:nowrap;flex-shrink:0;">0 / 63,206</div>
                 </div>
               </div>
+
+              <!-- Image URL field -->
               <div class="form-group">
-                <label>Post to Groups</label>
+                <label>Image URL <span style="color:var(--text-3);font-weight:400;">(optional)</span></label>
+                <input type="url" id="createImageUrl" placeholder="https://example.com/image.jpg">
+                <div id="imagePreviewThumb" style="display:none;margin-top:8px;">
+                  <img id="imagePreviewImg" style="max-width:100%;border-radius:8px;border:1px solid var(--border);display:block;" src="" alt="Preview" onerror="this.parentElement.style.display='none'">
+                </div>
+              </div>
+
+              <div class="form-group">
+                <label style="display:flex;align-items:center;gap:8px;">
+                  Post to Groups
+                  <span style="margin-left:auto;display:flex;gap:8px;">
+                    <a href="#" onclick="selectAllGroups();return false;" style="font-size:11px;color:var(--blue);font-weight:600;text-decoration:none;">Select All</a>
+                    <span style="color:var(--text-3);">·</span>
+                    <a href="#" onclick="deselectAllGroups();return false;" style="font-size:11px;color:var(--text-3);font-weight:600;text-decoration:none;">Deselect All</a>
+                  </span>
+                </label>
                 <div id="createGroupSelect" style="display:flex;flex-wrap:wrap;gap:8px;"></div>
                 <div id="createNoGroups" style="font-size:12px;color:var(--text-3);">
                   No groups yet. <a href="#" onclick="nav('groups');return false;" style="color:#5B6FE8;">Add some first &rarr;</a>
@@ -607,15 +654,38 @@
               <div class="divider"></div>
               <div class="form-group">
                 <label>Schedule (optional)</label>
-                <input type="time" id="createTime" value="09:00" />
+                <input type="time" id="createTime" value="09:00" oninput="updateNextFire()" />
               </div>
               <div class="form-group">
                 <label>Repeat Days</label>
                 <div class="days" id="createDays"></div>
+                <!-- Next fire indicator -->
+                <div id="nextFireIndicator" style="display:none;margin-top:8px;padding:8px 12px;border-radius:var(--radius-xs);background:var(--blue-light);font-size:12px;color:var(--blue);font-weight:500;">
+                  📅 Next: <strong id="nextFireText"></strong>
+                </div>
               </div>
               <button class="btn btn-secondary btn-block" style="margin-bottom:8px;" onclick="savePost()">Save Schedule</button>
               <button class="btn btn-ghost btn-block" onclick="saveTemplate()">Save as Template</button>
             </div>
+
+            <!-- Facebook-style live preview -->
+            <div class="card">
+              <div class="card-title" style="margin-bottom:12px;">Live Preview</div>
+              <div id="fbPreview" style="border:1px solid #e4e6eb;border-radius:12px;overflow:hidden;background:#fff;">
+                <div style="padding:12px 12px 8px;display:flex;align-items:center;gap:10px;" class="fb-preview-header">
+                  <div style="width:40px;height:40px;border-radius:50%;background:linear-gradient(135deg,#5B6FE8,#F368A8);flex-shrink:0;"></div>
+                  <div>
+                    <span style="font-weight:700;font-size:13px;display:block;color:#050505;">Your Page</span>
+                    <small style="font-size:11px;color:#65676b;">Just now · 🌐</small>
+                  </div>
+                </div>
+                <div id="fbPreviewText" style="color:var(--text-3);font-style:italic;">Start typing to see a preview…</div>
+                <div id="fbPreviewImgWrap" style="display:none;">
+                  <img id="fbPreviewImgEl" style="width:100%;display:block;" src="" alt="" onerror="this.parentElement.style.display='none'">
+                </div>
+              </div>
+            </div>
+
             <div class="card">
               <div class="card-title" style="margin-bottom: 10px;">Quick Templates</div>
               <div id="quickTemplates"></div>
