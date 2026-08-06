@@ -32,7 +32,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Check Supabase session
   const { data } = await sb.auth.getSession();
   if (!data.session) {
-    window.location.href = 'signup.html';
+    window.location.href = 'dashboard.html';
     return;
   }
   user = data.session.user;
@@ -125,9 +125,8 @@ async function checkConn() {
 
   // Check extension heartbeat in jsw_settings
   const { data: settingsRow } = await sb.from('jsw_settings')
-    .select('ext_heartbeat,pairing_code').eq('user_id', user.id).maybeSingle();
+    .select('ext_heartbeat').eq('user_id', user.id).maybeSingle();
 
-  const hasPairing = !!settingsRow?.pairing_code;
   const hb = settingsRow?.ext_heartbeat;
   const hbAge = hb ? Date.now() - new Date(hb).getTime() : Infinity;
   const isOnline = hbAge < 90000; // heartbeat within 90s
@@ -145,7 +144,7 @@ async function checkConn() {
     connected = false;
     bar.className = 'conn-bar disconnected';
     dot.className = 'conn-dot off';
-    label.textContent = hasPairing ? 'Extension offline' : 'Not paired';
+    label.textContent = 'Extension offline';
   }
 
   // Always load data regardless of connection state
@@ -789,12 +788,12 @@ async function clearLogs() {
   }
 }
 
-function exportLogs() {
+async function exportLogs() {
   const logs = cachedData.logs || [];
   if (logs.length === 0) return toast('No logs to export');
 
   // Also include Supabase job history
-  const { data: jobs } = sb.from('jsw_post_jobs').select('*').eq('user_id', user.id).order('created_at', { ascending: false }).limit(50);
+  const { data: jobs } = await sb.from('jsw_post_jobs').select('*').eq('user_id', user.id).order('created_at', { ascending: false }).limit(50);
   const rows = [['Timestamp', 'Preview', 'Group', 'Success', 'Error']];
   logs.forEach(l => {
     (l.results || []).forEach(r => {
@@ -815,21 +814,8 @@ function exportLogs() {
 
 // ═══ SETTINGS ═══
 async function loadSettings() {
-  // Always fetch fresh settings to ensure pairing code is shown
   cachedData.settings = await sbGet('settings') || cachedData.settings || {};
   const s = cachedData.settings;
-  // Show pairing code section
-  const codeEl = document.getElementById('pairingCodeDisplay');
-  if (codeEl) {
-    if (s.pairing_code) {
-      codeEl.innerHTML = `<div style="display:flex;align-items:center;gap:12px;">
-        <div style="font-size:24px;font-weight:800;letter-spacing:4px;font-family:'SF Mono','Monaco','Menlo',monospace;background:linear-gradient(120deg,#5B6FE8,#9B5DE5,#F368A8);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;cursor:pointer;" onclick="copyBannerCode()">${s.pairing_code}</div>
-        <button class="btn btn-ghost btn-sm" onclick="generatePairingCode()">New</button>
-      </div>`;
-    } else {
-      codeEl.innerHTML = `<button class="btn btn-primary btn-sm" onclick="generatePairingCode()">Generate Code</button>`;
-    }
-  }
 
   // Status
   const statusEl = document.getElementById('connStatus');
@@ -837,46 +823,15 @@ async function loadSettings() {
   if (statusEl) {
     statusEl.innerHTML = connected
       ? '<span style="color:var(--green);">Connected & ready</span>'
-      : '<span style="color:var(--red);">Extension not paired — enter the code above in your extension</span>';
+      : '<span style="color:var(--red);">Extension offline</span>';
   }
   if (hintEl) {
     hintEl.style.display = connected ? 'none' : 'block';
   }
 
-  // Show/hide pairing banner on dashboard
-  const banner = document.getElementById('pairingBanner');
-  const bannerCode = document.getElementById('bannerCode');
-  if (banner && bannerCode) {
-    if (!connected && s.pairing_code) {
-      banner.style.display = 'block';
-      bannerCode.textContent = s.pairing_code;
-    } else {
-      banner.style.display = 'none';
-    }
-  }
-
   if (s.delay) document.getElementById('setDelay').value = s.delay;
   if (s.maxGroups) document.getElementById('setMaxGroups').value = s.maxGroups;
   if (s.jitter) document.getElementById('setJitter').value = s.jitter;
-}
-
-async function generatePairingCode() {
-  const code = Math.random().toString(36).substring(2, 8).toUpperCase();
-  const settings = { ...(cachedData.settings || {}), pairing_code: code };
-  cachedData.settings = settings;
-  await sbSet('settings', settings);
-
-  // Also upsert into jsw_settings so the extension can find it
-  await sb.from('jsw_settings').upsert({
-    user_id: user.id, pairing_code: code,
-    ai_provider: settings.ai_provider || 'openai',
-    ai_model: settings.ai_model || 'gpt-4o-mini',
-    default_delay: settings.delay || 30,
-    ai_enabled: false,
-  });
-
-  toast('Pairing code generated');
-  loadSettings();
 }
 
 async function saveSettings() {
@@ -939,28 +894,6 @@ function startScheduleChecker() {
     }
   }, 60000);
 }
-
-// ═══ LOGOUT ═══
-async function logout() {
-  await sb.auth.signOut();
-  window.location.href = 'signup.html';
-}
-
-// ═══ BANNER ═══
-function copyBannerCode() {
-  const code = document.getElementById('bannerCode')?.textContent || '';
-  if (!code || code.includes('—')) return;
-  navigator.clipboard.writeText(code).then(() => {
-    toast('Code copied!');
-  });
-}
-
-// ═══ MODAL ═══
-function openModal() {
-  loadSettings(); // Refresh pairing code
-  document.getElementById('connectModal').classList.add('show');
-}
-function closeModal() { document.getElementById('connectModal').classList.remove('show'); }
 
 // ═══ UTIL ═══
 function esc(s) {

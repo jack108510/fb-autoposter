@@ -413,16 +413,6 @@
     <span id="connLabel">Not connected</span>
   </div>
 
-  <!-- Connect modal — shows pairing code -->
-  <div class="modal-bg" id="connectModal">
-    <div class="modal">
-      <h2>Pair Extension</h2>
-      <p>Generate a code below, then enter it in your Chrome extension popup.</p>
-      <div id="pairingCodeDisplay" style="text-align:center;padding:20px 0;"></div>
-      <button class="btn btn-ghost btn-block" style="margin-top:6px;" onclick="closeModal()">Close</button>
-    </div>
-  </div>
-
   <div class="app">
     <!-- Sidebar -->
     <div class="sidebar" id="sidebar">
@@ -474,20 +464,6 @@
       <div class="page active" id="page-dashboard">
         <div class="page-title">Dashboard</div>
         <div class="page-subtitle">Overview of your Facebook Groups posting activity</div>
-        
-        <!-- Pairing banner (shown when not connected) -->
-        <div id="pairingBanner" style="display:none;background:linear-gradient(120deg,rgba(91,111,232,.1),rgba(155,93,229,.1),rgba(243,104,168,.1));border:1px solid var(--border);border-radius:14px;padding:20px;margin-bottom:20px;">
-          <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:16px;">
-            <div>
-              <div style="font-size:15px;font-weight:700;margin-bottom:4px;">Pair your extension</div>
-              <div style="font-size:13px;color:var(--text-2);">Enter this code in your Chrome extension to connect.</div>
-            </div>
-            <div style="display:flex;align-items:center;gap:16px;">
-              <div id="bannerCode" style="font-size:32px;font-weight:800;letter-spacing:6px;font-family:'SF Mono','Monaco','Menlo',monospace;background:linear-gradient(120deg,#5B6FE8,#9B5DE5,#F368A8);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;cursor:pointer;" onclick="copyBannerCode()">——————</div>
-              <button class="btn btn-primary" onclick="nav('settings')">Setup</button>
-            </div>
-          </div>
-        </div>
         
         <div class="stats-row">
           <div class="stat blue">
@@ -688,7 +664,6 @@
               <div style="font-size:15px;font-weight:700;margin-bottom:2px;">Extension</div>
               <div id="connStatus" style="font-size:13px;color:var(--text-2);">—</div>
             </div>
-            <div id="pairingCodeDisplay"></div>
           </div>
           <div id="installHint" style="display:none;margin-top:16px;padding-top:16px;border-top:1px solid var(--border);font-size:12px;color:var(--text-3);line-height:1.8;">
             <strong style="color:var(--text-2);">Not connected? Here's how:</strong><br>
