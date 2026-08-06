@@ -303,10 +303,54 @@ async function loadDashboard() {
   cachedData = await fetchAll();
   const { posts, logs } = cachedData;
   const active = posts.filter(p => p.enabled).length;
-  const ok = (logs || []).reduce((s, l) => s + (l.results || []).filter(r => r.success).length, 0);
-  const fail = (logs || []).reduce((s, l) => s + (l.results || []).filter(r => !r.success).length, 0);
+
+  // Pull real data from jsw_post_jobs (extension results)
+  const { data: jobs } = await sb.from('jsw_post_jobs')
+    .select('status, groups, created_at, completed_at')
+    .eq('user_id', user.id)
+    .order('created_at', { ascending: false })
+    .limit(200);
+
+  let ok = 0, fail = 0;
   const groupUrls = new Set();
-  posts.forEach(p => (p.groups || []).forEach(g => groupUrls.add(g.url)));
+  const dayMap = {}; // for chart
+
+  if (jobs && jobs.length) {
+    jobs.forEach(j => {
+      const g = Array.isArray(j.groups) ? j.groups : [];
+      const count = g.length || 1;
+      if (j.status === 'done') ok += count;
+      else if (j.status === 'failed') fail += count;
+      g.forEach(gu => { const u = typeof gu === 'string' ? gu : gu.url; if (u) groupUrls.add(u); });
+
+      // Build chart from completed_at or created_at
+      const ts = j.completed_at || j.created_at;
+      if (ts) {
+        const dStr = new Date(ts).toDateString();
+        if (!dayMap[dStr]) dayMap[dStr] = { ok: 0, fail: 0 };
+        if (j.status === 'done') dayMap[dStr].ok += count;
+        else if (j.status === 'failed') dayMap[dStr].fail += count;
+      }
+    });
+  }
+
+  // Also count old local logs
+  (logs || []).forEach(l => {
+    (l.results || []).forEach(r => {
+      if (r.success) ok++;
+      else fail++;
+      const ts = l.timestamp;
+      if (ts) {
+        const dStr = new Date(ts).toDateString();
+        if (!dayMap[dStr]) dayMap[dStr] = { ok: 0, fail: 0 };
+        if (r.success) dayMap[dStr].ok++;
+        else dayMap[dStr].fail++;
+      }
+    });
+  });
+
+  // Groups from saved groups too
+  (cachedData.groups || []).forEach(g => groupUrls.add(g.url));
 
   document.getElementById('sActive').textContent = active;
   document.getElementById('sSuccess').textContent = ok;
@@ -314,15 +358,13 @@ async function loadDashboard() {
   document.getElementById('sGroups').textContent = groupUrls.size;
   document.getElementById('navCount').textContent = posts.length;
 
-  // 7-day chart
+  // 7-day chart from real job data
   const days7 = [];
   for (let i = 6; i >= 0; i--) {
     const d = new Date(); d.setDate(d.getDate() - i);
     const dStr = d.toDateString();
-    const dayLogs = (logs || []).filter(l => new Date(l.timestamp).toDateString() === dStr);
-    const dayOk = dayLogs.reduce((s, l) => s + (l.results || []).filter(r => r.success).length, 0);
-    const dayFail = dayLogs.reduce((s, l) => s + (l.results || []).filter(r => !r.success).length, 0);
-    days7.push({ label: DAYS[d.getDay()], ok: dayOk, fail: dayFail, total: dayOk + dayFail });
+    const entry = dayMap[dStr] || { ok: 0, fail: 0 };
+    days7.push({ label: DAYS[d.getDay()], ok: entry.ok, fail: entry.fail, total: entry.ok + entry.fail });
   }
   const maxVal = Math.max(...days7.map(d => d.total), 1);
   document.getElementById('chart7day').innerHTML = days7.map(d => {
