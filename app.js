@@ -311,11 +311,12 @@ async function loadDashboard() {
     .order('created_at', { ascending: false })
     .limit(200);
 
-  let ok = 0, fail = 0;
+  let ok = 0, fail = 0, postsThisWeek = 0;
   const groupUrls = new Set();
-  const dayMap = {}; // for chart
+  const dayMap = {};
 
   if (jobs && jobs.length) {
+    const weekAgo = new Date(); weekAgo.setDate(weekAgo.getDate() - 7);
     jobs.forEach(j => {
       const g = Array.isArray(j.groups) ? j.groups : [];
       const count = g.length || 1;
@@ -323,9 +324,9 @@ async function loadDashboard() {
       else if (j.status === 'failed') fail += count;
       g.forEach(gu => { const u = typeof gu === 'string' ? gu : gu.url; if (u) groupUrls.add(u); });
 
-      // Build chart from completed_at or created_at
       const ts = j.completed_at || j.created_at;
       if (ts) {
+        if (new Date(ts) >= weekAgo) postsThisWeek++;
         const dStr = new Date(ts).toDateString();
         if (!dayMap[dStr]) dayMap[dStr] = { ok: 0, fail: 0 };
         if (j.status === 'done') dayMap[dStr].ok += count;
@@ -352,10 +353,26 @@ async function loadDashboard() {
   // Groups from saved groups too
   (cachedData.groups || []).forEach(g => groupUrls.add(g.url));
 
-  document.getElementById('sActive').textContent = active;
-  document.getElementById('sSuccess').textContent = ok;
-  document.getElementById('sFailed').textContent = fail;
-  document.getElementById('sGroups').textContent = groupUrls.size;
+  // Compute stats
+  const totalAttempts = ok + fail;
+  const successRate = totalAttempts > 0 ? Math.round((ok / totalAttempts) * 100) : 100;
+
+  // Ban risk calculation
+  // Factors: posts/day in last 7 days, avg groups per post, failure rate
+  const postsPerDay = postsThisWeek / 7;
+  const avgGroupsPerPost = postsThisWeek > 0 ? Math.round(ok / postsThisWeek) : 0;
+  let banScore = 0;
+  if (postsPerDay >= 10) banScore += 40; else if (postsPerDay >= 5) banScore += 25; else if (postsPerDay >= 3) banScore += 10;
+  if (avgGroupsPerPost >= 20) banScore += 35; else if (avgGroupsPerPost >= 10) banScore += 20; else if (avgGroupsPerPost >= 5) banScore += 10;
+  if (successRate < 50) banScore += 25; else if (successRate < 80) banScore += 10;
+  const banLevel = banScore >= 60 ? 'High' : banScore >= 30 ? 'Medium' : 'Low';
+  const banColor = banScore >= 60 ? 'var(--red)' : banScore >= 30 ? 'var(--yellow)' : 'var(--green)';
+
+  document.getElementById('sPostsWeek').textContent = postsThisWeek;
+  document.getElementById('sGroupsHit').textContent = groupUrls.size;
+  document.getElementById('sSuccessRate').textContent = successRate + '%';
+  document.getElementById('sBanRisk').textContent = banLevel;
+  document.getElementById('sBanRisk').style.color = banColor;
   document.getElementById('navCount').textContent = posts.length;
 
   // 7-day chart from real job data
