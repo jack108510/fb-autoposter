@@ -278,6 +278,32 @@
       background: var(--surface-2); color: var(--text-2); margin-right: 4px; margin-bottom: 4px;
     }
     .group-tag .dot { width: 6px; height: 6px; border-radius: 50%; }
+
+    /* ─── Group tagging ─── */
+    .group-tag-pill {
+      display: inline-flex; align-items: center; gap: 3px;
+      padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: 500;
+      background: rgba(91,111,232,.12); color: #5B6FE8; border: 1px solid rgba(91,111,232,.25);
+      cursor: pointer; transition: all .15s;
+    }
+    .group-tag-pill:hover { background: rgba(91,111,232,.2); }
+    .group-tag-add {
+      display: inline-flex; align-items: center;
+      padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: 500;
+      color: var(--text-3); border: 1px dashed var(--border);
+      cursor: pointer; transition: all .15s;
+    }
+    .group-tag-add:hover { color: #5B6FE8; border-color: #5B6FE8; }
+
+    /* ─── Tag filter pills (shared: groups page + modals) ─── */
+    .tag-filter-pill {
+      display: inline-flex; align-items: center;
+      padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 500;
+      background: var(--surface-2); color: var(--text-2); border: 1px solid var(--border);
+      cursor: pointer; transition: all .15s; white-space: nowrap;
+    }
+    .tag-filter-pill:hover { border-color: #5B6FE8; color: #5B6FE8; }
+    .tag-filter-pill.active { background: rgba(91,111,232,.15); border-color: #5B6FE8; color: #5B6FE8; font-weight: 600; }
     
     /* ─── Pages ─── */
     .page { display: none; }
@@ -905,6 +931,8 @@ Use {Hi|Hey|Hello} to spin unique variations — each group gets a different ver
                   <a href="#" class="cp-link cp-link-dim" onclick="deselectAllGroups();return false;">Clear</a>
                 </div>
               </div>
+              <!-- Tag filter bar for Create Post -->
+              <div id="createGroupTagBar" style="display:none;flex-wrap:wrap;gap:6px;margin-bottom:8px;"></div>
               <div id="createGroupSelect" class="cp-groups-wrap"></div>
               <div id="createNoGroups" class="cp-empty-groups">
                 No groups yet. <a href="#" onclick="nav('groups');return false;" style="color:var(--blue);font-weight:600;text-decoration:none;">Add your first group &rarr;</a>
@@ -1023,6 +1051,8 @@ Use {Hi|Hey|Hello} to spin unique variations — each group gets a different ver
 
             <!-- Groups -->
             <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--text-3);margin-bottom:8px;">Post to groups</div>
+            <!-- Tag filter bar for template modal -->
+            <div id="tplGroupTagBar" style="display:none;flex-wrap:wrap;gap:6px;margin-bottom:8px;"></div>
             <div id="tplGroupSelect" style="display:flex;flex-wrap:wrap;gap:7px;margin-bottom:6px;"></div>
             <div style="display:flex;gap:8px;margin-bottom:18px;">
               <a href="#" onclick="tplSelectAll();return false;" style="font-size:11px;font-weight:600;color:var(--blue);text-decoration:none;">Select all</a>
@@ -1128,6 +1158,8 @@ Use {Hi|Hey|Hello} to spin unique variations — each group gets a different ver
           <div class="card-header" style="margin-bottom:4px;">
             <div class="card-title">Your Groups <span id="groupCount" style="color:var(--text-3);font-weight:400;font-size:14px;">(0)</span></div>
           </div>
+          <!-- Tag filter bar -->
+          <div id="groupTagFilterBar" style="display:none;flex-wrap:wrap;gap:6px;padding:10px 0 4px;border-bottom:1px solid var(--border);margin-bottom:8px;"></div>
           <div id="groupsList"></div>
           <div id="groupsEmpty" class="empty" style="padding:40px 20px;text-align:center;">
             <div style="font-size:32px;margin-bottom:8px;">👥</div>

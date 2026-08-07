@@ -256,7 +256,7 @@ async function fetchAll() {
       sbGet('templates'),
       // Groups always come from jsw_groups table (shared with extension)
       sb.from('jsw_groups')
-        .select('group_url, group_name, tags')
+        .select('group_url, group_name, last_posted_at, ban_risk, removal_count')
         .eq('user_id', user.id)
         .order('created_at', { ascending: false }),
       sbGet('settings'),
@@ -265,7 +265,9 @@ async function fetchAll() {
     const groups = (groupsRes.data || []).map(r => ({
       url: r.group_url,
       name: r.group_name || r.group_url.split('/').filter(Boolean).pop(),
-      tags: r.tags || [],
+      last_posted_at: r.last_posted_at || null,
+      ban_risk: r.ban_risk || 'low',
+      removal_count: r.removal_count || 0,
     }));
     return {
       posts: postsRes || [],
@@ -615,6 +617,49 @@ async function loadTemplates() {
       </div>`).join('');
 }
 
+// ─── Tag filter state for group chip selectors ───
+let createGroupTagFilter = null;
+let tplGroupTagFilter = null;
+
+function renderTagFilterBar(containerId, groups, currentFilter, onClickFn) {
+  const bar = document.getElementById(containerId);
+  if (!bar) return;
+  const allTags = [...new Set(groups.flatMap(g => g.tags || []))].sort();
+  if (allTags.length === 0) { bar.style.display = 'none'; return; }
+  bar.style.display = 'flex';
+  bar.innerHTML = [
+    `<span class="tag-filter-pill ${currentFilter === null ? 'active' : ''}" onclick="${onClickFn}(null)">All</span>`,
+    ...allTags.map(t => `<span class="tag-filter-pill ${currentFilter === t ? 'active' : ''}" onclick="${onClickFn}(${JSON.stringify(t)})">${esc(t)}</span>`)
+  ].join('');
+}
+
+function renderGroupChipsFiltered(containerId, groups, currentFilter) {
+  const container = document.getElementById(containerId);
+  if (!container) return;
+  const filtered = currentFilter ? groups.filter(g => (g.tags || []).includes(currentFilter)) : groups;
+
+  // Hide/show existing chips based on filter
+  [...container.querySelectorAll('.group-chip')].forEach(chip => {
+    const g = groups.find(x => x.url === chip.dataset.url);
+    const show = !currentFilter || (g && (g.tags || []).includes(currentFilter));
+    chip.style.display = show ? '' : 'none';
+  });
+}
+
+function setCreateGroupTagFilter(tag) {
+  createGroupTagFilter = tag;
+  const groups = cachedData.groups || [];
+  renderTagFilterBar('createGroupTagBar', groups, createGroupTagFilter, 'setCreateGroupTagFilter');
+  renderGroupChipsFiltered('createGroupSelect', groups, createGroupTagFilter);
+}
+
+function setTplGroupTagFilter(tag) {
+  tplGroupTagFilter = tag;
+  const groups = cachedData.groups || [];
+  renderTagFilterBar('tplGroupTagBar', groups, tplGroupTagFilter, 'setTplGroupTagFilter');
+  renderGroupChipsFiltered('tplGroupSelect', groups, tplGroupTagFilter);
+}
+
 function renderGroupChips() {
   const groups = cachedData.groups || [];
   const container = document.getElementById('createGroupSelect');
@@ -624,6 +669,7 @@ function renderGroupChips() {
   if (groups.length === 0) {
     container.innerHTML = '';
     if (noGroups) noGroups.style.display = 'block';
+    renderTagFilterBar('createGroupTagBar', groups, createGroupTagFilter, 'setCreateGroupTagFilter');
     return;
   }
   if (noGroups) noGroups.style.display = 'none';
@@ -644,6 +690,10 @@ function renderGroupChips() {
     style.textContent = '.group-chip.selected { background: rgba(91,111,232,.15) !important; border-color: #5B6FE8 !important; color: #5B6FE8; }';
     document.head.appendChild(style);
   }
+
+  // Render tag filter bar and apply current filter
+  renderTagFilterBar('createGroupTagBar', groups, createGroupTagFilter, 'setCreateGroupTagFilter');
+  if (createGroupTagFilter) renderGroupChipsFiltered('createGroupSelect', groups, createGroupTagFilter);
 }
 
 function getSelectedGroups() {
@@ -707,6 +757,9 @@ function openTplModal(id) {
         style="display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border-radius:20px;font-size:12px;cursor:pointer;border:1px solid var(--border);background:var(--surface);transition:all .15s;">
         <div style="width:8px;height:8px;border-radius:50%;background:${c};"></div>${esc(g.name)}</div>`;
     }).join('');
+    // Render tag filter bar for modal
+    tplGroupTagFilter = null;
+    renderTagFilterBar('tplGroupTagBar', groups, tplGroupTagFilter, 'setTplGroupTagFilter');
   }
 
   // Reset state
