@@ -659,23 +659,114 @@ function useTemplate(id) {
 }
 
 // ═══ TEMPLATES PAGE ═══
+// ═══ TEMPLATES PAGE ═══
+let activeTplId = null;
+
 async function loadTemplatesPage() {
   cachedData = await fetchAll();
   const templates = cachedData.templates || [];
   const el = document.getElementById('templatesList');
   if (templates.length === 0) {
-    el.innerHTML = '<div class="empty"><p>No templates yet. Create a post and "Save as Template".</p></div>';
+    el.innerHTML = '<div class="empty"><p>No templates yet.</p><button class="btn btn-primary" style="margin-top:12px;" onclick="nav(\'create\')">Create your first</button></div>';
     return;
   }
   el.innerHTML = templates.map(t => `
-    <div class="template-card" onclick="nav('create'); setTimeout(() => useTemplate('${t.id}'), 100);">
-      <div class="template-name">${esc(t.name)} ${hasSpintax(t.text) ? '<span class="spin-badge">SPINTAX</span>' : ''}</div>
-      <div class="template-preview">${esc(t.text.substring(0, 120))}...</div>
-      <div style="margin-top:8px;">
-        <button class="btn btn-danger btn-xs" onclick="event.stopPropagation(); deleteTemplate('${t.id}')">Delete</button>
+    <div style="display:flex;align-items:center;gap:14px;padding:14px 0;border-bottom:1px solid var(--border);cursor:pointer;" onclick="openTplModal('${t.id}')" onmouseover="this.style.background='var(--surface-2)'" onmouseout="this.style.background=''">
+      <div style="flex:1;min-width:0;">
+        <div style="font-size:14px;font-weight:600;margin-bottom:2px;">${esc(t.name)} ${hasSpintax(t.text) ? '<span class="spin-badge">SPINTAX</span>' : ''}</div>
+        <div style="font-size:12px;color:var(--text-3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(t.text.substring(0, 100))}</div>
       </div>
+      <button class="btn btn-primary btn-sm" onclick="event.stopPropagation();openTplModal('${t.id}')">Post</button>
+      <button class="btn btn-ghost btn-sm" style="color:var(--red);" onclick="event.stopPropagation();deleteTemplate('${t.id}')">
+        <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 4h10M5 4V2.5C5 2 5.5 1.5 6 1.5h4c0.5 0 1 0.5 1 1V4M6 7v6M10 7v6M4 4l1 10c0 0.5 0.5 1 1 1h4c0.5 0 1-0.5 1-1l1-10"/></svg>
+      </button>
     </div>`).join('');
 }
+
+function openTplModal(id) {
+  const t = (cachedData.templates || []).find(x => x.id === id);
+  if (!t) return;
+  activeTplId = id;
+  document.getElementById('tplModalName').textContent = t.name;
+  document.getElementById('tplModalPreview').textContent = t.text;
+
+  // Render group chips
+  const groups = cachedData.groups || [];
+  const container = document.getElementById('tplGroupSelect');
+  if (groups.length === 0) {
+    container.innerHTML = '<div style="font-size:13px;color:var(--text-3);">No groups yet — <a href="#" onclick="nav(\'groups\');closeTplModal();return false;" style="color:var(--blue);">add groups first</a></div>';
+  } else {
+    container.innerHTML = groups.map((g, i) => {
+      const c = GCOLORS[i % GCOLORS.length];
+      return `<div class="group-chip" data-url="${esc(g.url)}" data-name="${esc(g.name)}" onclick="this.classList.toggle('selected')"
+        style="display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border-radius:20px;font-size:12px;cursor:pointer;border:1px solid var(--border);background:var(--surface);transition:all .15s;">
+        <div style="width:8px;height:8px;border-radius:50%;background:${c};"></div>${esc(g.name)}</div>`;
+    }).join('');
+  }
+
+  // Reset state
+  document.getElementById('tplAiToggle').classList.remove('on');
+  document.getElementById('tplPosting').style.display = 'none';
+  const modal = document.getElementById('tplModal');
+  modal.style.display = 'flex';
+}
+
+function closeTplModal() {
+  document.getElementById('tplModal').style.display = 'none';
+  activeTplId = null;
+}
+
+function tplSelectAll() {
+  document.querySelectorAll('#tplGroupSelect .group-chip').forEach(c => c.classList.add('selected'));
+}
+
+function tplClearAll() {
+  document.querySelectorAll('#tplGroupSelect .group-chip').forEach(c => c.classList.remove('selected'));
+}
+
+function editTemplate() {
+  if (!activeTplId) return;
+  nav('create');
+  setTimeout(() => useTemplate(activeTplId), 100);
+  closeTplModal();
+}
+
+async function postTemplate() {
+  if (!activeTplId) return;
+  const t = (cachedData.templates || []).find(x => x.id === activeTplId);
+  if (!t) return;
+
+  const selected = [...document.querySelectorAll('#tplGroupSelect .group-chip.selected')].map(c => ({
+    url: c.dataset.url, name: c.dataset.name
+  }));
+  if (selected.length === 0) return toast('Select at least one group');
+
+  const aiEnabled = document.getElementById('tplAiToggle').classList.contains('on');
+  const postingEl = document.getElementById('tplPosting');
+  postingEl.style.display = 'flex';
+
+  try {
+    const settings = cachedData.settings || {};
+    const groups = selected.map(g => g.url);
+    const { error } = await sb.from('jsw_post_jobs').insert({
+      user_id: user.id,
+      message: t.text,
+      image_url: null,
+      groups,
+      delay: settings.delay || 30,
+      ai_enabled: aiEnabled,
+      ai_prompt: settings.ai_prompt || null,
+      status: 'pending',
+    });
+    if (error) throw new Error(error.message);
+    closeTplModal();
+    toast(`Sent to ${selected.length} group${selected.length > 1 ? 's' : ''} — extension will post`);
+  } catch (e) {
+    toast('Error: ' + e.message);
+    postingEl.style.display = 'none';
+  }
+}
+
 
 async function deleteTemplate(id) {
   if (!confirm('Delete this template?')) return;
