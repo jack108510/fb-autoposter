@@ -296,6 +296,7 @@ async function createJob(post) {
     delay: settings.delay || 30,
     ai_enabled: !!aiEnabled,
     ai_prompt: settings.ai_prompt || null,
+    first_comment: post.firstComment || post.first_comment || null,
     status: 'pending',
   });
   if (error) throw new Error(error.message);
@@ -544,6 +545,7 @@ async function savePost() {
   const imageUrl = document.getElementById('createImageUrl')?.value.trim() || '';
   const post = {
     id: Date.now().toString(), text, imageUrl, groups,
+    firstComment: document.getElementById('createFirstComment')?.value.trim() || '',
     schedule: { time, days: [...selDays] }, enabled: true,
     createdAt: new Date().toISOString(),
     hasSpintax: hasSpintax(text), variations: countVariations(text),
@@ -889,7 +891,7 @@ async function scheduleTemplate() {
       delay: settings.delay || 30,
       ai_enabled: aiEnabled,
       ai_prompt: settings.ai_prompt || null,
-      first_comment: t.firstComment || null,
+      first_comment: document.getElementById('tplFirstComment')?.value.trim() || null,
       status: 'pending',
       scheduled_for: next.toISOString(),
       repeat_days: days,
@@ -907,31 +909,74 @@ async function scheduleTemplate() {
 
 async function loadScheduled() {
   cachedData = await fetchAll();
-  const posts = cachedData.posts || [];
   const el = document.getElementById('scheduledList');
-  if (posts.length === 0) {
+
+  // Query jsw_post_jobs for repeating/scheduled pending jobs
+  const { data: scheduledJobs } = await sb.from('jsw_post_jobs')
+    .select('*')
+    .eq('user_id', user.id)
+    .eq('status', 'pending')
+    .not('scheduled_for', 'is', null)
+    .order('scheduled_for', { ascending: true });
+
+  const legacyPosts = cachedData.posts || [];
+
+  if (legacyPosts.length === 0 && (!scheduledJobs || scheduledJobs.length === 0)) {
     el.innerHTML = '<div class="empty"><p>No scheduled posts yet</p><button class="btn btn-primary" style="margin-top:16px;" onclick="nav(\'create\')">Create Post</button></div>';
     return;
   }
-  el.innerHTML = posts.map(p => {
-    const days = p.schedule.days.map(d => DAYS[d]).join(', ');
-    const tags = p.groups.map((g, i) => `<span class="group-tag"><div class="dot" style="background:${GCOLORS[i % GCOLORS.length]}"></div>${esc(g.name)}</span>`).join('');
-    const spin = p.hasSpintax ? ` <span class="spin-badge">${p.variations || countVariations(p.text)} VARS</span>` : '';
+
+  const DAYS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+
+  // Render jsw_post_jobs scheduled entries
+  const jobsHtml = (scheduledJobs || []).map(j => {
+    const repeatDays = (j.repeat_days || []).map(d => DAYS[d]).join(', ');
+    const nextFire = j.scheduled_for ? new Date(j.scheduled_for).toLocaleString() : '—';
+    const groupCount = (j.groups || []).length;
+    const isRepeating = j.repeat_days?.length > 0;
+    return `<div class="post-card">
+      <div class="post-text">${esc((j.message || '').substring(0, 140))}</div>
+      <div class="post-meta">
+        <span>Next: ${nextFire}</span>
+        <span>${groupCount} group${groupCount !== 1 ? 's' : ''}</span>
+        ${isRepeating ? `<span class="badge badge-blue">${repeatDays} @ ${j.repeat_time}</span>` : '<span class="badge badge-yellow">One-time</span>'}
+        ${j.ai_enabled ? '<span class="badge badge-purple">AI</span>' : ''}
+      </div>
+      <div class="post-actions">
+        <button class="btn btn-danger btn-sm" onclick="cancelScheduledJob('${j.id}')">Cancel</button>
+      </div>
+    </div>`;
+  }).join('');
+
+  // Render legacy amplr_data posts
+  const legacyHtml = legacyPosts.map(p => {
+    const days = (p.schedule?.days || []).map(d => DAYS[d]).join(', ');
+    const tags = (p.groups || []).map((g, i) => `<span class="group-tag"><div class="dot" style="background:${GCOLORS[i % GCOLORS.length]}"></div>${esc(g.name || '')}</span>`).join('');
     return `<div class="post-card">
       <div class="post-text">${esc(p.text)}</div>
       <div class="post-meta">
-        <span>${p.schedule.time}</span><span>${days}</span>
-        <span class="badge ${p.enabled ? 'badge-on' : 'badge-off'}">${p.enabled ? 'Active' : 'Paused'}</span>${spin}
+        <span>${p.schedule?.time || ''}</span><span>${days}</span>
+        <span class="badge ${p.enabled ? 'badge-on' : 'badge-off'}">${p.enabled ? 'Active' : 'Paused'}</span>
       </div>
       <div style="margin-bottom:10px;">${tags}</div>
       <div class="post-actions">
         <button class="btn btn-primary btn-sm" onclick="firePost('${p.id}')">Post Now</button>
         <button class="btn btn-secondary btn-sm" onclick="togglePost('${p.id}')">${p.enabled ? 'Pause' : 'Resume'}</button>
-        <button class="btn btn-ghost btn-sm" onclick="editPost('${p.id}')">Edit</button>
         <button class="btn btn-danger btn-sm" onclick="delPost('${p.id}')">Delete</button>
       </div>
     </div>`;
   }).join('');
+
+  el.innerHTML = (scheduledJobs?.length ? `<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--text-3);padding:0 0 10px;">Template Schedules</div>${jobsHtml}` : '') +
+    (legacyPosts.length ? `${scheduledJobs?.length ? '<div style="height:16px;"></div>' : ''}<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--text-3);padding:0 0 10px;">Recurring Posts</div>${legacyHtml}` : '');
+}
+
+async function cancelScheduledJob(id) {
+  if (!confirm('Cancel this scheduled post?')) return;
+  const { error } = await sb.from('jsw_post_jobs').update({ status: 'cancelled' }).eq('id', id).eq('user_id', user.id);
+  if (error) return toast('Error: ' + error.message);
+  toast('Cancelled');
+  loadScheduled();
 }
 
 async function firePost(id) {
