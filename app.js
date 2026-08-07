@@ -1052,12 +1052,32 @@ function renderGroupsList(groups) {
     const tagPills = (g.tags || []).map(t =>
       `<span class="group-tag-pill" onclick="event.stopPropagation();removeGroupTag('${esc(g.url)}', '${esc(t)}')" title="Click to remove">${esc(t)} ✕</span>`
     ).join('');
+
+    // Cooldown badge
+    const cooldownDays = cachedData?.settings?.cooldown_days ?? 2;
+    let cooldownBadge = '';
+    if (g.last_posted_at && cooldownDays > 0) {
+      const daysSince = (Date.now() - new Date(g.last_posted_at).getTime()) / (1000 * 60 * 60 * 24);
+      if (daysSince < cooldownDays) {
+        const daysLeft = (cooldownDays - daysSince).toFixed(1);
+        cooldownBadge = `<span style="font-size:10px;padding:2px 8px;border-radius:10px;background:var(--yellow-light);color:var(--yellow);font-weight:600;text-transform:uppercase;letter-spacing:0.5px;" title="Posted ${daysSince.toFixed(1)}d ago — cooldown active">⏱ ${daysLeft}d left</span>`;
+      }
+    }
+    // Ban risk badge
+    let banBadge = '';
+    if (g.ban_risk === 'high') {
+      banBadge = `<span style="font-size:10px;padding:2px 8px;border-radius:10px;background:var(--red-light);color:var(--red);font-weight:600;text-transform:uppercase;letter-spacing:0.5px;" title="${g.removal_count} post(s) removed — high risk">⚠ High Risk</span>`;
+    } else if (g.ban_risk === 'medium') {
+      banBadge = `<span style="font-size:10px;padding:2px 8px;border-radius:10px;background:var(--yellow-light);color:var(--yellow);font-weight:600;text-transform:uppercase;letter-spacing:0.5px;" title="${g.removal_count} post(s) removed">⚠ Med Risk</span>`;
+    }
     return `<div style="display:flex;align-items:center;gap:14px;padding:14px 0;border-bottom:1px solid var(--border);transition:background .15s;" onmouseover="this.style.background='var(--surface-2)'" onmouseout="this.style.background=''">
       <div style="width:40px;height:40px;border-radius:10px;background:${color};flex-shrink:0;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800;font-size:16px;">${esc((g.name || '?')[0].toUpperCase())}</div>
       <div style="flex:1;min-width:0;">
         <div style="font-weight:600;font-size:14px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
           <span>${esc(g.name)}</span>
           ${isPending ? '<span style="font-size:10px;padding:2px 8px;border-radius:10px;background:var(--yellow-light);color:var(--yellow);font-weight:600;text-transform:uppercase;letter-spacing:0.5px;">Fetching name...</span>' : ''}
+          ${cooldownBadge}
+          ${banBadge}
         </div>
         <a href="${esc(g.url)}" target="_blank" style="font-size:11px;color:var(--text-3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block;max-width:100%;">${esc(g.url)}</a>
         <div style="display:flex;align-items:center;flex-wrap:wrap;gap:4px;margin-top:5px;">
@@ -1403,6 +1423,10 @@ async function loadSettings() {
   if (s.delay) document.getElementById('setDelay').value = s.delay;
   if (s.maxGroups) document.getElementById('setMaxGroups').value = s.maxGroups;
   if (s.jitter) document.getElementById('setJitter').value = s.jitter;
+  if (s.cooldown_days != null) {
+    const el = document.getElementById('setCooldown');
+    if (el) el.value = s.cooldown_days;
+  }
 
   // AI settings
   const aiEnabledEl = document.getElementById('setAiEnabled');
@@ -1431,6 +1455,7 @@ async function saveSettings() {
     delay: parseInt(document.getElementById('setDelay').value) || 10,
     maxGroups: parseInt(document.getElementById('setMaxGroups').value) || 10,
     jitter: parseInt(document.getElementById('setJitter').value) || 5,
+    cooldown_days: parseInt(document.getElementById('setCooldown')?.value ?? 2),
     ai_enabled: aiEnabled,
     ai_provider: aiProvider,
     ai_model: aiModel,
