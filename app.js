@@ -256,7 +256,7 @@ async function fetchAll() {
       sbGet('templates'),
       // Groups always come from jsw_groups table (shared with extension)
       sb.from('jsw_groups')
-        .select('group_url, group_name')
+        .select('group_url, group_name, tags')
         .eq('user_id', user.id)
         .order('created_at', { ascending: false }),
       sbGet('settings'),
@@ -265,6 +265,7 @@ async function fetchAll() {
     const groups = (groupsRes.data || []).map(r => ({
       url: r.group_url,
       name: r.group_name || r.group_url.split('/').filter(Boolean).pop(),
+      tags: r.tags || [],
     }));
     return {
       posts: postsRes || [],
@@ -571,6 +572,7 @@ async function postNow() {
       groups: groups.map(g => g.url),
       delay: cachedData.settings?.delay || 30,
       status: 'pending',
+      first_comment: document.getElementById('createFirstComment')?.value.trim() || null,
     });
     if (error) throw new Error(error.message);
 
@@ -590,7 +592,8 @@ async function saveTemplate() {
   if (!text) return toast('Nothing to save');
   const name = prompt('Template name:');
   if (!name) return;
-  const template = { id: Date.now().toString(), name, text, createdAt: new Date().toISOString() };
+  const firstComment = document.getElementById('createFirstComment')?.value.trim() || '';
+  const template = { id: Date.now().toString(), name, text, firstComment, createdAt: new Date().toISOString() };
   const templates = [...(cachedData.templates || []), template];
   cachedData.templates = templates;
   await sbSet('templates', templates);
@@ -655,6 +658,8 @@ function useTemplate(id) {
   if (!t) return;
   document.getElementById('createText').value = t.text;
   document.getElementById('createText').dispatchEvent(new Event('input'));
+  const fcEl = document.getElementById('createFirstComment');
+  if (fcEl) fcEl.value = t.firstComment || '';
   toast(`Loaded: ${t.name}`);
 }
 
@@ -707,6 +712,8 @@ function openTplModal(id) {
   // Reset state
   document.getElementById('tplAiToggle').classList.remove('on');
   document.getElementById('tplPosting').style.display = 'none';
+  const fcEl = document.getElementById('tplFirstComment');
+  if (fcEl) fcEl.value = t.firstComment || '';
   const modal = document.getElementById('tplModal');
   modal.style.display = 'flex';
 }
@@ -757,6 +764,7 @@ async function postTemplate() {
       ai_enabled: aiEnabled,
       ai_prompt: settings.ai_prompt || null,
       status: 'pending',
+      first_comment: document.getElementById('tplFirstComment')?.value.trim() || null,
     });
     if (error) throw new Error(error.message);
     closeTplModal();
@@ -777,7 +785,73 @@ async function deleteTemplate(id) {
   toast('Deleted');
 }
 
-// ═══ SCHEDULED ═══
+function toggleTplSchedule() {
+  const panel = document.getElementById('tplSchedulePanel');
+  const btn = document.getElementById('tplScheduleToggleBtn');
+  if (!panel) return;
+  const showing = panel.style.display !== 'none';
+  panel.style.display = showing ? 'none' : 'block';
+  if (btn) btn.style.background = showing ? '' : 'var(--blue-light)';
+  // Reset day chips
+  if (!showing) {
+    document.querySelectorAll('#tplDayPicker .day-chip').forEach(c => c.classList.remove('selected'));
+    document.querySelectorAll('#tplDayPicker .day-chip').forEach(c =>
+      c.onclick = () => c.classList.toggle('selected')
+    );
+  }
+}
+
+async function scheduleTemplate() {
+  if (!activeTplId) return;
+  const t = (cachedData.templates || []).find(x => x.id === activeTplId);
+  if (!t) return;
+
+  const selected = [...document.querySelectorAll('#tplGroupSelect .group-chip.selected')].map(c => c.dataset.url);
+  if (selected.length === 0) return toast('Select at least one group');
+
+  const days = [...document.querySelectorAll('#tplDayPicker .day-chip.selected')].map(c => parseInt(c.dataset.day));
+  if (days.length === 0) return toast('Select at least one day');
+
+  const time = document.getElementById('tplScheduleTime')?.value || '09:00';
+  const aiEnabled = document.getElementById('tplAiToggle').classList.contains('on');
+  const settings = cachedData.settings || {};
+
+  // Compute first scheduled_for
+  const [hours, minutes] = time.split(':').map(Number);
+  const now = new Date();
+  let next = new Date(now);
+  next.setHours(hours, minutes, 0, 0);
+  if (next <= now) next.setDate(next.getDate() + 1);
+  for (let i = 0; i < 8; i++) {
+    if (days.includes(next.getDay())) break;
+    next.setDate(next.getDate() + 1);
+  }
+
+  try {
+    const { error } = await sb.from('jsw_post_jobs').insert({
+      user_id: user.id,
+      message: t.text,
+      image_url: null,
+      groups: selected,
+      delay: settings.delay || 30,
+      ai_enabled: aiEnabled,
+      ai_prompt: settings.ai_prompt || null,
+      first_comment: t.firstComment || null,
+      status: 'pending',
+      scheduled_for: next.toISOString(),
+      repeat_days: days,
+      repeat_time: time,
+    });
+    if (error) throw new Error(error.message);
+    closeTplModal();
+    const dayNames = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+    toast(`Scheduled — runs ${days.map(d => dayNames[d]).join(', ')} at ${time}`);
+  } catch (e) {
+    toast('Error: ' + e.message);
+  }
+}
+
+
 async function loadScheduled() {
   cachedData = await fetchAll();
   const posts = cachedData.posts || [];
@@ -1326,6 +1400,8 @@ function clearCreateForm() {
   if (ta) { ta.value = ''; ta.dispatchEvent(new Event('input')); }
   const imgInput = document.getElementById('createImageUrl');
   if (imgInput) { imgInput.value = ''; imgInput.dispatchEvent(new Event('input')); }
+  const fcInput = document.getElementById('createFirstComment');
+  if (fcInput) fcInput.value = '';
   document.getElementById('spinInfo').style.display = 'none';
   document.querySelectorAll('#createGroupSelect .group-chip.selected').forEach(c => c.classList.remove('selected'));
   localStorage.removeItem('amplr_draft');
