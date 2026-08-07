@@ -3,6 +3,8 @@
 <head>
   <link rel="icon" type="image/png" href="favicon32.png">
   <link rel="apple-touch-icon" href="apple-touch-icon.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400&display=swap" rel="stylesheet">
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Amplr — Dashboard</title>
@@ -11,58 +13,58 @@
     
     :root {
       /* Light theme (default) */
-      --bg: #f8f9fb;
-      --surface: #ffffff;
-      --surface-2: #f0f2f5;
-      --border: #e1e4e8;
-      --text: #1a1d23;
-      --text-2: #5a6172;
-      --text-3: #8a92a6;
-      --blue: #3b82f6;
-      --blue-dark: #2563eb;
-      --blue-light: #dbeafe;
+      --bg: #F4F4F7;
+      --surface: #FFFFFF;
+      --surface-2: #F0F0F5;
+      --border: #E4E4EC;
+      --text: #0C0C16;
+      --text-2: #52526A;
+      --text-3: #9898B4;
+      --blue: #4F46E5;
+      --blue-dark: #4338CA;
+      --blue-light: #EEEEFF;
       --green: #10b981;
       --green-light: #d1fae5;
       --red: #ef4444;
       --red-light: #fee2e2;
       --yellow: #f59e0b;
       --yellow-light: #fef3c7;
-      --purple: #8b5cf6;
-      --purple-light: #ede9fe;
-      --shadow: 0 1px 3px rgba(0,0,0,.06), 0 1px 2px rgba(0,0,0,.03);
-      --shadow-md: 0 4px 6px -1px rgba(0,0,0,.07), 0 2px 4px -2px rgba(0,0,0,.04);
-      --shadow-lg: 0 10px 15px -3px rgba(0,0,0,.08), 0 4px 6px -4px rgba(0,0,0,.03);
+      --purple: #7C3AED;
+      --purple-light: #EDE9FE;
+      --shadow: 0 1px 3px rgba(0,0,0,.05), 0 1px 2px rgba(0,0,0,.03);
+      --shadow-md: 0 4px 12px rgba(0,0,0,.07), 0 2px 4px rgba(0,0,0,.04);
+      --shadow-lg: 0 16px 32px rgba(0,0,0,.1), 0 4px 8px rgba(0,0,0,.04);
       --radius: 12px;
       --radius-sm: 8px;
       --radius-xs: 6px;
     }
     
     [data-theme="dark"] {
-      --bg: #0f1117;
-      --surface: #1a1d28;
-      --surface-2: #252936;
-      --border: #2d3142;
-      --text: #e4e7ef;
-      --text-2: #9ca3b8;
-      --text-3: #6b7280;
-      --blue: #3b82f6;
-      --blue-dark: #2563eb;
-      --blue-light: #1e3a5f;
+      --bg: #101018;
+      --surface: #18181F;
+      --surface-2: #22222C;
+      --border: #2C2C3A;
+      --text: #E8E8F0;
+      --text-2: #9090A8;
+      --text-3: #5C5C74;
+      --blue: #6366F1;
+      --blue-dark: #4F46E5;
+      --blue-light: #1E1B4B;
       --green: #10b981;
       --green-light: #0f3d2e;
       --red: #ef4444;
       --red-light: #4c1d1d;
       --yellow: #f59e0b;
       --yellow-light: #4a3a0e;
-      --purple: #8b5cf6;
-      --purple-light: #3a2d5f;
-      --shadow: 0 1px 3px rgba(0,0,0,.3);
-      --shadow-md: 0 4px 6px rgba(0,0,0,.3);
-      --shadow-lg: 0 10px 15px rgba(0,0,0,.4);
+      --purple: #8B5CF6;
+      --purple-light: #2E1065;
+      --shadow: 0 1px 3px rgba(0,0,0,.4);
+      --shadow-md: 0 4px 12px rgba(0,0,0,.4);
+      --shadow-lg: 0 16px 32px rgba(0,0,0,.5);
     }
     
     body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', Roboto, sans-serif;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
       background: var(--bg);
       color: var(--text);
       -webkit-font-smoothing: antialiased;
@@ -94,53 +96,56 @@
     /* ─── Layout ─── */
     .app { display: flex; min-height: 100vh; }
     .sidebar {
-      width: 220px; background: var(--surface); border-right: 1px solid var(--border);
+      width: 232px;
+      background: #0C0C18;
+      border-right: 1px solid rgba(255,255,255,.06);
       padding: 0; position: fixed; height: 100vh; overflow-y: auto; z-index: 100;
       transition: transform .3s;
     }
-    .main { margin-left: 220px; flex: 1; padding: 32px 40px; max-width: 1300px; }
+    .main { margin-left: 232px; flex: 1; padding: 36px 44px; max-width: 1300px; }
     
     /* ─── Sidebar ─── */
     .brand {
-      padding: 22px 20px; display: flex; align-items: center; gap: 10px;
-      border-bottom: 1px solid var(--border);
+      padding: 24px 20px 20px; display: flex; align-items: center; gap: 10px;
+      border-bottom: 1px solid rgba(255,255,255,.06);
     }
     .brand-icon {
       width: 32px; height: 32px; border-radius: var(--radius-sm);
-      background: linear-gradient(120deg, #5B6FE8, #9B5DE5 55%, #F368A8);
+      background: #4F46E5;
       display: flex; align-items: center; justify-content: center;
       font-size: 16px; color: white;
     }
-    .brand-text { font-size: 15px; font-weight: 700; }
-    .brand-sub { font-size: 10px; color: var(--text-3); font-weight: 500; text-transform: uppercase; letter-spacing: .5px; }
+    .brand-text { font-size: 15px; font-weight: 700; color: #F0F0F8; }
+    .brand-sub { font-size: 10px; color: rgba(255,255,255,.3); font-weight: 500; text-transform: uppercase; letter-spacing: .5px; }
     
-    .nav { padding: 12px 8px; }
-    .nav-section { font-size: 10px; font-weight: 700; color: var(--text-3); text-transform: uppercase; letter-spacing: .8px; padding: 16px 12px 6px; }
+    .nav { padding: 12px 10px; }
+    .nav-section { font-size: 10px; font-weight: 600; color: rgba(255,255,255,.25); text-transform: uppercase; letter-spacing: .8px; padding: 16px 10px 6px; }
     .nav-item {
-      padding: 10px 12px; border-radius: var(--radius-sm); cursor: pointer;
-      font-size: 13px; font-weight: 500; color: var(--text-2);
+      padding: 9px 10px; border-radius: var(--radius-sm); cursor: pointer;
+      font-size: 13px; font-weight: 500; color: rgba(255,255,255,.45);
       display: flex; align-items: center; gap: 10px; transition: all .15s;
-      margin-bottom: 2px;
+      margin-bottom: 1px;
     }
-    .nav-item:hover { background: var(--surface-2); color: var(--text); }
-    .nav-item.active { background: var(--blue); color: white; }
-    .nav-item .icon { font-size: 16px; width: 18px; text-align: center; }
+    .nav-item:hover { background: rgba(255,255,255,.06); color: rgba(255,255,255,.8); }
+    .nav-item.active { background: #4F46E5; color: white; }
+    .nav-item .icon { font-size: 16px; width: 18px; text-align: center; opacity: .8; }
+    .nav-item.active .icon { opacity: 1; }
     .nav-badge {
-      margin-left: auto; background: var(--red); color: white;
+      margin-left: auto; background: rgba(239,68,68,.85); color: white;
       font-size: 10px; padding: 2px 6px; border-radius: 10px; font-weight: 700;
     }
     .nav-item.active .nav-badge { background: rgba(255,255,255,.25); }
     
-    .sidebar-footer { padding: 16px 12px; margin-top: auto; border-top: 1px solid var(--border); }
+    .sidebar-footer { padding: 16px 12px; margin-top: auto; border-top: 1px solid rgba(255,255,255,.06); }
     .theme-toggle {
       display: flex; align-items: center; justify-content: space-between;
-      padding: 8px 12px; font-size: 12px; color: var(--text-2); cursor: pointer;
+      padding: 8px 10px; font-size: 12px; color: rgba(255,255,255,.35); cursor: pointer;
     }
     .toggle-switch {
-      width: 36px; height: 20px; background: var(--border); border-radius: 10px;
+      width: 36px; height: 20px; background: rgba(255,255,255,.12); border-radius: 10px;
       position: relative; transition: background .2s;
     }
-    .toggle-switch.on { background: var(--blue); }
+    .toggle-switch.on { background: #4F46E5; }
     .toggle-switch::after {
       content: ''; position: absolute; top: 2px; left: 2px;
       width: 16px; height: 16px; background: white; border-radius: 50%; transition: transform .2s;
@@ -396,7 +401,6 @@
       padding: 2px 8px; border-radius: 10px; font-size: 10px; font-weight: 700;
     }
     
-    /* ─── Responsive ─── */
     @media (max-width: 900px) {
       .sidebar { transform: translateX(-100%); }
       .sidebar.open { transform: translateX(0); }
@@ -659,40 +663,45 @@
   </div>
 
   <!-- Auth Screen -->
-  <div id="authScreen" style="display:none;position:fixed;inset:0;z-index:9999;background:#0a0a0f;align-items:center;justify-content:center;">
-    <div style="width:100%;max-width:380px;padding:40px 36px;background:rgba(18,18,26,.95);border:1px solid #252535;border-radius:20px;box-shadow:0 30px 80px rgba(0,0,0,.5);">
-      <div style="display:flex;align-items:center;justify-content:center;gap:10px;margin-bottom:32px;">
-        <svg width="32" height="32" viewBox="0 0 40 40" fill="none">
-          <defs><linearGradient id="aG" x1="0%" y1="100%" x2="100%" y2="0%"><stop offset="0%" stop-color="#5B6FE8"/><stop offset="55%" stop-color="#9B5DE5"/><stop offset="100%" stop-color="#F368A8"/></linearGradient></defs>
-          <path d="M8 20 a8 8 0 1 1 8 8 L16 12 L16 28" stroke="url(#aG)" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
-          <line x1="16" y1="20" x2="28" y2="20" stroke="url(#aG)" stroke-width="3" stroke-linecap="round"/>
-          <circle cx="28" cy="12" r="3" fill="#F368A8"/>
-          <circle cx="32" cy="20" r="3" fill="#F368A8"/>
-          <circle cx="28" cy="28" r="3" fill="#F368A8"/>
-        </svg>
-        <span style="font-size:22px;font-weight:700;color:#f0f0f5;">amplr</span>
-      </div>
-      <h1 style="text-align:center;font-size:22px;font-weight:800;color:#f0f0f5;margin-bottom:6px;" id="authTitle">Welcome back</h1>
-      <p style="text-align:center;font-size:13px;color:#9999b0;margin-bottom:24px;" id="authSubtitle">Sign in to your dashboard.</p>
-      <div id="authError" style="display:none;background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.3);border-radius:10px;padding:10px 14px;font-size:13px;color:#f87171;margin-bottom:16px;"></div>
-      <form id="authForm" onsubmit="handleAuth(event)">
-        <div style="margin-bottom:16px;">
-          <label style="display:block;font-size:12px;font-weight:600;color:#9999b0;margin-bottom:6px;">Email</label>
-          <input type="email" id="authEmail" placeholder="you@example.com" autocomplete="email" required style="width:100%;padding:12px 14px;border:1px solid #252535;border-radius:10px;font-size:14px;background:#12121a;color:#f0f0f5;font-family:inherit;outline:none;" onfocus="this.style.borderColor='#5B6FE8'" onblur="this.style.borderColor='#252535'">
+  <div id="authScreen" style="display:none;position:fixed;inset:0;z-index:9999;background:#F4F4F7;align-items:center;justify-content:center;">
+    <div style="width:100%;max-width:400px;padding:0 24px;">
+      <!-- Logo -->
+      <div style="display:flex;align-items:center;justify-content:center;gap:10px;margin-bottom:40px;">
+        <div style="width:36px;height:36px;background:#4F46E5;border-radius:10px;display:flex;align-items:center;justify-content:center;">
+          <svg width="20" height="20" viewBox="0 0 40 40" fill="none">
+            <path d="M8 20 a8 8 0 1 1 8 8 L16 12 L16 28" stroke="white" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+            <line x1="16" y1="20" x2="28" y2="20" stroke="white" stroke-width="3" stroke-linecap="round"/>
+            <circle cx="28" cy="12" r="3" fill="white"/>
+            <circle cx="32" cy="20" r="3" fill="white"/>
+            <circle cx="28" cy="28" r="3" fill="white"/>
+          </svg>
         </div>
-        <div style="margin-bottom:20px;">
-          <label style="display:block;font-size:12px;font-weight:600;color:#9999b0;margin-bottom:6px;">Password</label>
-          <input type="password" id="authPassword" placeholder="Min 6 characters" autocomplete="current-password" required style="width:100%;padding:12px 14px;border:1px solid #252535;border-radius:10px;font-size:14px;background:#12121a;color:#f0f0f5;font-family:inherit;outline:none;" onfocus="this.style.borderColor='#5B6FE8'" onblur="this.style.borderColor='#252535'">
-        </div>
-        <button type="submit" id="authSubmit" style="width:100%;padding:13px;border:none;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;background:linear-gradient(120deg,#5B6FE8 0%,#9B5DE5 55%,#F368A8 100%);color:white;">
-          <span id="authBtnText">Sign In</span>
-        </button>
-      </form>
-      <div style="text-align:center;margin-top:22px;font-size:13px;color:#666680;" id="authToggleText">
-        Don't have an account? <a onclick="toggleAuthMode()" style="color:#5B6FE8;font-weight:600;cursor:pointer;text-decoration:none;">Create one</a>
+        <span style="font-size:20px;font-weight:700;color:#0C0C16;font-family:'Inter',sans-serif;letter-spacing:-.02em;">amplr</span>
       </div>
-      <div style="text-align:center;margin-top:16px;font-size:11px;color:#666680;">
-        <a href="index.html" style="color:#666680;text-decoration:none;">← Back to home</a>
+      <!-- Card -->
+      <div style="background:#fff;border-radius:16px;padding:36px;box-shadow:0 4px 24px rgba(0,0,0,.08),0 1px 4px rgba(0,0,0,.04);border:1px solid #E4E4EC;">
+        <h1 style="font-size:20px;font-weight:700;color:#0C0C16;margin-bottom:4px;font-family:'Inter',sans-serif;letter-spacing:-.02em;" id="authTitle">Welcome back</h1>
+        <p style="font-size:13px;color:#9898B4;margin-bottom:24px;font-family:'Inter',sans-serif;" id="authSubtitle">Sign in to your dashboard.</p>
+        <div id="authError" style="display:none;background:#FEF2F2;border:1px solid #FECACA;border-radius:8px;padding:10px 14px;font-size:13px;color:#DC2626;margin-bottom:16px;font-family:'Inter',sans-serif;"></div>
+        <form id="authForm" onsubmit="handleAuth(event)">
+          <div style="margin-bottom:14px;">
+            <label style="display:block;font-size:12px;font-weight:600;color:#52526A;margin-bottom:6px;font-family:'Inter',sans-serif;letter-spacing:.01em;">Email</label>
+            <input type="email" id="authEmail" placeholder="you@example.com" autocomplete="email" required style="width:100%;padding:11px 14px;border:1.5px solid #E4E4EC;border-radius:9px;font-size:14px;background:#F8F8FC;color:#0C0C16;font-family:'Inter',sans-serif;outline:none;transition:border .15s,box-shadow .15s;" onfocus="this.style.borderColor='#4F46E5';this.style.boxShadow='0 0 0 3px #EEEEFF'" onblur="this.style.borderColor='#E4E4EC';this.style.boxShadow='none'">
+          </div>
+          <div style="margin-bottom:22px;">
+            <label style="display:block;font-size:12px;font-weight:600;color:#52526A;margin-bottom:6px;font-family:'Inter',sans-serif;letter-spacing:.01em;">Password</label>
+            <input type="password" id="authPassword" placeholder="Min 6 characters" autocomplete="current-password" required style="width:100%;padding:11px 14px;border:1.5px solid #E4E4EC;border-radius:9px;font-size:14px;background:#F8F8FC;color:#0C0C16;font-family:'Inter',sans-serif;outline:none;transition:border .15s,box-shadow .15s;" onfocus="this.style.borderColor='#4F46E5';this.style.boxShadow='0 0 0 3px #EEEEFF'" onblur="this.style.borderColor='#E4E4EC';this.style.boxShadow='none'">
+          </div>
+          <button type="submit" id="authSubmit" style="width:100%;padding:13px;border:none;border-radius:9px;font-size:14px;font-weight:700;cursor:pointer;font-family:'Inter',sans-serif;background:#4F46E5;color:white;letter-spacing:-.01em;transition:background .15s,transform .1s,box-shadow .15s;" onmouseover="this.style.background='#4338CA';this.style.boxShadow='0 6px 20px rgba(79,70,229,.35)'" onmouseout="this.style.background='#4F46E5';this.style.boxShadow='none'">
+            <span id="authBtnText">Sign In</span>
+          </button>
+        </form>
+        <div style="text-align:center;margin-top:20px;font-size:13px;color:#9898B4;font-family:'Inter',sans-serif;" id="authToggleText">
+          Don't have an account? <a onclick="toggleAuthMode()" style="color:#4F46E5;font-weight:600;cursor:pointer;text-decoration:none;">Create one</a>
+        </div>
+      </div>
+      <div style="text-align:center;margin-top:16px;font-size:12px;color:#B0B0C8;font-family:'Inter',sans-serif;">
+        <a href="index.html" style="color:#B0B0C8;text-decoration:none;">← Back to home</a>
       </div>
     </div>
   </div>
@@ -701,14 +710,13 @@
     <!-- Sidebar -->
     <div class="sidebar" id="sidebar">
       <div class="brand">
-        <div class="brand-icon" style="background:none;">
-          <svg width="30" height="30" viewBox="0 0 40 40" fill="none">
-            <defs><linearGradient id="dG" x1="0%" y1="100%" x2="100%" y2="0%"><stop offset="0%" stop-color="#5B6FE8"/><stop offset="55%" stop-color="#9B5DE5"/><stop offset="100%" stop-color="#F368A8"/></linearGradient></defs>
-            <path d="M8 20 a8 8 0 1 1 8 8 L16 12 L16 28" stroke="url(#dG)" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
-            <line x1="16" y1="20" x2="28" y2="20" stroke="url(#dG)" stroke-width="3" stroke-linecap="round"/>
-            <circle cx="28" cy="12" r="3" fill="#F368A8"/>
-            <circle cx="32" cy="20" r="3" fill="#F368A8"/>
-            <circle cx="28" cy="28" r="3" fill="#F368A8"/>
+        <div class="brand-icon" style="background:#4F46E5;">
+          <svg width="20" height="20" viewBox="0 0 40 40" fill="none">
+            <path d="M8 20 a8 8 0 1 1 8 8 L16 12 L16 28" stroke="white" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+            <line x1="16" y1="20" x2="28" y2="20" stroke="white" stroke-width="3" stroke-linecap="round"/>
+            <circle cx="28" cy="12" r="3" fill="white"/>
+            <circle cx="32" cy="20" r="3" fill="white"/>
+            <circle cx="28" cy="28" r="3" fill="white"/>
           </svg>
         </div>
         <div>
@@ -736,7 +744,7 @@
           <span>Dark Mode</span>
           <div class="toggle-switch" id="themeToggle"></div>
         </div>
-        <div style="padding:8px 12px;margin-top:4px;cursor:pointer;font-size:12px;color:var(--text-3);transition:color .15s;" onclick="logout()" onmouseover="this.style.color='var(--red)'" onmouseout="this.style.color='var(--text-3)'">
+        <div style="padding:8px 10px;margin-top:4px;cursor:pointer;font-size:12px;color:rgba(255,255,255,.3);transition:color .15s;" onclick="logout()" onmouseover="this.style.color='rgba(239,68,68,.7)'" onmouseout="this.style.color='rgba(255,255,255,.3)'">
           Sign Out
         </div>
       </div>
