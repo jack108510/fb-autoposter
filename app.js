@@ -1217,15 +1217,9 @@ function toggleAI() {
   const toggle = document.getElementById('aiToggle');
   const status = document.getElementById('aiStatus');
   if (!toggle) return;
-  const settings = cachedData.settings || {};
-  if (!settings.ai_key) {
-    // No API key — show hint, don't enable
-    if (status) status.style.display = 'block';
-    toggle.classList.remove('on');
-    return;
-  }
+  // Ollama runs locally — no API key needed
   toggle.classList.toggle('on');
-  if (status) status.style.display = 'none';
+  if (status) status.style.display = toggle.classList.contains('on') ? 'flex' : 'none';
 }
 
 // ─── AI toggle (Settings page) ───
