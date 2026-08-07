@@ -282,14 +282,15 @@ async function fetchAll() {
 async function createJob(post) {
   const groups = (post.groups || []).map(g => typeof g === 'string' ? g : g.url).filter(Boolean);
   const settings = cachedData.settings || {};
-  const aiEnabled = document.getElementById('aiToggle')?.classList.contains('on') && !!settings.ai_key;
+  // Ollama needs no API key — toggle alone is enough
+  const aiEnabled = document.getElementById('aiToggle')?.classList.contains('on');
   const { error } = await sb.from('jsw_post_jobs').insert({
     user_id: user.id,
     message: post.text,
     image_url: post.imageUrl || null,
     groups: groups,
     delay: settings.delay || 30,
-    ai_enabled: aiEnabled,
+    ai_enabled: !!aiEnabled,
     ai_prompt: settings.ai_prompt || null,
     status: 'pending',
   });

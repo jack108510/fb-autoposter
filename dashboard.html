@@ -921,7 +921,7 @@ Use {Hi|Hey|Hello} to spin unique variations — each group gets a different ver
 
               <div class="cp-panel-hr"></div>
 
-              <!-- AI Paraphrase toggle -->
+              <!-- Paraphrase toggle -->
               <div class="cp-panel-sec">
                 <div style="display:flex;align-items:center;justify-content:space-between;">
                   <div>
@@ -930,10 +930,14 @@ Use {Hi|Hey|Hello} to spin unique variations — each group gets a different ver
                   </div>
                   <div class="toggle-switch" id="aiToggle" onclick="toggleAI()" style="cursor:pointer;"></div>
                 </div>
-                <div id="aiStatus" style="display:none;margin-top:10px;font-size:11px;color:var(--text-3);">No API key configured — <a href="#" onclick="nav('settings');return false;" style="color:var(--blue);">add one in Settings</a></div>
+                <div id="aiStatus" style="margin-top:10px;font-size:11px;color:var(--green);display:none;align-items:center;gap:5px;">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                  Running on local Ollama (free)
+                </div>
               </div>
 
               <div class="cp-panel-hr"></div>
+
 
               <!-- Schedule -->
               <div class="cp-panel-sec">
