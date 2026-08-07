@@ -931,23 +931,49 @@ async function editPost(id) {
 }
 
 // ═══ GROUPS ═══
-async function loadGroups() {
-  cachedData = await fetchAll();
-  const groups = cachedData.groups || [];
-  const list = document.getElementById('groupsList');
-  const empty = document.getElementById('groupsEmpty');
-  const countEl = document.getElementById('groupCount');
+// ─── Group tag state ───
+let groupTagFilter = null; // null = all
 
-  if (countEl) countEl.textContent = `(${groups.length})`;
+async function saveGroupTags(url, tags) {
+  try {
+    await sb.from('jsw_groups').update({ tags }).eq('user_id', user.id).eq('group_url', url);
+    const g = (cachedData.groups || []).find(x => x.url === url);
+    if (g) g.tags = tags;
+  } catch (e) {
+    toast('Error saving tag');
+  }
+}
 
-  if (groups.length === 0) {
-    if (list) list.innerHTML = '';
-    if (empty) empty.style.display = 'block';
+function renderGroupTagBar(groups) {
+  const bar = document.getElementById('groupTagFilterBar');
+  if (!bar) return;
+  // Collect all unique tags
+  const allTags = [...new Set(groups.flatMap(g => g.tags || []))].sort();
+  if (allTags.length === 0) {
+    bar.style.display = 'none';
     return;
   }
-  if (empty) empty.style.display = 'none';
+  bar.style.display = 'flex';
+  bar.innerHTML = [
+    `<span class="tag-filter-pill ${groupTagFilter === null ? 'active' : ''}" onclick="setGroupTagFilter(null)">All</span>`,
+    ...allTags.map(t => `<span class="tag-filter-pill ${groupTagFilter === t ? 'active' : ''}" onclick="setGroupTagFilter(${JSON.stringify(t)})">${esc(t)}</span>`)
+  ].join('');
+}
 
-  // Build post counts per group from posts
+function setGroupTagFilter(tag) {
+  groupTagFilter = tag;
+  const groups = cachedData.groups || [];
+  renderGroupTagBar(groups);
+  renderGroupsList(groups);
+}
+
+function renderGroupsList(groups) {
+  const list = document.getElementById('groupsList');
+  const empty = document.getElementById('groupsEmpty');
+  if (!list) return;
+
+  const filtered = groupTagFilter ? groups.filter(g => (g.tags || []).includes(groupTagFilter)) : groups;
+
   const postCounts = {};
   (cachedData.posts || []).forEach(p => {
     (p.groups || []).forEach(g => {
@@ -956,19 +982,37 @@ async function loadGroups() {
     });
   });
 
-  if (list) list.innerHTML = groups.map((g, i) => {
+  if (filtered.length === 0) {
+    list.innerHTML = groupTagFilter
+      ? `<div style="padding:24px;text-align:center;color:var(--text-3);font-size:13px;">No groups tagged <strong>${esc(groupTagFilter)}</strong></div>`
+      : '';
+    if (empty) empty.style.display = groups.length === 0 ? 'block' : 'none';
+    return;
+  }
+  if (empty) empty.style.display = 'none';
+
+  const colors = ['#5B6FE8','#9B5DE5','#F368A8','#10b981','#f59e0b','#06b6d4'];
+  list.innerHTML = filtered.map((g, i) => {
     const posts = postCounts[g.url] || 0;
-    const colors = ['#5B6FE8','#9B5DE5','#F368A8','#10b981','#f59e0b','#06b6d4'];
     const color = colors[i % colors.length];
     const isPending = g.namePending;
+    const tagPills = (g.tags || []).map(t =>
+      `<span class="group-tag-pill" onclick="event.stopPropagation();removeGroupTag('${esc(g.url)}', '${esc(t)}')" title="Click to remove">${esc(t)} ✕</span>`
+    ).join('');
     return `<div style="display:flex;align-items:center;gap:14px;padding:14px 0;border-bottom:1px solid var(--border);transition:background .15s;" onmouseover="this.style.background='var(--surface-2)'" onmouseout="this.style.background=''">
       <div style="width:40px;height:40px;border-radius:10px;background:${color};flex-shrink:0;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800;font-size:16px;">${esc((g.name || '?')[0].toUpperCase())}</div>
       <div style="flex:1;min-width:0;">
-        <div style="font-weight:600;font-size:14px;display:flex;align-items:center;gap:8px;">
+        <div style="font-weight:600;font-size:14px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
           <span>${esc(g.name)}</span>
           ${isPending ? '<span style="font-size:10px;padding:2px 8px;border-radius:10px;background:var(--yellow-light);color:var(--yellow);font-weight:600;text-transform:uppercase;letter-spacing:0.5px;">Fetching name...</span>' : ''}
         </div>
         <a href="${esc(g.url)}" target="_blank" style="font-size:11px;color:var(--text-3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block;max-width:100%;">${esc(g.url)}</a>
+        <div style="display:flex;align-items:center;flex-wrap:wrap;gap:4px;margin-top:5px;">
+          ${tagPills}
+          <span class="group-tag-add" onclick="event.stopPropagation();showTagInput(this, '${esc(g.url)}')" title="Add tag">+ tag</span>
+          <input type="text" class="group-tag-input" style="display:none;width:100px;font-size:11px;padding:2px 6px;border:1px solid var(--border);border-radius:12px;outline:none;background:var(--surface);"
+            onkeydown="handleTagInput(event, '${esc(g.url)}')" onblur="this.style.display='none';this.previousElementSibling.style.display=''"/>
+        </div>
       </div>
       ${posts > 0 ? `<span class="badge badge-blue" style="flex-shrink:0;">${posts} ${posts === 1 ? 'post' : 'posts'}</span>` : ''}
       <button class="btn btn-ghost btn-sm" style="flex-shrink:0;color:var(--red);border-color:transparent;padding:6px 10px;" onclick="removeGroup('${esc(g.url)}')" title="Remove group">
@@ -976,6 +1020,50 @@ async function loadGroups() {
       </button>
     </div>`;
   }).join('');
+}
+
+function showTagInput(addBtn, url) {
+  const input = addBtn.nextElementSibling;
+  addBtn.style.display = 'none';
+  input.style.display = '';
+  input.value = '';
+  input.focus();
+}
+
+function handleTagInput(event, url) {
+  if (event.key === 'Enter') {
+    const tag = event.target.value.trim().toLowerCase();
+    if (!tag) { event.target.style.display = 'none'; event.target.previousElementSibling.style.display = ''; return; }
+    const g = (cachedData.groups || []).find(x => x.url === url);
+    if (!g) return;
+    const newTags = [...new Set([...(g.tags || []), tag])];
+    saveGroupTags(url, newTags).then(() => {
+      loadGroups();
+    });
+  } else if (event.key === 'Escape') {
+    event.target.style.display = 'none';
+    event.target.previousElementSibling.style.display = '';
+  }
+}
+
+function removeGroupTag(url, tag) {
+  const g = (cachedData.groups || []).find(x => x.url === url);
+  if (!g) return;
+  const newTags = (g.tags || []).filter(t => t !== tag);
+  saveGroupTags(url, newTags).then(() => {
+    if (groupTagFilter === tag && newTags.length === 0) groupTagFilter = null;
+    loadGroups();
+  });
+}
+
+async function loadGroups() {
+  cachedData = await fetchAll();
+  const groups = cachedData.groups || [];
+  const countEl = document.getElementById('groupCount');
+  if (countEl) countEl.textContent = `(${groups.length})`;
+
+  renderGroupTagBar(groups);
+  renderGroupsList(groups);
 }
 
 // Auto-detect group name from URL as user types/pastes
