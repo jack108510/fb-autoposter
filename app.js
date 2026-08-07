@@ -251,18 +251,26 @@ async function pollGroupNames() {
 
 async function fetchAll() {
   try {
-    const [posts, templates, groups, settings, logs] = await Promise.all([
+    const [postsRes, templatesRes, groupsRes, settings, logs] = await Promise.all([
       sbGet('posts'),
       sbGet('templates'),
-      sbGet('groups'),
+      // Groups always come from jsw_groups table (shared with extension)
+      sb.from('jsw_groups')
+        .select('group_url, group_name')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false }),
       sbGet('settings'),
       sbGet('logs'),
     ]);
+    const groups = (groupsRes.data || []).map(r => ({
+      url: r.group_url,
+      name: r.group_name || r.group_url.split('/').filter(Boolean).pop(),
+    }));
     return {
-      posts: posts || [],
+      posts: postsRes || [],
       logs: logs || [],
-      templates: templates || [],
-      groups: groups || [],
+      templates: templatesRes || [],
+      groups,
       settings: settings || {},
     };
   } catch (e) {
@@ -864,30 +872,21 @@ async function addGroupFromInput() {
 
     // Auto-detect name
     let name = extractGroupName(url);
-    if (!name) name = url.split('/').pop() || url;
+    if (!name) name = url.split('/').filter(Boolean).pop() || url;
 
-    groups.push({ url, name, namePending: !extractGroupName(url) });
-    cachedData.groups = groups;
-
-    const err = await sbSet('groups', groups);
-    if (err) throw new Error(err.message);
+    // Write directly to jsw_groups (shared with extension)
+    const { error: insertErr } = await sb.from('jsw_groups').insert({
+      user_id: user.id,
+      group_url: url,
+      group_name: name || null,
+    });
+    if (insertErr) throw new Error(insertErr.message);
 
     input.value = '';
     const hint = document.getElementById('groupAutoName');
     if (hint) hint.style.display = 'none';
-    toast('Group added — fetching name...');
+    toast('Group added');
     loadGroups();
-
-    // If no clean name, create a lookup job for the extension
-    if (!extractGroupName(url)) {
-      try {
-        await sb.from('jsw_group_lookups').insert({
-          user_id: user.id, group_url: url
-        });
-      } catch (e) {
-        console.warn('[Amplr] Could not create lookup:', e.message);
-      }
-    }
   } catch (e) {
     console.error('[Amplr] addGroup error:', e);
     toast('Error: ' + e.message);
@@ -896,13 +895,83 @@ async function addGroupFromInput() {
 
 // (dead code removed — fetchGroupName)
 
+async function syncGroupsFromFacebook() {
+  if (!connected) {
+    toast('Extension not connected — open Chrome with Amplr extension running first');
+    return;
+  }
+  const btn = document.getElementById('syncGroupsBtn');
+  const statusEl = document.getElementById('syncStatus');
+  const statusText = document.getElementById('syncStatusText');
+
+  btn.disabled = true;
+  btn.textContent = 'Syncing...';
+  statusEl.style.display = 'flex';
+  statusText.textContent = 'Queuing import job...';
+
+  try {
+    // Insert a special import_groups job — extension polls for these
+    const { data: job, error } = await sb.from('jsw_post_jobs').insert({
+      user_id: user.id,
+      message: '__import_groups__',
+      groups: [],
+      status: 'pending',
+      ai_enabled: false,
+    }).select('id').single();
+    if (error) throw new Error(error.message);
+
+    statusText.textContent = 'Extension is importing your groups...';
+
+    // Poll until job is done or failed (max 3 min)
+    let attempts = 0;
+    const poll = setInterval(async () => {
+      attempts++;
+      if (attempts > 36) { // 36 * 5s = 3min
+        clearInterval(poll);
+        btn.disabled = false;
+        btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;"><path d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9"/></svg> Sync from Facebook';
+        statusEl.style.display = 'none';
+        toast('Timed out — is the extension running?');
+        return;
+      }
+      const { data: j } = await sb.from('jsw_post_jobs').select('status, result').eq('id', job.id).single();
+      if (!j) return;
+      if (j.status === 'done') {
+        clearInterval(poll);
+        btn.disabled = false;
+        btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;"><path d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9"/></svg> Sync from Facebook';
+        statusEl.style.display = 'none';
+        const count = j.result?.count || '';
+        toast(count ? `Synced ${count} groups from Facebook` : 'Groups synced');
+        loadGroups();
+      } else if (j.status === 'failed') {
+        clearInterval(poll);
+        btn.disabled = false;
+        btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;"><path d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9"/></svg> Sync from Facebook';
+        statusEl.style.display = 'none';
+        toast('Sync failed — ' + (j.result?.error || 'check extension'));
+      } else {
+        statusText.textContent = j.result?.text || 'Extension is importing your groups...';
+      }
+    }, 5000);
+
+  } catch (e) {
+    btn.disabled = false;
+    btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;"><path d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9"/></svg> Sync from Facebook';
+    statusEl.style.display = 'none';
+    toast('Error: ' + e.message);
+  }
+}
+
+
 async function removeGroup(url) {
   try {
     if (!confirm('Remove this group?')) return;
-    const groups = (cachedData.groups || []).filter(g => g.url !== url);
-    cachedData.groups = groups;
-    const err = await sbSet('groups', groups);
-    if (err) throw new Error(err.message);
+    const { error } = await sb.from('jsw_groups')
+      .delete()
+      .eq('user_id', user.id)
+      .eq('group_url', url);
+    if (error) throw new Error(error.message);
     loadGroups();
     toast('Removed');
   } catch (e) {
