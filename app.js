@@ -196,6 +196,7 @@ async function pollExtLogs() {
     // Auto-cleanup old logs (>1 hour)
     await sb.from('jsw_ext_logs')
       .delete()
+      .eq('user_id', user.id)
       .lt('created_at', new Date(Date.now() - 3600000).toISOString());
   } catch (e) { /* silent */ }
 }
@@ -575,6 +576,7 @@ async function postNow() {
       delay: cachedData.settings?.delay || 30,
       status: 'pending',
       first_comment: document.getElementById('createFirstComment')?.value.trim() || null,
+      ai_enabled: !!document.getElementById('aiToggle')?.classList.contains('on'),
     });
     if (error) throw new Error(error.message);
 
@@ -586,8 +588,6 @@ async function postNow() {
     toast('Error: ' + e.message);
   }
 }
-
-// (dead code removed — getGroupsFromForm and fetchGroupName)
 
 async function saveTemplate() {
   const text = document.getElementById('createText').value.trim();
@@ -714,7 +714,6 @@ function useTemplate(id) {
 }
 
 // ═══ TEMPLATES PAGE ═══
-// ═══ TEMPLATES PAGE ═══
 let activeTplId = null;
 
 async function loadTemplatesPage() {
@@ -786,9 +785,10 @@ function tplClearAll() {
 
 function editTemplate() {
   if (!activeTplId) return;
-  nav('create');
-  setTimeout(() => useTemplate(activeTplId), 100);
+  const id = activeTplId;
   closeTplModal();
+  nav('create');
+  setTimeout(() => useTemplate(id), 100);
 }
 
 async function postTemplate() {
@@ -1223,7 +1223,6 @@ async function addGroupFromInput() {
   }
 }
 
-// (dead code removed — fetchGroupName)
 
 async function syncGroupsFromFacebook() {
   if (!connected) {
