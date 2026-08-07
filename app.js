@@ -281,13 +281,16 @@ async function fetchAll() {
 // Create a posting job that the extension picks up
 async function createJob(post) {
   const groups = (post.groups || []).map(g => typeof g === 'string' ? g : g.url).filter(Boolean);
+  const settings = cachedData.settings || {};
+  const aiEnabled = document.getElementById('aiToggle')?.classList.contains('on') && !!settings.ai_key;
   const { error } = await sb.from('jsw_post_jobs').insert({
     user_id: user.id,
     message: post.text,
     image_url: post.imageUrl || null,
     groups: groups,
-    delay: cachedData.settings?.delay || 30,
-    ai_enabled: false,
+    delay: settings.delay || 30,
+    ai_enabled: aiEnabled,
+    ai_prompt: settings.ai_prompt || null,
     status: 'pending',
   });
   if (error) throw new Error(error.message);
@@ -1093,17 +1096,57 @@ async function loadSettings() {
   if (s.delay) document.getElementById('setDelay').value = s.delay;
   if (s.maxGroups) document.getElementById('setMaxGroups').value = s.maxGroups;
   if (s.jitter) document.getElementById('setJitter').value = s.jitter;
+
+  // AI settings
+  const aiEnabledEl = document.getElementById('setAiEnabled');
+  if (aiEnabledEl) {
+    aiEnabledEl.classList.toggle('on', !!s.ai_enabled);
+  }
+  const aiProviderEl = document.getElementById('setAiProvider');
+  if (aiProviderEl && s.ai_provider) aiProviderEl.value = s.ai_provider;
+  const aiModelEl = document.getElementById('setAiModel');
+  if (aiModelEl && s.ai_model) aiModelEl.value = s.ai_model;
+  const aiKeyEl = document.getElementById('setAiKey');
+  if (aiKeyEl && s.ai_key) aiKeyEl.value = s.ai_key;
+  const aiPromptEl = document.getElementById('setAiPrompt');
+  if (aiPromptEl && s.ai_prompt) aiPromptEl.value = s.ai_prompt;
 }
 
 async function saveSettings() {
+  const aiKey = document.getElementById('setAiKey')?.value.trim() || '';
+  const aiProvider = document.getElementById('setAiProvider')?.value || 'openai';
+  const aiModel = document.getElementById('setAiModel')?.value.trim() || 'gpt-4o-mini';
+  const aiEnabled = document.getElementById('setAiEnabled')?.classList.contains('on') || false;
+  const aiPrompt = document.getElementById('setAiPrompt')?.value.trim() || '';
+
   const settings = {
     ...(cachedData.settings || {}),
     delay: parseInt(document.getElementById('setDelay').value) || 10,
     maxGroups: parseInt(document.getElementById('setMaxGroups').value) || 10,
     jitter: parseInt(document.getElementById('setJitter').value) || 5,
+    ai_enabled: aiEnabled,
+    ai_provider: aiProvider,
+    ai_model: aiModel,
+    ai_key: aiKey,
+    ai_prompt: aiPrompt,
   };
   cachedData.settings = settings;
   await sbSet('settings', settings);
+
+  // Also update jsw_settings so the extension can read ai_key, ai_provider, ai_model, ai_prompt
+  try {
+    await sb.from('jsw_settings').upsert({
+      user_id: user.id,
+      ai_provider: aiProvider,
+      ai_model: aiModel,
+      ai_key: aiKey,
+      ai_prompt: aiPrompt || null,
+      ai_enabled: aiEnabled,
+    }, { onConflict: 'user_id' });
+  } catch (e) {
+    console.warn('[Amplr] jsw_settings upsert failed:', e.message);
+  }
+
   toast('Settings saved');
 }
 
@@ -1166,6 +1209,28 @@ function toast(msg) {
   const t = document.createElement('div'); t.className = 'toast'; t.textContent = msg;
   document.body.appendChild(t);
   setTimeout(() => t.remove(), 3000);
+}
+
+// ─── AI toggle (Create Post panel) ───
+function toggleAI() {
+  const toggle = document.getElementById('aiToggle');
+  const status = document.getElementById('aiStatus');
+  if (!toggle) return;
+  const settings = cachedData.settings || {};
+  if (!settings.ai_key) {
+    // No API key — show hint, don't enable
+    if (status) status.style.display = 'block';
+    toggle.classList.remove('on');
+    return;
+  }
+  toggle.classList.toggle('on');
+  if (status) status.style.display = 'none';
+}
+
+// ─── AI toggle (Settings page) ───
+function toggleSettingsAI() {
+  const toggle = document.getElementById('setAiEnabled');
+  if (toggle) toggle.classList.toggle('on');
 }
 
 // ─── Create page helpers ───

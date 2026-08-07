@@ -921,6 +921,20 @@ Use {Hi|Hey|Hello} to spin unique variations — each group gets a different ver
 
               <div class="cp-panel-hr"></div>
 
+              <!-- AI Paraphrase toggle -->
+              <div class="cp-panel-sec">
+                <div style="display:flex;align-items:center;justify-content:space-between;">
+                  <div>
+                    <div style="font-size:13px;font-weight:600;">Paraphrase per group</div>
+                    <div style="font-size:11px;color:var(--text-3);margin-top:2px;">AI rewrites uniquely for each group</div>
+                  </div>
+                  <div class="toggle-switch" id="aiToggle" onclick="toggleAI()" style="cursor:pointer;"></div>
+                </div>
+                <div id="aiStatus" style="display:none;margin-top:10px;font-size:11px;color:var(--text-3);">No API key configured — <a href="#" onclick="nav('settings');return false;" style="color:var(--blue);">add one in Settings</a></div>
+              </div>
+
+              <div class="cp-panel-hr"></div>
+
               <!-- Schedule -->
               <div class="cp-panel-sec">
                 <div class="cp-field">
@@ -1100,6 +1114,46 @@ Use {Hi|Hey|Hello} to spin unique variations — each group gets a different ver
               <input type="number" id="setJitter" value="5" min="0" max="30" style="width:80px;" />
             </div>
           </div>
+          <button class="btn btn-primary" onclick="saveSettings()">Save</button>
+        </div>
+
+        <!-- AI Paraphrasing -->
+        <div class="card" style="margin-bottom:16px;">
+          <div class="card-title" style="margin-bottom:4px;">AI Paraphrasing</div>
+          <p style="font-size:13px;color:var(--text-3);margin-bottom:18px;">Rewrites your post uniquely for each group — keeps content fresh and reduces ban risk.</p>
+
+          <!-- Enable toggle -->
+          <div class="form-group" style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;">
+            <label style="margin:0;">Enable AI Paraphrasing</label>
+            <div class="toggle-switch" id="setAiEnabled" onclick="toggleSettingsAI()" style="cursor:pointer;"></div>
+          </div>
+
+          <!-- Provider + Model -->
+          <div class="row" style="margin-bottom:0;">
+            <div class="form-group">
+              <label>AI Provider</label>
+              <select id="setAiProvider">
+                <option value="openai">OpenAI</option>
+                <option value="anthropic">Anthropic</option>
+                <option value="openrouter">OpenRouter</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Model</label>
+              <input type="text" id="setAiModel" placeholder="gpt-4o-mini">
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label>API Key</label>
+            <input type="password" id="setAiKey" placeholder="sk-...">
+          </div>
+
+          <div class="form-group">
+            <label>Custom prompt <span style="font-weight:400;color:var(--text-3);">(optional)</span></label>
+            <textarea id="setAiPrompt" rows="3" placeholder="Rewrite this as a unique Facebook group post. Keep the same message but vary the hook, tone, and structure. Sound natural and human."></textarea>
+          </div>
+
           <button class="btn btn-primary" onclick="saveSettings()">Save</button>
         </div>
 
