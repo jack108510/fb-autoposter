@@ -1188,19 +1188,26 @@ Use {Hi|Hey|Hello} to spin unique variations — each group gets a different ver
       <div class="page" id="page-settings">
         <div class="page-title">Settings</div>
 
-        <!-- Connection -->
-        <div class="card" style="margin-bottom:16px;">
+        <!-- Connection -->\n        <div class="card" style="margin-bottom:16px;">
           <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:16px;">
             <div>
               <div style="font-size:15px;font-weight:700;margin-bottom:2px;">Extension</div>
               <div id="connStatus" style="font-size:13px;color:var(--text-2);">—</div>
             </div>
           </div>
+          <!-- Always-visible scheduling tip -->
+          <div style="margin-top:14px;padding:12px 14px;background:var(--blue-light);border-radius:var(--radius-sm);font-size:12px;color:var(--blue);line-height:1.7;">
+            <strong>Keep scheduling alive when Chrome is closed:</strong><br>
+            Go to <code style="background:rgba(79,70,229,.15);padding:1px 5px;border-radius:3px;">chrome://settings/system</code> → enable <strong>"Continue running background apps when Google Chrome is closed"</strong>
+          </div>
           <div id="installHint" style="display:none;margin-top:16px;padding-top:16px;border-top:1px solid var(--border);font-size:12px;color:var(--text-3);line-height:1.8;">
             <strong style="color:var(--text-2);">Not connected? Here's how:</strong><br>
             1. Download the extension from GitHub<br>
             2. <code>chrome://extensions</code> → enable Developer mode → Load unpacked<br>
-            3. Click the Amplr extension icon → sign in with the same email and password
+            3. Click the Amplr extension icon → sign in with the same email and password<br><br>
+            <strong style="color:var(--text-2);">⚡ Keep scheduling running when Chrome is closed:</strong><br>
+            Go to <code>chrome://settings/system</code> → turn on <strong>"Continue running background apps when Google Chrome is closed"</strong><br>
+            This lets Amplr post on schedule even with no Chrome window open.
           </div>
         </div>
 
