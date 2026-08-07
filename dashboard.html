@@ -154,10 +154,10 @@
     
     /* ─── Page Title ─── */
     .page-title {
-      font-size: 24px; font-weight: 700; margin-bottom: 6px;
-      display: flex; align-items: center; gap: 12px;
+      font-size: 22px; font-weight: 700; margin-bottom: 4px;
+      display: flex; align-items: center; gap: 12px; letter-spacing: -.02em;
     }
-    .page-subtitle { font-size: 13px; color: var(--text-3); margin-bottom: 24px; }
+    .page-subtitle { font-size: 13px; color: var(--text-3); margin-bottom: 28px; font-weight: 400; }
     
     /* ─── Cards ─── */
     .card {
@@ -170,23 +170,25 @@
     /* ─── Stats ─── */
     .stats-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 20px; }
     .stat {
-      background: var(--surface); border-radius: var(--radius); padding: 18px;
-      border: 1px solid var(--border); box-shadow: var(--shadow); position: relative; overflow: hidden;
+      background: var(--surface); border-radius: var(--radius); padding: 20px 22px;
+      border: 1px solid var(--border); box-shadow: var(--shadow); position: relative;
     }
-    .stat::before {
-      content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px;
-      border-radius: var(--radius) var(--radius) 0 0;
+    .stat-icon-box {
+      width: 38px; height: 38px; border-radius: 10px;
+      display: flex; align-items: center; justify-content: center;
+      margin-bottom: 14px; flex-shrink: 0;
     }
-    .stat.blue::before { background: var(--blue); }
-    .stat.green::before { background: var(--green); }
-    .stat.red::before { background: var(--red); }
-    .stat.purple::before { background: var(--purple); }
-    .stat-val { font-size: 28px; font-weight: 800; letter-spacing: -0.5px; }
-    .stat-lbl { font-size: 12px; color: var(--text-3); font-weight: 600; margin-top: 2px; }
-    .stat-icon { position: absolute; top: 16px; right: 16px; font-size: 20px; opacity: .2; }
-    .stat-trend { font-size: 11px; margin-top: 6px; font-weight: 600; display: flex; align-items: center; gap: 3px; }
-    .stat-trend.up { color: var(--green); }
-    .stat-trend.down { color: var(--red); }
+    .stat-icon-box.blue { background: #EEEEFF; }
+    .stat-icon-box.green { background: #D1FAE5; }
+    .stat-icon-box.red { background: #FEE2E2; }
+    .stat-icon-box.purple { background: #EDE9FE; }
+    .stat-icon-box svg { width: 18px; height: 18px; }
+    .stat-icon-box.blue svg { color: #4F46E5; }
+    .stat-icon-box.green svg { color: #059669; }
+    .stat-icon-box.red svg { color: #DC2626; }
+    .stat-icon-box.purple svg { color: #7C3AED; }
+    .stat-val { font-size: 26px; font-weight: 800; letter-spacing: -0.5px; line-height: 1; }
+    .stat-lbl { font-size: 12px; color: var(--text-3); font-weight: 500; margin-top: 4px; }
     
     /* ─── Buttons ─── */
     .btn {
@@ -758,19 +760,31 @@
         <div class="page-subtitle">Overview of your Facebook Groups posting activity</div>
         
         <div class="stats-row">
-          <div class="stat blue">
+          <div class="stat">
+            <div class="stat-icon-box blue">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/></svg>
+            </div>
             <div class="stat-val" id="sPostsWeek">—</div>
             <div class="stat-lbl">Posts This Week</div>
           </div>
-          <div class="stat purple">
+          <div class="stat">
+            <div class="stat-icon-box purple">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="7" r="3"/><circle cx="12" cy="7" r="3"/><circle cx="19" cy="7" r="3"/><path d="M2 17c0-2.2 1.8-4 3-4s3 1.8 3 4M9 17c0-2.2 1.8-4 3-4s3 1.8 3 4M16 17c0-2.2 1.8-4 3-4s3 1.8 3 4"/></svg>
+            </div>
             <div class="stat-val" id="sGroupsHit">—</div>
             <div class="stat-lbl">Groups Posted To</div>
           </div>
-          <div class="stat green">
+          <div class="stat">
+            <div class="stat-icon-box green">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+            </div>
             <div class="stat-val" id="sSuccessRate">—</div>
             <div class="stat-lbl">Success Rate</div>
           </div>
-          <div class="stat red">
+          <div class="stat">
+            <div class="stat-icon-box red">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+            </div>
             <div class="stat-val" id="sBanRisk">—</div>
             <div class="stat-lbl">Ban Risk</div>
           </div>
