@@ -82,27 +82,30 @@
     .btn-outline { background: var(--surface); color: var(--text); border: 1px solid var(--border); }
     .btn-outline:hover { background: var(--surface-2); }
 
-    /* ─── Mockup ─── */
-    .hero-mockup {
-      margin-top: 64px; padding: 6px; border-radius: 16px;
+    /* ─── Hero visual ─── */
+    .hero-visual { margin-top: 64px; }
+    .flow {
+      display: flex; align-items: center; justify-content: center;
+      gap: 0; flex-wrap: wrap;
       background: var(--surface); border: 1px solid var(--border);
-      box-shadow: 0 30px 80px rgba(0,0,0,.5);
-      max-width: 880px; margin-left: auto; margin-right: auto; overflow: hidden;
+      border-radius: 20px; padding: 48px 40px;
+      max-width: 760px; margin: 0 auto;
     }
-    .mockup-inner { background: #0C0C18; border-radius: 10px; display: grid; grid-template-columns: 190px 1fr; min-height: 340px; overflow: hidden; }
-    .mockup-sidebar { background: #12121a; padding: 16px; display: flex; flex-direction: column; gap: 4px; border-right: 1px solid #1e1e2e; }
-    .mockup-brand { display: flex; align-items: center; gap: 8px; padding: 4px 0 14px; border-bottom: 1px solid #1e1e2e; margin-bottom: 10px; }
-    .mockup-brand img { width: 24px; height: 24px; border-radius: 6px; object-fit: cover; }
-    .mockup-brand span { font-size: 13px; font-weight: 700; color: #f0f0f8; }
-    .mockup-nav { padding: 7px 10px; border-radius: 6px; font-size: 11px; color: #666680; }
-    .mockup-nav.active { background: rgba(79,70,229,.15); color: #818cf8; }
-    .mockup-main { padding: 20px; display: flex; flex-direction: column; gap: 14px; }
-    .mockup-stats { display: grid; grid-template-columns: repeat(4,1fr); gap: 10px; }
-    .mockup-stat { background: #18181f; border-radius: 8px; padding: 14px; }
-    .mockup-stat .v { font-size: 18px; font-weight: 800; color: #f0f0f5; }
-    .mockup-stat .l { font-size: 10px; color: #5c5c74; margin-top: 3px; }
-    .mockup-bars { background: #18181f; border-radius: 8px; padding: 16px; flex: 1; display: flex; align-items: flex-end; gap: 6px; min-height: 80px; }
-    .mockup-bar { flex: 1; border-radius: 3px 3px 0 0; }
+    .flow-node {
+      display: flex; flex-direction: column; align-items: center;
+      gap: 12px; padding: 0 24px; flex: 1; min-width: 160px;
+    }
+    .flow-node-ai .flow-icon { background: rgba(79,70,229,.15); border-color: rgba(79,70,229,.3); }
+    .flow-icon {
+      width: 56px; height: 56px; border-radius: 14px;
+      background: var(--surface-2); border: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: center;
+    }
+    .flow-icon svg { width: 22px; height: 22px; stroke: var(--text-2); }
+    .flow-node-ai .flow-icon svg { stroke: #818cf8; }
+    .flow-label { font-size: 13px; font-weight: 600; color: var(--text); text-align: center; }
+    .flow-sub { font-size: 11px; color: var(--text-3); text-align: center; }
+    .flow-arrow { font-size: 22px; color: var(--text-3); padding: 0 4px; flex-shrink: 0; }
 
     /* ─── Sections ─── */
     section { padding: 96px 0; position: relative; z-index: 1; }
@@ -222,37 +225,24 @@
         <a href="#how" class="btn-lg btn-outline">See how it works</a>
       </div>
 
-      <!-- Dashboard mockup -->
-      <div class="hero-mockup">
-        <div class="mockup-inner">
-          <div class="mockup-sidebar">
-            <div class="mockup-brand">
-              <img src="logo.jpg" alt="Amplr">
-              <span>amplr</span>
-            </div>
-            <div class="mockup-nav active">Dashboard</div>
-            <div class="mockup-nav">Create Post</div>
-            <div class="mockup-nav">Templates</div>
-            <div class="mockup-nav">Scheduled</div>
-            <div class="mockup-nav">Groups</div>
-            <div class="mockup-nav">History</div>
+      <!-- Hero visual: flow diagram -->
+      <div class="hero-visual">
+        <div class="flow">
+          <div class="flow-node">
+            <div class="flow-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg></div>
+            <div class="flow-label">You write one post</div>
           </div>
-          <div class="mockup-main">
-            <div class="mockup-stats">
-              <div class="mockup-stat"><div class="v">14</div><div class="l">Posts This Week</div></div>
-              <div class="mockup-stat"><div class="v">38</div><div class="l">Groups Posted To</div></div>
-              <div class="mockup-stat"><div class="v">94%</div><div class="l">Success Rate</div></div>
-              <div class="mockup-stat"><div class="v">Low</div><div class="l">Ban Risk</div></div>
-            </div>
-            <div class="mockup-bars">
-              <div class="mockup-bar" style="height:35%;background:#4F46E5;opacity:.7;"></div>
-              <div class="mockup-bar" style="height:60%;background:#10b981;opacity:.8;"></div>
-              <div class="mockup-bar" style="height:80%;background:#10b981;opacity:.8;"></div>
-              <div class="mockup-bar" style="height:55%;background:#10b981;opacity:.8;"></div>
-              <div class="mockup-bar" style="height:90%;background:#10b981;opacity:.8;"></div>
-              <div class="mockup-bar" style="height:65%;background:#10b981;opacity:.8;"></div>
-              <div class="mockup-bar" style="height:25%;background:#4F46E5;opacity:.4;"></div>
-            </div>
+          <div class="flow-arrow">→</div>
+          <div class="flow-node flow-node-ai">
+            <div class="flow-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/></svg></div>
+            <div class="flow-label">AI rewrites it for each group</div>
+            <div class="flow-sub">free · runs locally</div>
+          </div>
+          <div class="flow-arrow">→</div>
+          <div class="flow-node">
+            <div class="flow-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg></div>
+            <div class="flow-label">Posts go out to every group</div>
+            <div class="flow-sub">on your schedule</div>
           </div>
         </div>
       </div>
