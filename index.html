@@ -5,8 +5,10 @@
   <link rel="apple-touch-icon" href="apple-touch-icon.png">
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Amplr — Post to 50+ Facebook Groups on Autopilot</title>
-  <meta name="description" content="Amplr automates your Facebook Groups marketing. Write once, spin variations, schedule across dozens of groups, and track results — all from one dashboard.">
+  <title>Amplr — Post to Facebook Groups on Autopilot</title>
+  <meta name="description" content="Amplr automates your Facebook Groups marketing. Write once, AI rewrites it uniquely for each group, schedules across dozens of groups — all from one dashboard.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
 
@@ -18,23 +20,16 @@
       --text: #f0f0f5;
       --text-2: #9999b0;
       --text-3: #666680;
-      --blue: #3b82f6;
-      --blue-dark: #2563eb;
-      --blue-light: rgba(59,130,246,.15);
+      --blue: #4F46E5;
       --green: #10b981;
-      --green-light: rgba(16,185,129,.15);
       --purple: #8b5cf6;
-      --purple-light: rgba(139,92,246,.15);
-      --pink: #ec4899;
-      --yellow: #f59e0b;
       --gradient: linear-gradient(120deg, #5B6FE8 0%, #9B5DE5 55%, #F368A8 100%);
-      --gradient-text: linear-gradient(120deg, #5B6FE8 0%, #9B5DE5 55%, #F368A8 100%);
     }
 
     html { scroll-behavior: smooth; }
 
     body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', Roboto, sans-serif;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
       background: var(--bg);
       color: var(--text);
       -webkit-font-smoothing: antialiased;
@@ -43,269 +38,147 @@
 
     a { color: inherit; text-decoration: none; }
 
-    /* ─── Glow orbs ─── */
-    .orb {
-      position: fixed; border-radius: 50%; filter: blur(120px);
-      opacity: .3; z-index: 0; pointer-events: none;
-    }
+    /* ─── Orbs ─── */
+    .orb { position: fixed; border-radius: 50%; filter: blur(120px); opacity: .25; z-index: 0; pointer-events: none; }
     .orb-1 { width: 500px; height: 500px; background: #5B6FE8; top: -150px; right: -100px; }
     .orb-2 { width: 400px; height: 400px; background: #9B5DE5; top: 400px; left: -150px; }
-    .orb-3 { width: 350px; height: 350px; background: #F368A8; top: 1200px; right: -50px; }
 
     /* ─── Nav ─── */
     nav {
       position: fixed; top: 0; left: 0; right: 0; z-index: 100;
-      padding: 16px 40px; display: flex; align-items: center; justify-content: space-between;
-      backdrop-filter: blur(20px); background: rgba(10,10,15,.7);
+      padding: 14px 40px; display: flex; align-items: center; justify-content: space-between;
+      backdrop-filter: blur(20px); background: rgba(10,10,15,.8);
       border-bottom: 1px solid var(--border);
     }
-    .nav-logo { display: flex; align-items: center; gap: 10px; font-size: 18px; font-weight: 800; }
-    .nav-logo .logo-icon { width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; }
-    .nav-logo .brand-text { font-weight: 600; letter-spacing: .01em; }
-    .nav-links { display: flex; align-items: center; gap: 32px; }
-    .nav-links a { font-size: 14px; color: var(--text-2); font-weight: 500; transition: color .2s; }
+    .nav-logo { display: flex; align-items: center; gap: 10px; }
+    .nav-logo img { width: 32px; height: 32px; border-radius: 8px; object-fit: cover; }
+    .nav-logo span { font-size: 17px; font-weight: 700; letter-spacing: -.01em; }
+    .nav-links { display: flex; align-items: center; gap: 28px; }
+    .nav-links a { font-size: 13px; color: var(--text-2); font-weight: 500; transition: color .2s; }
     .nav-links a:hover { color: var(--text); }
-    .nav-cta {
-      padding: 8px 20px; border-radius: 8px; font-size: 13px; font-weight: 600;
-      background: var(--gradient); color: white !important; transition: transform .2s;
-    }
-    .nav-cta:hover { transform: translateY(-1px); }
+    .nav-cta { padding: 8px 18px; border-radius: 8px; font-size: 13px; font-weight: 600; background: var(--gradient); color: white !important; }
 
     /* ─── Container ─── */
     .container { max-width: 1100px; margin: 0 auto; padding: 0 40px; position: relative; z-index: 1; }
 
     /* ─── Hero ─── */
-    .hero {
-      padding: 160px 0 80px; text-align: center; position: relative;
-    }
+    .hero { padding: 160px 0 80px; text-align: center; position: relative; }
     .hero-badge {
       display: inline-flex; align-items: center; gap: 8px;
-      padding: 6px 16px; border-radius: 20px; font-size: 13px; font-weight: 600;
-      background: var(--surface); border: 1px solid var(--border); color: var(--text-2);
-      margin-bottom: 28px;
+      padding: 6px 16px; border-radius: 20px; font-size: 12px; font-weight: 600;
+      background: var(--surface); border: 1px solid var(--border); color: var(--text-2); margin-bottom: 28px;
     }
     .hero-badge .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--green); box-shadow: 0 0 8px var(--green); }
 
-    .hero h1 {
-      font-size: 64px; font-weight: 800; line-height: 1.05;
-      letter-spacing: -2px; margin-bottom: 24px; max-width: 900px; margin-left: auto; margin-right: auto;
-    }
-    .hero h1 .gradient {
-      background: var(--gradient-text); -webkit-background-clip: text; background-clip: text;
-      -webkit-text-fill-color: transparent;
-    }
+    .hero h1 { font-size: 64px; font-weight: 800; line-height: 1.05; letter-spacing: -2px; margin-bottom: 24px; max-width: 860px; margin-left: auto; margin-right: auto; }
+    .hero h1 .grad { background: var(--gradient); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
 
-    .hero p {
-      font-size: 19px; color: var(--text-2); max-width: 600px; margin: 0 auto 36px;
-      line-height: 1.6;
-    }
+    .hero p { font-size: 18px; color: var(--text-2); max-width: 560px; margin: 0 auto 36px; line-height: 1.65; }
 
-    .hero-ctas { display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; }
-    .btn-lg {
-      padding: 14px 32px; border-radius: 10px; font-size: 15px; font-weight: 700;
-      border: none; cursor: pointer; transition: all .2s; font-family: inherit;
-      display: inline-flex; align-items: center; gap: 8px;
-    }
-    .btn-gradient { background: var(--gradient); color: white; }
-    .btn-gradient:hover { transform: translateY(-2px); box-shadow: 0 10px 30px rgba(59,130,246,.3); }
+    .hero-ctas { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+    .btn-lg { padding: 13px 28px; border-radius: 10px; font-size: 15px; font-weight: 700; border: none; cursor: pointer; transition: all .2s; font-family: inherit; display: inline-flex; align-items: center; gap: 8px; }
+    .btn-grad { background: var(--gradient); color: white; }
+    .btn-grad:hover { transform: translateY(-2px); box-shadow: 0 10px 30px rgba(91,111,232,.35); }
     .btn-outline { background: var(--surface); color: var(--text); border: 1px solid var(--border); }
-    .btn-outline:hover { background: var(--surface-2); border-color: var(--text-3); }
+    .btn-outline:hover { background: var(--surface-2); }
 
-    .hero-trust {
-      margin-top: 40px; font-size: 13px; color: var(--text-3);
-      display: flex; align-items: center; justify-content: center; gap: 8px;
-    }
-    .hero-stars { color: var(--yellow); letter-spacing: 2px; }
-
+    /* ─── Mockup ─── */
     .hero-mockup {
-      margin-top: 60px; padding: 8px; border-radius: 16px;
+      margin-top: 64px; padding: 6px; border-radius: 16px;
       background: var(--surface); border: 1px solid var(--border);
-      box-shadow: 0 30px 80px rgba(0,0,0,.4);
-      max-width: 900px; margin-left: auto; margin-right: auto;
-      overflow: hidden;
+      box-shadow: 0 30px 80px rgba(0,0,0,.5);
+      max-width: 880px; margin-left: auto; margin-right: auto; overflow: hidden;
     }
-    .hero-mockup-inner {
-      background: var(--bg); border-radius: 10px; padding: 28px;
-      display: grid; grid-template-columns: 200px 1fr; gap: 20px; min-height: 360px;
-    }
-    .mockup-sidebar {
-      background: var(--surface); border-radius: 8px; padding: 16px;
-      display: flex; flex-direction: column; gap: 10px;
-    }
-    .mockup-sidebar .ms-head { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 13px; margin-bottom: 8px; }
-    .mockup-sidebar .ms-head .icon { width: 24px; height: 24px; border-radius: 6px; background: var(--gradient); display: flex; align-items: center; justify-content: center; font-size: 12px; }
-    .mockup-nav-item { padding: 7px 10px; border-radius: 6px; font-size: 11px; color: var(--text-3); display: flex; align-items: center; gap: 6px; }
-    .mockup-nav-item.active { background: var(--blue-light); color: var(--blue); }
-    .mockup-main { display: flex; flex-direction: column; gap: 14px; }
-    .mockup-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
-    .mockup-stat { background: var(--surface); border-radius: 8px; padding: 14px; position: relative; }
-    .mockup-stat::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px; border-radius: 8px 8px 0 0; }
-    .mockup-stat.b::before { background: #5B6FE8; }
-    .mockup-stat.g::before { background: var(--green); }
-    .mockup-stat.p::before { background: #9B5DE5; }
-    .mockup-stat .val { font-size: 20px; font-weight: 800; }
-    .mockup-stat .lbl { font-size: 10px; color: var(--text-3); margin-top: 2px; }
-    .mockup-bars { background: var(--surface); border-radius: 8px; padding: 16px; flex: 1; display: flex; align-items: flex-end; gap: 8px; }
-    .mockup-bar { flex: 1; border-radius: 4px 4px 0 0; min-height: 20px; }
-    .mockup-bar.g { background: var(--green); opacity: .8; }
-    .mockup-bar.b { background: #5B6FE8; opacity: .5; }
+    .mockup-inner { background: #0C0C18; border-radius: 10px; display: grid; grid-template-columns: 190px 1fr; min-height: 340px; overflow: hidden; }
+    .mockup-sidebar { background: #12121a; padding: 16px; display: flex; flex-direction: column; gap: 4px; border-right: 1px solid #1e1e2e; }
+    .mockup-brand { display: flex; align-items: center; gap: 8px; padding: 4px 0 14px; border-bottom: 1px solid #1e1e2e; margin-bottom: 10px; }
+    .mockup-brand img { width: 24px; height: 24px; border-radius: 6px; object-fit: cover; }
+    .mockup-brand span { font-size: 13px; font-weight: 700; color: #f0f0f8; }
+    .mockup-nav { padding: 7px 10px; border-radius: 6px; font-size: 11px; color: #666680; }
+    .mockup-nav.active { background: rgba(79,70,229,.15); color: #818cf8; }
+    .mockup-main { padding: 20px; display: flex; flex-direction: column; gap: 14px; }
+    .mockup-stats { display: grid; grid-template-columns: repeat(4,1fr); gap: 10px; }
+    .mockup-stat { background: #18181f; border-radius: 8px; padding: 14px; }
+    .mockup-stat .v { font-size: 18px; font-weight: 800; color: #f0f0f5; }
+    .mockup-stat .l { font-size: 10px; color: #5c5c74; margin-top: 3px; }
+    .mockup-bars { background: #18181f; border-radius: 8px; padding: 16px; flex: 1; display: flex; align-items: flex-end; gap: 6px; min-height: 80px; }
+    .mockup-bar { flex: 1; border-radius: 3px 3px 0 0; }
 
     /* ─── Sections ─── */
-    section { padding: 100px 0; position: relative; z-index: 1; }
-    .section-tag {
-      display: inline-flex; align-items: center; gap: 6px;
-      padding: 5px 14px; border-radius: 16px; font-size: 12px; font-weight: 700;
-      background: var(--blue-light); color: var(--blue); margin-bottom: 16px;
-      text-transform: uppercase; letter-spacing: .5px;
-    }
-    .section-title {
-      font-size: 44px; font-weight: 800; letter-spacing: -1.5px; line-height: 1.1;
-      margin-bottom: 16px; max-width: 700px;
-    }
-    .section-title.center { margin: 0 auto 16px; text-align: center; }
-    .section-sub {
-      font-size: 17px; color: var(--text-2); max-width: 580px; line-height: 1.6;
-      margin-bottom: 56px;
-    }
+    section { padding: 96px 0; position: relative; z-index: 1; }
+    .section-tag { display: inline-flex; align-items: center; padding: 4px 12px; border-radius: 16px; font-size: 11px; font-weight: 700; background: rgba(79,70,229,.12); color: #818cf8; margin-bottom: 14px; text-transform: uppercase; letter-spacing: .8px; }
+    .section-title { font-size: 42px; font-weight: 800; letter-spacing: -1.5px; line-height: 1.1; margin-bottom: 14px; max-width: 680px; }
+    .section-title.center { margin: 0 auto 14px; text-align: center; }
+    .section-sub { font-size: 16px; color: var(--text-2); max-width: 560px; line-height: 1.65; margin-bottom: 52px; }
     .section-sub.center { margin-left: auto; margin-right: auto; text-align: center; }
     .section-center { text-align: center; }
 
-    /* ─── Feature grid ─── */
-    .features { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
-    .feature-card {
-      background: var(--surface); border: 1px solid var(--border); border-radius: 16px;
-      padding: 28px; transition: all .25s; position: relative; overflow: hidden;
-    }
-    .feature-card:hover { transform: translateY(-4px); border-color: var(--text-3); box-shadow: 0 20px 40px rgba(0,0,0,.3); }
-    .feature-card::before {
-      content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px;
-      background: var(--gradient); opacity: 0; transition: opacity .25s;
-    }
-    .feature-card:hover::before { opacity: 1; }
-    .feature-icon {
-      width: 44px; height: 44px; border-radius: 12px; margin-bottom: 16px;
-      display: flex; align-items: center; justify-content: center; font-size: 22px;
-      background: var(--surface-2);
-    }
-    .feature-card h3 { font-size: 17px; font-weight: 700; margin-bottom: 8px; }
-    .feature-card p { font-size: 14px; color: var(--text-2); line-height: 1.6; }
+    /* ─── Features ─── */
+    .features { display: grid; grid-template-columns: repeat(3,1fr); gap: 16px; }
+    .feature-card { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 26px; transition: all .25s; }
+    .feature-card:hover { transform: translateY(-3px); border-color: #3d3d55; box-shadow: 0 16px 40px rgba(0,0,0,.3); }
+    .feature-icon { width: 40px; height: 40px; border-radius: 10px; margin-bottom: 14px; display: flex; align-items: center; justify-content: center; background: var(--surface-2); }
+    .feature-icon svg { width: 20px; height: 20px; }
+    .feature-card h3 { font-size: 15px; font-weight: 700; margin-bottom: 8px; }
+    .feature-card p { font-size: 13px; color: var(--text-2); line-height: 1.6; }
 
     /* ─── Steps ─── */
-    .steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 32px; margin-top: 20px; }
-    .step { text-align: center; position: relative; }
-    .step-num {
-      width: 48px; height: 48px; border-radius: 50%; margin: 0 auto 20px;
-      background: var(--gradient); display: flex; align-items: center; justify-content: center;
-      font-size: 18px; font-weight: 800; color: white;
-    }
-    .step h3 { font-size: 17px; font-weight: 700; margin-bottom: 10px; }
-    .step p { font-size: 14px; color: var(--text-2); line-height: 1.6; max-width: 280px; margin: 0 auto; }
+    .steps { display: grid; grid-template-columns: repeat(3,1fr); gap: 32px; }
+    .step { text-align: center; }
+    .step-num { width: 44px; height: 44px; border-radius: 50%; margin: 0 auto 18px; background: var(--gradient); display: flex; align-items: center; justify-content: center; font-size: 16px; font-weight: 800; color: white; }
+    .step h3 { font-size: 16px; font-weight: 700; margin-bottom: 8px; }
+    .step p { font-size: 13px; color: var(--text-2); line-height: 1.6; max-width: 260px; margin: 0 auto; }
 
-    /* ─── Big feature split ─── */
-    .split { display: grid; grid-template-columns: 1fr 1fr; gap: 60px; align-items: center; }
-    .split-card {
-      background: var(--surface); border: 1px solid var(--border); border-radius: 16px;
-      padding: 28px; box-shadow: 0 20px 50px rgba(0,0,0,.3);
-    }
-    .split-card .sc-row { display: flex; align-items: center; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--border); }
-    .split-card .sc-row:last-child { border-bottom: none; }
-    .split-card .sc-icon { width: 36px; height: 36px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 16px; background: var(--surface-2); flex-shrink: 0; }
-    .split-card .sc-title { font-size: 13px; font-weight: 700; }
-    .split-card .sc-desc { font-size: 12px; color: var(--text-3); }
-
-    /* ─── Stats band ─── */
-    .stats-band {
-      display: grid; grid-template-columns: repeat(4, 1fr); gap: 24px;
-      padding: 48px 40px; background: var(--surface); border: 1px solid var(--border);
-      border-radius: 20px; margin-top: 20px;
-    }
-    .stat-item { text-align: center; }
-    .stat-item .num { font-size: 40px; font-weight: 800; letter-spacing: -1px; }
-    .stat-item .num.gradient { background: var(--gradient-text); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
-    .stat-item .lbl { font-size: 13px; color: var(--text-3); margin-top: 4px; font-weight: 500; }
-
-    /* ─── Pricing ─── */
-    .pricing-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; max-width: 720px; margin: 0 auto; }
-    .price-card {
-      background: var(--surface); border: 1px solid var(--border); border-radius: 16px;
-      padding: 32px; position: relative; transition: all .25s;
-    }
-    .price-card:hover { border-color: var(--blue); box-shadow: 0 20px 40px rgba(0,0,0,.3); }
-    .price-card.popular { border-color: var(--purple); }
-    .price-card.popular::before {
-      content: 'MOST POPULAR'; position: absolute; top: -10px; left: 50%; transform: translateX(-50%);
-      padding: 3px 12px; border-radius: 12px; font-size: 10px; font-weight: 800;
-      background: var(--gradient); color: white; letter-spacing: .5px;
-    }
-    .price-name { font-size: 14px; font-weight: 700; color: var(--text-2); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px; }
-    .price-amount { font-size: 48px; font-weight: 800; letter-spacing: -2px; }
-    .price-amount .per { font-size: 16px; color: var(--text-3); font-weight: 500; }
-    .price-desc { font-size: 14px; color: var(--text-2); margin: 12px 0 24px; }
-    .price-features { list-style: none; margin-bottom: 28px; }
-    .price-features li { font-size: 13px; color: var(--text-2); padding: 8px 0; display: flex; align-items: flex-start; gap: 8px; }
-    .price-features li::before { content: ''; width: 5px; height: 5px; border-radius: 50%; background: var(--green); margin-top: 7px; flex-shrink: 0; display: block; }
-    .price-card .btn-gradient { width: 100%; justify-content: center; }
+    /* ─── Split ─── */
+    .split { display: grid; grid-template-columns: 1fr 1fr; gap: 56px; align-items: center; }
+    .split-card { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 24px; }
+    .sc-row { display: flex; align-items: flex-start; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--border); }
+    .sc-row:last-child { border-bottom: none; }
+    .sc-check { width: 20px; height: 20px; border-radius: 50%; background: rgba(16,185,129,.15); display: flex; align-items: center; justify-content: center; flex-shrink: 0; margin-top: 1px; }
+    .sc-check svg { width: 10px; height: 10px; color: var(--green); }
+    .sc-title { font-size: 13px; font-weight: 600; margin-bottom: 2px; }
+    .sc-desc { font-size: 12px; color: var(--text-3); }
 
     /* ─── FAQ ─── */
-    .faq-list { max-width: 680px; margin: 0 auto; }
-    .faq-item {
-      background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
-      margin-bottom: 12px; overflow: hidden; transition: border .2s;
-    }
-    .faq-item:hover { border-color: var(--text-3); }
-    .faq-q {
-      padding: 20px 24px; font-size: 15px; font-weight: 600; cursor: pointer;
-      display: flex; justify-content: space-between; align-items: center; transition: color .2s;
-    }
-    .faq-q:hover { color: var(--blue); }
-    .faq-q .arrow { font-size: 18px; transition: transform .2s; color: var(--text-3); }
-    .faq-a {
-      max-height: 0; overflow: hidden; transition: max-height .3s ease, padding .3s ease;
-      padding: 0 24px; font-size: 14px; color: var(--text-2); line-height: 1.6;
-    }
-    .faq-item.open .faq-a { max-height: 300px; padding-bottom: 20px; }
+    .faq-list { max-width: 660px; margin: 0 auto; }
+    .faq-item { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; margin-bottom: 10px; overflow: hidden; }
+    .faq-q { padding: 18px 22px; font-size: 14px; font-weight: 600; cursor: pointer; display: flex; justify-content: space-between; align-items: center; }
+    .faq-q .arrow { font-size: 16px; transition: transform .2s; color: var(--text-3); }
+    .faq-a { max-height: 0; overflow: hidden; transition: max-height .3s ease, padding .3s ease; padding: 0 22px; font-size: 13px; color: var(--text-2); line-height: 1.65; }
+    .faq-item.open .faq-a { max-height: 300px; padding-bottom: 18px; }
     .faq-item.open .faq-q .arrow { transform: rotate(180deg); }
 
-    /* ─── CTA section ─── */
-    .cta-section {
-      text-align: center; padding: 100px 0;
-    }
-    .cta-box {
-      background: var(--surface); border: 1px solid var(--border); border-radius: 24px;
-      padding: 60px 40px; position: relative; overflow: hidden;
-    }
-    .cta-box::before {
-      content: ''; position: absolute; inset: 0;
-      background: radial-gradient(circle at 50% 0%, rgba(59,130,246,.1), transparent 60%);
-    }
-    .cta-box h2 { font-size: 40px; font-weight: 800; letter-spacing: -1px; margin-bottom: 16px; position: relative; }
-    .cta-box p { font-size: 17px; color: var(--text-2); margin-bottom: 32px; position: relative; }
-    .cta-box .btn-lg { position: relative; }
+    /* ─── CTA ─── */
+    .cta-box { background: var(--surface); border: 1px solid var(--border); border-radius: 20px; padding: 64px 40px; text-align: center; position: relative; overflow: hidden; }
+    .cta-box::before { content: ''; position: absolute; inset: 0; background: radial-gradient(circle at 50% 0%, rgba(79,70,229,.12), transparent 60%); }
+    .cta-box h2 { font-size: 38px; font-weight: 800; letter-spacing: -1px; margin-bottom: 14px; position: relative; }
+    .cta-box p { font-size: 16px; color: var(--text-2); margin-bottom: 28px; position: relative; }
 
     /* ─── Footer ─── */
-    footer {
-      padding: 40px; border-top: 1px solid var(--border);
-      display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 20px;
-      position: relative; z-index: 1;
-    }
-    .footer-left { display: flex; align-items: center; gap: 10px; font-size: 14px; color: var(--text-2); }
-    .footer-links { display: flex; gap: 24px; }
-    .footer-links a { font-size: 13px; color: var(--text-3); transition: color .2s; }
+    footer { padding: 36px 40px; border-top: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px; position: relative; z-index: 1; }
+    .footer-logo { display: flex; align-items: center; gap: 8px; }
+    .footer-logo img { width: 24px; height: 24px; border-radius: 6px; object-fit: cover; }
+    .footer-logo span { font-size: 14px; font-weight: 700; }
+    .footer-copy { font-size: 12px; color: var(--text-3); margin-left: 8px; }
+    .footer-links { display: flex; gap: 20px; }
+    .footer-links a { font-size: 12px; color: var(--text-3); transition: color .2s; }
     .footer-links a:hover { color: var(--text); }
 
     /* ─── Responsive ─── */
     @media (max-width: 768px) {
-      nav { padding: 14px 20px; }
+      nav { padding: 12px 20px; }
       .nav-links { display: none; }
       .container { padding: 0 20px; }
       .hero { padding: 120px 0 60px; }
-      .hero h1 { font-size: 36px; }
+      .hero h1 { font-size: 36px; letter-spacing: -1px; }
       .hero p { font-size: 16px; }
-      .hero-mockup-inner { grid-template-columns: 1fr; }
+      .mockup-inner { grid-template-columns: 1fr; }
       .mockup-sidebar { display: none; }
+      .mockup-stats { grid-template-columns: repeat(2,1fr); }
       .section-title { font-size: 30px; }
-      .features, .steps, .split, .pricing-grid, .stats-band { grid-template-columns: 1fr; }
-      .stats-band { padding: 32px 20px; }
+      .features { grid-template-columns: 1fr; }
+      .steps { grid-template-columns: 1fr; }
+      .split { grid-template-columns: 1fr; gap: 32px; }
       .cta-box { padding: 40px 20px; }
       .cta-box h2 { font-size: 28px; }
     }
@@ -315,101 +188,70 @@
 
   <div class="orb orb-1"></div>
   <div class="orb orb-2"></div>
-  <div class="orb orb-3"></div>
 
-  <!-- ─── Nav ─── -->
+  <!-- Nav -->
   <nav>
     <a href="/" class="nav-logo">
-      <div class="logo-icon">
-        <svg width="36" height="36" viewBox="0 0 40 40" fill="none">
-          <defs><linearGradient id="navG" x1="0%" y1="100%" x2="100%" y2="0%"><stop offset="0%" stop-color="#5B6FE8"/><stop offset="55%" stop-color="#9B5DE5"/><stop offset="100%" stop-color="#F368A8"/></linearGradient></defs>
-          <path d="M8 20 a8 8 0 1 1 8 8 L16 12 L16 28" stroke="url(#navG)" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
-          <line x1="16" y1="20" x2="28" y2="20" stroke="url(#navG)" stroke-width="3" stroke-linecap="round"/>
-          <circle cx="28" cy="12" r="3" fill="#F368A8"/>
-          <circle cx="32" cy="20" r="3" fill="#F368A8"/>
-          <circle cx="28" cy="28" r="3" fill="#F368A8"/>
-        </svg>
-      </div>
-      <span class="brand-text">amplr</span>
+      <img src="logo.jpg" alt="Amplr">
+      <span>amplr</span>
     </a>
     <div class="nav-links">
       <a href="#features">Features</a>
       <a href="#how">How it Works</a>
-      <a href="#pricing">Pricing</a>
       <a href="#faq">FAQ</a>
       <a href="dashboard.html">Sign In</a>
-      <a href="dashboard.html" class="nav-cta">Launch Free</a>
+      <a href="dashboard.html" class="nav-cta">Get Started →</a>
     </div>
   </nav>
 
-  <!-- ─── Hero ─── -->
+  <!-- Hero -->
   <div class="hero">
     <div class="container">
       <div class="hero-badge">
         <div class="dot"></div>
-        Chrome Extension + Dashboard — Live Now
+        Now in beta — free to use
       </div>
       <h1>
-        Post to <span class="gradient">50+ Facebook Groups</span> on autopilot.
+        Post to <span class="grad">dozens of Facebook Groups</span> without lifting a finger.
       </h1>
       <p>
-        Write once. Amplr spins unique variations, schedules across every group, and tracks results — all from one dashboard. No manual posting. No duplicate flags.
+        Write one message. Amplr rewrites it uniquely for every group, posts on your schedule, and keeps you off Facebook's radar.
       </p>
       <div class="hero-ctas">
-        <a href="dashboard.html" class="btn-lg btn-gradient">Launch Dashboard →</a>
+        <a href="dashboard.html" class="btn-lg btn-grad">Get Started Free →</a>
         <a href="#how" class="btn-lg btn-outline">See how it works</a>
-      </div>
-      <div class="hero-trust">
-        <span class="hero-stars">5/5 rating</span>
-        Free forever for solo use · No credit card
       </div>
 
       <!-- Dashboard mockup -->
       <div class="hero-mockup">
-        <div class="hero-mockup-inner">
+        <div class="mockup-inner">
           <div class="mockup-sidebar">
-            <div class="ms-head">
-              <div class="icon">
-                <svg width="22" height="22" viewBox="0 0 40 40" fill="none">
-                  <defs><linearGradient id="mG" x1="0%" y1="100%" x2="100%" y2="0%"><stop offset="0%" stop-color="#5B6FE8"/><stop offset="55%" stop-color="#9B5DE5"/><stop offset="100%" stop-color="#F368A8"/></linearGradient></defs>
-                  <path d="M8 20 a8 8 0 1 1 8 8 L16 12 L16 28" stroke="url(#mG)" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
-                  <line x1="16" y1="20" x2="28" y2="20" stroke="url(#mG)" stroke-width="3" stroke-linecap="round"/>
-                  <circle cx="28" cy="12" r="3" fill="#F368A8"/>
-                  <circle cx="32" cy="20" r="3" fill="#F368A8"/>
-                  <circle cx="28" cy="28" r="3" fill="#F368A8"/>
-                </svg>
-              </div>
-              amplr
+            <div class="mockup-brand">
+              <img src="logo.jpg" alt="Amplr">
+              <span>amplr</span>
             </div>
-            <div class="mockup-nav-item active"> Dashboard</div>
-            <div class="mockup-nav-item"> Calendar</div>
-            <div class="mockup-nav-item"> Create</div>
-            <div class="mockup-nav-item"> Scheduled</div>
-            <div class="mockup-nav-item"> Groups</div>
+            <div class="mockup-nav active">Dashboard</div>
+            <div class="mockup-nav">Create Post</div>
+            <div class="mockup-nav">Templates</div>
+            <div class="mockup-nav">Scheduled</div>
+            <div class="mockup-nav">Groups</div>
+            <div class="mockup-nav">History</div>
           </div>
           <div class="mockup-main">
             <div class="mockup-stats">
-              <div class="mockup-stat b">
-                <div class="val">12</div>
-                <div class="lbl">Active Posts</div>
-              </div>
-              <div class="mockup-stat g">
-                <div class="val">847</div>
-                <div class="lbl">Successful</div>
-              </div>
-              <div class="mockup-stat p">
-                <div class="val">23</div>
-                <div class="lbl">Groups</div>
-              </div>
+              <div class="mockup-stat"><div class="v">14</div><div class="l">Posts This Week</div></div>
+              <div class="mockup-stat"><div class="v">38</div><div class="l">Groups Posted To</div></div>
+              <div class="mockup-stat"><div class="v">94%</div><div class="l">Success Rate</div></div>
+              <div class="mockup-stat"><div class="v">Low</div><div class="l">Ban Risk</div></div>
             </div>
             <div class="mockup-bars">
-              <div class="mockup-bar g" style="height:40%"></div>
-              <div class="mockup-bar g" style="height:65%"></div>
-              <div class="mockup-bar g" style="height:80%"></div>
-              <div class="mockup-bar g" style="height:55%"></div>
-              <div class="mockup-bar g" style="height:90%"></div>
-              <div class="mockup-bar g" style="height:70%"></div>
-              <div class="mockup-bar b" style="height:30%"></div>
+              <div class="mockup-bar" style="height:35%;background:#4F46E5;opacity:.7;"></div>
+              <div class="mockup-bar" style="height:60%;background:#10b981;opacity:.8;"></div>
+              <div class="mockup-bar" style="height:80%;background:#10b981;opacity:.8;"></div>
+              <div class="mockup-bar" style="height:55%;background:#10b981;opacity:.8;"></div>
+              <div class="mockup-bar" style="height:90%;background:#10b981;opacity:.8;"></div>
+              <div class="mockup-bar" style="height:65%;background:#10b981;opacity:.8;"></div>
+              <div class="mockup-bar" style="height:25%;background:#4F46E5;opacity:.4;"></div>
             </div>
           </div>
         </div>
@@ -417,285 +259,175 @@
     </div>
   </div>
 
-  <!-- ─── Stats band ─── -->
-  <section style="padding: 40px 0;">
-    <div class="container">
-      <div class="stats-band">
-        <div class="stat-item">
-          <div class="num gradient" data-target="847">0</div>
-          <div class="lbl">Posts delivered</div>
-        </div>
-        <div class="stat-item">
-          <div class="num gradient" data-target="50">0</div>
-          <div class="lbl">Groups supported</div>
-        </div>
-        <div class="stat-item">
-          <div class="num gradient" data-target="3">0</div>
-          <div class="lbl">Min to set up</div>
-        </div>
-        <div class="stat-item">
-          <div class="num gradient" data-target="100">0</div>
-          <div class="lbl">% Free to use</div>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- ─── Features ─── -->
+  <!-- Features -->
   <section id="features">
     <div class="container">
       <div class="section-center">
-        <div class="section-tag"> Features</div>
+        <div class="section-tag">Features</div>
         <h2 class="section-title center">Everything you need to scale group posting.</h2>
-        <p class="section-sub center">From writing to scheduling to tracking — Amplr handles the entire workflow so you can focus on content, not busywork.</p>
+        <p class="section-sub center">From writing to scheduling to staying safe — Amplr handles the whole workflow.</p>
       </div>
       <div class="features">
         <div class="feature-card">
-          <div class="feature-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 3v12"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="6" r="3"/><path d="M18 9a9 9 0 0 1-9 9"/></svg></div>
-          <h3>Spintax Engine</h3>
-          <p>Write <code style="background:var(--surface-2);padding:2px 6px;border-radius:4px;font-size:12px;">{Hey|Hi|Hello}</code> and each group gets a unique variation. No more duplicate content flags.</p>
+          <div class="feature-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg></div>
+          <h3>AI Paraphrase per Group</h3>
+          <p>Write once. Amplr uses local AI to rewrite your post uniquely for every group — different wording, same message. Zero duplicate flags.</p>
         </div>
         <div class="feature-card">
-          <div class="feature-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><polyline points="12,7 12,12 16,14"/></svg></div>
+          <div class="feature-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><polyline points="12,7 12,12 16,14"/></svg></div>
           <h3>Smart Scheduling</h3>
-          <p>Pick days, set times, and Amplr handles the rest. Posts go out automatically with human-like delays.</p>
+          <p>Pick days and times. Posts fire automatically — even when Chrome is closed, as long as your computer is on.</p>
         </div>
         <div class="feature-card">
-          <div class="feature-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></div>
-          <h3>Group Management</h3>
-          <p>Add unlimited Facebook Groups. Color-coded tracking shows success rates per group at a glance.</p>
-        </div>
-        <div class="feature-card">
-          <div class="feature-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg></div>
-          <h3>Analytics Dashboard</h3>
-          <p>Track success rates, failure reasons, and posting trends over the last 7 days with visual charts.</p>
-        </div>
-        <div class="feature-card">
-          <div class="feature-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/></svg></div>
+          <div class="feature-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/></svg></div>
           <h3>Template Library</h3>
-          <p>Save your best-performing posts as templates. Reuse them with one click. Build a content engine.</p>
+          <p>Save your best posts as templates. Pick a template, choose groups, toggle AI rewrite, post. One click from idea to dozens of groups.</p>
         </div>
         <div class="feature-card">
-          <div class="feature-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></div>
-          <h3>Anti-Detection</h3>
-          <p>Randomized delays, jitter timing, and smart posting strategies that mimic human behavior.</p>
+          <div class="feature-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg></div>
+          <h3>Group Tags & Filters</h3>
+          <p>Tag groups by niche — real estate, entrepreneurs, local. Filter by tag when posting so the right message goes to the right audience.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></div>
+          <h3>Cooldown Protection</h3>
+          <p>Set a cooldown per group. Amplr automatically skips groups posted to too recently and flags groups that repeatedly remove your posts.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg></div>
+          <h3>First Comment</h3>
+          <p>Automatically drop a follow-up comment on your post right after it goes live — link, CTA, or extra info. Big engagement boost.</p>
         </div>
       </div>
     </div>
   </section>
 
-  <!-- ─── How it works ─── -->
+  <!-- How it works -->
   <section id="how">
     <div class="container">
       <div class="section-center">
-        <div class="section-tag"> How it Works</div>
-        <h2 class="section-title center">3 steps. First results today.</h2>
-        <p class="section-sub center">No complex setup. No APIs. Just install the extension and start posting.</p>
+        <div class="section-tag">How it Works</div>
+        <h2 class="section-title center">Up and running in 3 minutes.</h2>
+        <p class="section-sub center">No APIs. No complex setup. Just a Chrome extension and a dashboard.</p>
       </div>
       <div class="steps">
         <div class="step">
           <div class="step-num">1</div>
-          <h3>Install & Sign In</h3>
-          <p>Download the Chrome extension, load it in developer mode, and sign in with the same email. Takes 60 seconds.</p>
+          <h3>Install the Extension</h3>
+          <p>Download the Amplr Chrome extension and sign in with your account. The onboarding screen walks you through everything.</p>
         </div>
         <div class="step">
           <div class="step-num">2</div>
-          <h3>Write & Schedule</h3>
-          <p>Create a post with spintax variations, select your groups, pick days and times. Save or post instantly.</p>
+          <h3>Sync Your Groups</h3>
+          <p>Hit "Sync from Facebook" and Amplr imports every group you're in automatically. Tag them by niche and you're ready.</p>
         </div>
         <div class="step">
           <div class="step-num">3</div>
-          <h3>Posts Go Out Automatically</h3>
-          <p>Amplr delivers to each group with smart delays. Track results in the analytics dashboard.</p>
+          <h3>Write Once, Post Everywhere</h3>
+          <p>Create a post or pick a template, select groups, toggle AI rewrite, and hit Post — or schedule it to run automatically.</p>
         </div>
       </div>
     </div>
   </section>
 
-  <!-- ─── Split feature: Spintax ─── -->
+  <!-- Split: AI rewrite -->
   <section style="padding: 60px 0;">
     <div class="container">
       <div class="split">
         <div>
-          <div class="section-tag"> Spintax</div>
-          <h2 class="section-title">One post. Hundreds of variations.</h2>
-          <p class="section-sub">Facebook flags duplicate content. Amplr's spintax engine automatically generates a unique version of your post for every single group — different wording, same message. Zero manual rewriting.</p>
-          <a href="dashboard.html" class="btn-lg btn-gradient" style="margin-top: 8px;">Try it free →</a>
+          <div class="section-tag">AI Paraphrasing</div>
+          <h2 class="section-title">One message. Unique in every group.</h2>
+          <p class="section-sub">Facebook flags identical posts across groups. Amplr rewrites your post for each group using local AI — different hook, different structure, same core message. Runs free on your machine, no API key needed.</p>
+          <a href="dashboard.html" class="btn-lg btn-grad">Try it free →</a>
         </div>
         <div class="split-card">
           <div class="sc-row">
-            <div class="sc-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20,6 9,17 4,12"/></svg></div>
-            <div>
-              <div class="sc-title">{Hey|Hi|Hello} everyone!</div>
-              <div class="sc-desc">→ Group 1 gets "Hey everyone!"</div>
-            </div>
+            <div class="sc-check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20,6 9,17 4,12"/></svg></div>
+            <div><div class="sc-title">Group 1 — Entrepreneurs Hub</div><div class="sc-desc">"Looking to scale your outreach? Here's what's working..."</div></div>
           </div>
           <div class="sc-row">
-            <div class="sc-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20,6 9,17 4,12"/></svg></div>
-            <div>
-              <div class="sc-title">{Check out|Take a look at} this {deal|offer}</div>
-              <div class="sc-desc">→ Group 2 gets "Take a look at this offer"</div>
-            </div>
+            <div class="sc-check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20,6 9,17 4,12"/></svg></div>
+            <div><div class="sc-title">Group 2 — Small Business Owners</div><div class="sc-desc">"If you're tired of posting manually, this changes everything..."</div></div>
           </div>
           <div class="sc-row">
-            <div class="sc-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20,6 9,17 4,12"/></svg></div>
-            <div>
-              <div class="sc-title">{Limited time|Today only|Flash}</div>
-              <div class="sc-desc">→ Group 3 gets "Flash deal..."</div>
-            </div>
+            <div class="sc-check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20,6 9,17 4,12"/></svg></div>
+            <div><div class="sc-title">Group 3 — Digital Marketing Pro</div><div class="sc-desc">"Quick question for the marketers in here — are you still..."</div></div>
           </div>
           <div class="sc-row">
-            <div class="sc-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20,6 9,17 4,12"/></svg></div>
-            <div>
-              <div class="sc-title">100% unique per group</div>
-              <div class="sc-desc">No duplicate flags. Ever.</div>
-            </div>
+            <div class="sc-check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20,6 9,17 4,12"/></svg></div>
+            <div><div class="sc-title">Same message. Zero duplicates.</div><div class="sc-desc">Runs on local Ollama — completely free, no API key.</div></div>
           </div>
         </div>
       </div>
     </div>
   </section>
 
-  <!-- ─── Pricing ─── -->
-  <section id="pricing">
-    <div class="container">
-      <div class="section-center">
-        <div class="section-tag"> Pricing</div>
-        <h2 class="section-title center">Simple pricing. Free forever.</h2>
-        <p class="section-sub center">Start free. Upgrade when you scale.</p>
-      </div>
-      <div class="pricing-grid">
-        <div class="price-card">
-          <div class="price-name">Free</div>
-          <div class="price-amount">$0<span class="per">/forever</span></div>
-          <div class="price-desc">For solo marketers and small campaigns.</div>
-          <ul class="price-features">
-            <li>Unlimited scheduled posts</li>
-            <li>Up to 50 Facebook Groups</li>
-            <li>Full spintax engine</li>
-            <li>Analytics dashboard</li>
-            <li>Template library</li>
-            <li>CSV export</li>
-          </ul>
-          <a href="dashboard.html" class="btn-lg btn-gradient">Launch Free →</a>
-        </div>
-        <div class="price-card popular">
-          <div class="price-name">Pro</div>
-          <div class="price-amount">$29<span class="per">/month</span></div>
-          <div class="price-desc">For agencies and power users scaling hard.</div>
-          <ul class="price-features">
-            <li>Everything in Free</li>
-            <li>Unlimited groups</li>
-            <li>Multi-account support</li>
-            <li>AI post generation</li>
-            <li>Advanced analytics</li>
-            <li>Priority support</li>
-          </ul>
-          <a href="dashboard.html" class="btn-lg btn-gradient">Start Pro Trial →</a>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- ─── FAQ ─── -->
+  <!-- FAQ -->
   <section id="faq">
     <div class="container">
       <div class="section-center">
-        <div class="section-tag"> FAQ</div>
+        <div class="section-tag">FAQ</div>
         <h2 class="section-title center">Questions, answered.</h2>
       </div>
       <div class="faq-list">
         <div class="faq-item">
           <div class="faq-q" onclick="toggleFaq(this)">Is this safe for my Facebook account? <span class="arrow">⌄</span></div>
-          <div class="faq-a">Amplr uses human-like delays, randomized jitter, and smart posting strategies to mimic natural behavior. However, like any automation tool, use it responsibly and within Facebook's group posting norms.</div>
+          <div class="faq-a">Amplr uses human-like delays, randomized timing, and cooldown protection to mimic natural behavior. The AI rewrite ensures no two posts look identical. Like any automation tool, use it within reason.</div>
         </div>
         <div class="faq-item">
-          <div class="faq-q" onclick="toggleFaq(this)">Do I need to give you my Facebook password? <span class="arrow">⌄</span></div>
-          <div class="faq-a">Never. Amplr is a Chrome extension that runs in your browser using your active Facebook session. No credentials are stored or transmitted anywhere.</div>
+          <div class="faq-q" onclick="toggleFaq(this)">Does Amplr store my Facebook password? <span class="arrow">⌄</span></div>
+          <div class="faq-a">Never. Amplr is a Chrome extension that runs entirely in your browser using your active Facebook session. No credentials are stored or transmitted anywhere.</div>
         </div>
         <div class="faq-item">
-          <div class="faq-q" onclick="toggleFaq(this)">How does spintax work? <span class="arrow">⌄</span></div>
-          <div class="faq-a">Wrap alternate phrases in curly braces separated by pipes: <code style="background:var(--surface-2);padding:2px 6px;border-radius:4px;">{Hello|Hi|Hey}</code>. Amplr randomly picks one variation per group, so every post looks unique.</div>
+          <div class="faq-q" onclick="toggleFaq(this)">What is AI paraphrasing and do I need an API key? <span class="arrow">⌄</span></div>
+          <div class="faq-a">Amplr uses a local AI model (Ollama + qwen3) to rewrite your post uniquely for each group. It runs on your own machine — no API key, no monthly AI cost, completely free.</div>
         </div>
         <div class="faq-item">
-          <div class="faq-q" onclick="toggleFaq(this)">Can I schedule posts for specific days? <span class="arrow">⌄</span></div>
-          <div class="faq-a">Yes. Pick any combination of days (Mon/Wed/Fri, weekdays only, weekends, etc.) and set a time. Posts will be delivered on schedule automatically.</div>
+          <div class="faq-q" onclick="toggleFaq(this)">What happens if my computer is off when a post is scheduled? <span class="arrow">⌄</span></div>
+          <div class="faq-a">Amplr queues all scheduled jobs in the cloud. As soon as Chrome opens again, the extension picks up any missed posts and fires them immediately.</div>
         </div>
         <div class="faq-item">
-          <div class="faq-q" onclick="toggleFaq(this)">Is it really free? <span class="arrow">⌄</span></div>
-          <div class="faq-a">Yes. The free tier includes unlimited scheduled posts, up to 50 groups, spintax, templates, and analytics. Pro adds multi-account, AI generation, and unlimited groups.</div>
+          <div class="faq-q" onclick="toggleFaq(this)">How many groups can I post to? <span class="arrow">⌄</span></div>
+          <div class="faq-a">As many as you're a member of. Amplr syncs all your Facebook groups automatically with one click.</div>
         </div>
       </div>
     </div>
   </section>
 
-  <!-- ─── Final CTA ─── -->
-  <section class="cta-section">
+  <!-- Final CTA -->
+  <section style="padding: 80px 0;">
     <div class="container">
       <div class="cta-box">
-        <h2>Your next 100 group posts<br>are one click away.</h2>
-        <p>Free forever. Live in 3 minutes. Cancel anytime.</p>
-        <a href="dashboard.html" class="btn-lg btn-gradient">Launch Dashboard →</a>
+        <h2>Start posting smarter today.</h2>
+        <p>Free to use. Takes 3 minutes to set up. No credit card.</p>
+        <a href="dashboard.html" class="btn-lg btn-grad" style="position:relative;">Get Started Free →</a>
       </div>
     </div>
   </section>
 
-  <!-- ─── Footer ─── -->
+  <!-- Footer -->
   <footer>
-    <div class="footer-left">
-      <div class="nav-logo" style="font-size: 15px;">
-        <div class="logo-icon" style="width:24px;height:24px;">
-          <svg width="24" height="24" viewBox="0 0 40 40" fill="none">
-            <defs><linearGradient id="fG" x1="0%" y1="100%" x2="100%" y2="0%"><stop offset="0%" stop-color="#5B6FE8"/><stop offset="55%" stop-color="#9B5DE5"/><stop offset="100%" stop-color="#F368A8"/></linearGradient></defs>
-            <path d="M8 20 a8 8 0 1 1 8 8 L16 12 L16 28" stroke="url(#fG)" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
-            <line x1="16" y1="20" x2="28" y2="20" stroke="url(#fG)" stroke-width="3" stroke-linecap="round"/>
-            <circle cx="28" cy="12" r="3" fill="#F368A8"/>
-            <circle cx="32" cy="20" r="3" fill="#F368A8"/>
-            <circle cx="28" cy="28" r="3" fill="#F368A8"/>
-          </svg>
-        </div>
-        <span style="font-weight:600;">amplr</span>
+    <div style="display:flex;align-items:center;gap:16px;">
+      <div class="footer-logo">
+        <img src="logo.jpg" alt="Amplr">
+        <span>amplr</span>
       </div>
-      <span style="color: var(--text-3); font-size: 12px;">© 2026 Amplr. All rights reserved.</span>
+      <span class="footer-copy">© 2026 Amplr. All rights reserved.</span>
     </div>
     <div class="footer-links">
       <a href="#features">Features</a>
-      <a href="#pricing">Pricing</a>
       <a href="#faq">FAQ</a>
       <a href="dashboard.html">Sign In</a>
     </div>
   </footer>
 
   <script>
-    // ─── FAQ toggle ──
     function toggleFaq(el) {
       const item = el.parentElement;
       const wasOpen = item.classList.contains('open');
       document.querySelectorAll('.faq-item').forEach(f => f.classList.remove('open'));
       if (!wasOpen) item.classList.add('open');
     }
-
-    // ─── Animated stat counters ──
-    const observer = new IntersectionObserver((entries) => {
-      entries.forEach(entry => {
-        if (entry.isIntersecting) {
-          entry.target.querySelectorAll('.num[data-target]').forEach(num => {
-            const target = parseInt(num.dataset.target);
-            const duration = 1500;
-            const start = performance.now();
-            function tick(now) {
-              const progress = Math.min((now - start) / duration, 1);
-              const eased = 1 - Math.pow(1 - progress, 3);
-              num.textContent = Math.round(target * eased) + (target === 100 ? '%' : '+');
-              if (progress < 1) requestAnimationFrame(tick);
-            }
-            requestAnimationFrame(tick);
-          });
-          observer.unobserve(entry.target);
-        }
-      });
-    }, { threshold: 0.5 });
-    document.querySelectorAll('.stats-band').forEach(el => observer.observe(el));
   </script>
 </body>
 </html>
