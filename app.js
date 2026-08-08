@@ -372,7 +372,8 @@ async function loadDashboard() {
 
   // Compute stats
   const totalAttempts = ok + fail;
-  const successRate = totalAttempts > 0 ? Math.round((ok / totalAttempts) * 100) : 100;
+  const hasActivity = totalAttempts > 0;
+  const successRate = hasActivity ? Math.round((ok / totalAttempts) * 100) : 0;
 
   // Ban risk calculation
   // Factors: posts/day in last 7 days, avg groups per post, failure rate
@@ -387,9 +388,9 @@ async function loadDashboard() {
 
   document.getElementById('sPostsWeek').textContent = postsThisWeek;
   document.getElementById('sGroupsHit').textContent = groupUrls.size;
-  document.getElementById('sSuccessRate').textContent = successRate + '%';
-  document.getElementById('sBanRisk').textContent = banLevel;
-  document.getElementById('sBanRisk').style.color = banColor;
+  document.getElementById('sSuccessRate').textContent = hasActivity ? successRate + '%' : '—';
+  document.getElementById('sBanRisk').textContent = hasActivity ? banLevel : '—';
+  document.getElementById('sBanRisk').style.color = hasActivity ? banColor : 'var(--text-3)';
   document.getElementById('navCount').textContent = posts.length;
 
   // 7-day chart from real job data
@@ -1264,75 +1265,6 @@ async function addGroupFromInput() {
     loadGroups();
   } catch (e) {
     console.error('[Amplr] addGroup error:', e);
-    toast('Error: ' + e.message);
-  }
-}
-
-
-async function syncGroupsFromFacebook() {
-  if (!connected) {
-    toast('Extension not connected — open Chrome with Amplr extension running first');
-    return;
-  }
-  const btn = document.getElementById('syncGroupsBtn');
-  const statusEl = document.getElementById('syncStatus');
-  const statusText = document.getElementById('syncStatusText');
-
-  btn.disabled = true;
-  btn.textContent = 'Syncing...';
-  statusEl.style.display = 'flex';
-  statusText.textContent = 'Queuing import job...';
-
-  try {
-    // Insert a special import_groups job — extension polls for these
-    const { data: job, error } = await sb.from('jsw_post_jobs').insert({
-      user_id: user.id,
-      message: '__import_groups__',
-      groups: [],
-      status: 'pending',
-      ai_enabled: false,
-    }).select('id').single();
-    if (error) throw new Error(error.message);
-
-    statusText.textContent = 'Extension is importing your groups...';
-
-    // Poll until job is done or failed (max 3 min)
-    let attempts = 0;
-    const poll = setInterval(async () => {
-      attempts++;
-      if (attempts > 36) { // 36 * 5s = 3min
-        clearInterval(poll);
-        btn.disabled = false;
-        btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;"><path d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9"/></svg> Sync from Facebook';
-        statusEl.style.display = 'none';
-        toast('Timed out — is the extension running?');
-        return;
-      }
-      const { data: j } = await sb.from('jsw_post_jobs').select('status, result').eq('id', job.id).single();
-      if (!j) return;
-      if (j.status === 'done') {
-        clearInterval(poll);
-        btn.disabled = false;
-        btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;"><path d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9"/></svg> Sync from Facebook';
-        statusEl.style.display = 'none';
-        const count = j.result?.count || '';
-        toast(count ? `Synced ${count} groups from Facebook` : 'Groups synced');
-        loadGroups();
-      } else if (j.status === 'failed') {
-        clearInterval(poll);
-        btn.disabled = false;
-        btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;"><path d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9"/></svg> Sync from Facebook';
-        statusEl.style.display = 'none';
-        toast('Sync failed — ' + (j.result?.error || 'check extension'));
-      } else {
-        statusText.textContent = j.result?.text || 'Extension is importing your groups...';
-      }
-    }, 5000);
-
-  } catch (e) {
-    btn.disabled = false;
-    btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;"><path d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9"/></svg> Sync from Facebook';
-    statusEl.style.display = 'none';
     toast('Error: ' + e.message);
   }
 }
