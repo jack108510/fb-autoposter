@@ -10,8 +10,12 @@ const SUPABASE_KEY = 'sb_publishable_1TNu5hqotJ7GGQXfjliivQ_ttK51EAA';
 let sb = null;
 let user = null;
 
-try { sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY); } catch(e) {
-  document.body.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100vh;color:#999;font-family:sans-serif;">Failed to load. Check your connection.</div>';
+try {
+  sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+  window.sb = sb;
+} catch(e) {
+  console.error('[Amplr] Supabase client failed', e);
+  showAuthFallback?.('Could not load Supabase auth. Check your connection and try again.');
 }
 
 let connected = false;

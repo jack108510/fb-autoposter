@@ -1295,26 +1295,47 @@ Use {Hi|Hey|Hello} to spin unique variations — each group gets a different ver
       el.style.display = 'block';
     }
 
+    function withAuthTimeout(promise, ms = 12000) {
+      let timer;
+      const timeout = new Promise((_, reject) => {
+        timer = setTimeout(() => reject(new Error('Supabase auth timed out. Please try again in a moment.')), ms);
+      });
+      return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
+    }
+
+    function getAuthClient() {
+      if (window.sb) return window.sb;
+      if (!window.supabase?.createClient) throw new Error('Supabase auth library did not load. Refresh and try again.');
+      window.sb = window.supabase.createClient(
+        'https://xacehhtgvubcqdoltazg.supabase.co',
+        'sb_publishable_1TNu5hqotJ7GGQXfjliivQ_ttK51EAA'
+      );
+      return window.sb;
+    }
+
     async function handleAuth(e) {
       e.preventDefault();
       const email = document.getElementById('authEmail').value.trim();
       const password = document.getElementById('authPassword').value;
       const btn = document.getElementById('authSubmit');
+      const btnText = document.getElementById('authBtnText');
       const errEl = document.getElementById('authError');
       errEl.style.display = 'none';
       btn.disabled = true;
+      const oldText = btnText.textContent;
+      btnText.textContent = authMode === 'signin' ? 'Signing in…' : 'Creating account…';
 
       try {
+        const authClient = getAuthClient();
         let result;
         if (authMode === 'signin') {
-          result = await sb.auth.signInWithPassword({ email, password });
+          result = await withAuthTimeout(authClient.auth.signInWithPassword({ email, password }));
         } else {
-          result = await sb.auth.signUp({ email, password });
+          result = await withAuthTimeout(authClient.auth.signUp({ email, password }));
         }
         if (result.error) throw result.error;
         if (authMode === 'signup' && result.data?.user && !result.data?.session) {
           showAuthError('Check your email to confirm your account, then sign in.');
-          btn.disabled = false;
           return;
         }
         if (result.data?.session) {
@@ -1325,15 +1346,19 @@ Use {Hi|Hey|Hello} to spin unique variations — each group gets a different ver
           } else {
             window.location.href = window.location.pathname + '?signed_in=' + Date.now();
           }
+          return;
         }
+        throw new Error('No session returned from Supabase. Please try again.');
       } catch (err) {
         showAuthError(err.message || 'Authentication failed');
+      } finally {
         btn.disabled = false;
+        btnText.textContent = oldText;
       }
     }
 
     function logout() {
-      if (window.sb) sb.auth.signOut();
+      if (window.sb) window.sb.auth.signOut();
       window.location.reload();
     }
 
@@ -1348,6 +1373,6 @@ Use {Hi|Hey|Hello} to spin unique variations — each group gets a different ver
       }
     }, 1200);
   </script>
-  <script src="app.js?v=6"></script>
+  <script src="app.js?v=7"></script>
 </body>
 </html>
