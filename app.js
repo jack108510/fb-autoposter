@@ -600,6 +600,8 @@ async function loadDashboard() {
           </div>
         </div>
       </div>`).join(''));
+
+  await refreshGroupSyncStatus();
 }
 
 // ═══ CALENDAR ═══
@@ -899,7 +901,7 @@ function openTplModal(id) {
   const groups = cachedData.groups || [];
   const container = document.getElementById('tplGroupSelect');
   if (groups.length === 0) {
-    container.innerHTML = '<div style="font-size:13px;color:var(--text-3);">No groups yet — <a href="#" onclick="nav(\'groups\');closeTplModal();return false;" style="color:var(--blue);">add groups first</a></div>';
+    container.innerHTML = '<div style="font-size:13px;color:var(--text-3);">No channels yet — <a href="#" onclick="nav(\'groups\');closeTplModal();return false;" style="color:var(--blue);">sync channels first</a></div>';
   } else {
     container.innerHTML = groups.map((g, i) => {
       const c = GCOLORS[i % GCOLORS.length];
@@ -1232,23 +1234,30 @@ async function cancelStaleGroupSyncJob(job) {
 }
 
 function renderGroupSyncStatus(job, groups = cachedData.groups || [], heartbeat = null) {
-  const statusEl = document.getElementById('groupSyncStatus');
-  const btn = document.getElementById('groupSyncBtn');
-  if (!statusEl || !btn) return;
+  const statusEls = [...document.querySelectorAll('.group-sync-status')];
+  const btns = [...document.querySelectorAll('.group-sync-btn')];
+  if (statusEls.length === 0 && btns.length === 0) return;
+
+  const setStatus = (text, color) => statusEls.forEach(el => {
+    el.textContent = text;
+    el.style.color = color;
+  });
+  const setButtons = (text, disabled) => btns.forEach(btn => {
+    btn.disabled = disabled;
+    btn.textContent = text;
+  });
 
   const active = job && ['pending', 'processing'].includes(job.status);
   const stale = isStaleGroupSyncJob(job);
   const online = isHeartbeatFresh(heartbeat);
-  btn.disabled = active && !stale;
-  btn.textContent = active && !stale ? 'Syncing...' : stale ? 'Retry Sync' : 'Sync Facebook Groups';
+  setButtons(active && !stale ? 'Syncing...' : stale ? 'Retry Sync' : 'Sync Channels', active && !stale);
 
   if (!job) {
-    statusEl.textContent = groups.length
-      ? `Last loaded: ${groups.length} group${groups.length === 1 ? '' : 's'}. Auto-sync runs daily when the extension is online.`
+    setStatus(groups.length
+      ? `Last loaded: ${groups.length} channel${groups.length === 1 ? '' : 's'}. Auto-sync runs daily when the extension is online.`
       : online
-        ? 'No groups synced yet. Press Sync Facebook Groups to import them.'
-        : 'No groups synced yet. Open/sign into the Chrome extension, then press Sync Facebook Groups.';
-    statusEl.style.color = online ? 'var(--text-3)' : 'var(--yellow)';
+        ? 'No channels synced yet. Press Sync Channels to import them.'
+        : 'No channels synced yet. Open/sign into the Chrome extension, then press Sync Channels.', online ? 'var(--text-3)' : 'var(--yellow)');
     return;
   }
 
@@ -1257,28 +1266,21 @@ function renderGroupSyncStatus(job, groups = cachedData.groups || [], heartbeat 
   const result = job.result || {};
   if (active) {
     if (stale) {
-      statusEl.textContent = `Previous sync is stale${rel ? ' · ' + rel : ''}. Press Retry Sync to replace it. ${online ? '' : 'The extension currently looks offline.'}`.trim();
-      statusEl.style.color = 'var(--yellow)';
+      setStatus(`Previous sync is stale${rel ? ' · ' + rel : ''}. Press Retry Sync to replace it. ${online ? '' : 'The extension currently looks offline.'}`.trim(), 'var(--yellow)');
     } else if (!online) {
-      statusEl.textContent = 'Queued, but the Chrome extension is offline or signed out. Open Amplr extension and sign in; it will sync automatically.';
-      statusEl.style.color = 'var(--yellow)';
+      setStatus('Queued, but the Chrome extension is offline or signed out. Open Amplr extension and sign in; it will sync automatically.', 'var(--yellow)');
     } else {
-      statusEl.textContent = result.text || (job.status === 'pending' ? 'Queued. Extension will pick it up shortly.' : 'Syncing groups in the background...');
-      statusEl.style.color = 'var(--yellow)';
+      setStatus(result.text || (job.status === 'pending' ? 'Queued. Extension will pick it up shortly.' : 'Syncing channels in the background...'), 'var(--yellow)');
     }
   } else if (job.status === 'done') {
     const count = result.count ?? groups.length;
-    statusEl.textContent = `Last sync imported ${count} group${count === 1 ? '' : 's'}${rel ? ' · ' + rel : ''}.`;
-    statusEl.style.color = 'var(--green)';
+    setStatus(`Last sync imported ${count} channel${count === 1 ? '' : 's'}${rel ? ' · ' + rel : ''}.`, 'var(--green)');
   } else if (job.status === 'failed') {
-    statusEl.textContent = `Last sync failed${rel ? ' · ' + rel : ''}: ${result.error || job.error || 'unknown error'}`;
-    statusEl.style.color = 'var(--red)';
+    setStatus(`Last sync failed${rel ? ' · ' + rel : ''}: ${result.error || job.error || 'unknown error'}`, 'var(--red)');
   } else if (job.status === 'cancelled') {
-    statusEl.textContent = groups.length ? `Last loaded: ${groups.length} group${groups.length === 1 ? '' : 's'}.` : 'No active sync request.';
-    statusEl.style.color = 'var(--text-3)';
+    setStatus(groups.length ? `Last loaded: ${groups.length} channel${groups.length === 1 ? '' : 's'}.` : 'No active sync request.', 'var(--text-3)');
   } else {
-    statusEl.textContent = `Last sync status: ${job.status}${rel ? ' · ' + rel : ''}`;
-    statusEl.style.color = 'var(--text-3)';
+    setStatus(`Last sync status: ${job.status}${rel ? ' · ' + rel : ''}`, 'var(--text-3)');
   }
 }
 
@@ -1305,11 +1307,11 @@ async function refreshGroupSyncStatus() {
     }
     return job;
   } catch (e) {
-    const statusEl = document.getElementById('groupSyncStatus');
-    if (statusEl) {
-      statusEl.textContent = 'Could not read sync status: ' + e.message;
-      statusEl.style.color = 'var(--red)';
-    }
+    const statusEls = [...document.querySelectorAll('.group-sync-status')];
+    statusEls.forEach(el => {
+      el.textContent = 'Could not read sync status: ' + e.message;
+      el.style.color = 'var(--red)';
+    });
     return null;
   }
 }
@@ -1325,7 +1327,7 @@ async function syncFacebookGroups(automatic = false) {
         await cancelStaleGroupSyncJob(existing);
       } else {
         renderGroupSyncStatus(existing, cachedData.groups || [], heartbeat);
-        if (!automatic) toast('Group sync already running');
+        if (!automatic) toast('Channel sync already running');
         return existing;
       }
     }
@@ -1340,7 +1342,7 @@ async function syncFacebookGroups(automatic = false) {
       message: '__import_groups__',
       groups: [],
       status: 'pending',
-      result: { text: online ? 'Queued group sync. Extension will open Facebook in the background.' : 'Queued group sync. Open/sign into the Chrome extension to run it.' },
+      result: { text: online ? 'Queued channel sync. Extension will open Facebook in the background.' : 'Queued channel sync. Open/sign into the Chrome extension to run it.' },
       delay: 0,
       ai_enabled: false,
       scheduled_for: null,
@@ -1350,16 +1352,16 @@ async function syncFacebookGroups(automatic = false) {
     localStorage.setItem(`amplr_last_group_auto_sync_${user.id}`, String(Date.now()));
     renderGroupSyncStatus(data, cachedData.groups || [], heartbeat);
     refreshGroupSyncStatus();
-    toast(automatic ? 'Auto-sync queued' : online ? 'Group sync queued' : 'Sync queued — open the extension to run it');
+    toast(automatic ? 'Auto-sync queued' : online ? 'Channel sync queued' : 'Sync queued — open the extension to run it');
     return data;
   } catch (e) {
     console.error('[Amplr] syncFacebookGroups error:', e);
     if (!automatic) toast('Sync error: ' + e.message);
-    const statusEl = document.getElementById('groupSyncStatus');
-    if (statusEl) {
-      statusEl.textContent = 'Sync error: ' + e.message;
-      statusEl.style.color = 'var(--red)';
-    }
+    const statusEls = [...document.querySelectorAll('.group-sync-status')];
+    statusEls.forEach(el => {
+      el.textContent = 'Sync error: ' + e.message;
+      el.style.color = 'var(--red)';
+    });
     return null;
   }
 }
