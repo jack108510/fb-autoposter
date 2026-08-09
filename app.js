@@ -80,6 +80,7 @@ async function bootAuthenticatedApp(session) {
   const app = document.getElementById('app');
   if (auth) auth.style.display = 'none';
   if (app) app.style.display = '';
+  window.__amplrBooted = true;
 
   // Show user email in sidebar once per boot.
   const footer = document.querySelector('.sidebar-footer');

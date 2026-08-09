@@ -691,7 +691,7 @@
   </div>
 
   <!-- Auth Screen -->
-  <div id="authScreen" style="display:none;position:fixed;inset:0;z-index:9999;background:#F4F4F7;align-items:center;justify-content:center;">
+  <div id="authScreen" style="display:flex;position:fixed;inset:0;z-index:9999;background:#F4F4F7;align-items:center;justify-content:center;">
     <div style="width:100%;max-width:400px;padding:0 24px;">
       <!-- Logo -->
       <div style="display:flex;align-items:center;justify-content:center;gap:10px;margin-bottom:40px;">
@@ -1336,7 +1336,18 @@ Use {Hi|Hey|Hello} to spin unique variations — each group gets a different ver
       if (window.sb) sb.auth.signOut();
       window.location.reload();
     }
+
+    // Safety net: login is the default HTML state. If app.js is delayed or fails,
+    // never leave users on a blank page.
+    window.setTimeout(() => {
+      if (!window.__amplrBooted) {
+        const auth = document.getElementById('authScreen');
+        const app = document.getElementById('app');
+        if (auth) auth.style.display = 'flex';
+        if (app) app.style.display = 'none';
+      }
+    }, 1200);
   </script>
-  <script src="app.js?v=5"></script>
+  <script src="app.js?v=6"></script>
 </body>
 </html>
