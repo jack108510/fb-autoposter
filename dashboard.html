@@ -1185,11 +1185,14 @@ Use {Hi|Hey|Hello} to spin unique variations — each group gets a different ver
 
         <!-- Danger zone -->
         <div class="card">
-          <div style="display:flex;align-items:center;justify-content:space-between;">
-            <div style="font-size:13px;color:var(--text-3);">Delete all data</div>
-            <div style="display:flex;gap:8px;">
-              <button class="btn btn-danger btn-sm" onclick="deleteAllPosts()">Clear Posts</button>
-              <button class="btn btn-danger btn-sm" onclick="resetAll()">Reset All</button>
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:16px;">
+            <div>
+              <div style="font-size:13px;font-weight:700;color:var(--text-1);">Danger zone</div>
+              <div style="font-size:12px;color:var(--text-3);margin-top:2px;">These actions affect dashboard data only. Extension job history is kept unless cleared separately.</div>
+            </div>
+            <div style="display:flex;gap:8px;flex-shrink:0;">
+              <button class="btn btn-danger btn-sm" onclick="deleteAllPosts()">Clear Legacy Posts</button>
+              <button class="btn btn-danger btn-sm" onclick="resetAll()">Reset Dashboard</button>
             </div>
           </div>
         </div>

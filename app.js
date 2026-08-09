@@ -231,14 +231,23 @@ async function pollExtLogs() {
     }
 
     const colors = { error: 'var(--red)', warn: 'var(--yellow)', info: 'var(--text-2)' };
-    el.innerHTML = logs.map(l => {
+    const noisy = /resumed polling for user/i;
+    const filtered = [];
+    let suppressedPolling = 0;
+    logs.forEach(l => {
+      if (noisy.test(l.message || '')) { suppressedPolling++; return; }
+      filtered.push(l);
+    });
+    const rows = filtered.slice(0, 20).map(l => {
       const time = new Date(l.created_at).toLocaleTimeString('en-US', { hour12: false });
       const color = colors[l.level] || 'var(--text-2)';
       return `<div style="display:flex;gap:8px;padding:3px 0;border-bottom:1px solid var(--border);">
         <span style="color:var(--text-3);flex-shrink:0;">${time}</span>
         <span style="color:${color};font-weight:${l.level === 'error' ? '700' : '400'};word-break:break-word;">${esc(l.message)}</span>
       </div>`;
-    }).join('');
+    });
+    if (suppressedPolling) rows.push(`<div style="color:var(--text-3);padding:6px 0;">Collapsed ${suppressedPolling} routine polling heartbeat log${suppressedPolling === 1 ? '' : 's'}.</div>`);
+    el.innerHTML = rows.length ? rows.join('') : '<div style="color:var(--text-3);padding:20px;text-align:center;">Only routine polling heartbeats recently.</div>';
 
     // Auto-cleanup old logs (>1 hour)
     await sb.from('jsw_ext_logs')
@@ -304,7 +313,7 @@ async function fetchAll() {
       sbGet('templates'),
       // Groups always come from jsw_groups table (shared with extension)
       sb.from('jsw_groups')
-        .select('group_url, group_name, last_posted_at, ban_risk, removal_count')
+        .select('group_url, group_name, last_posted_at, ban_risk, removal_count, tags')
         .eq('user_id', user.id)
         .order('created_at', { ascending: false }),
       sbGet('settings'),
@@ -316,6 +325,7 @@ async function fetchAll() {
       last_posted_at: r.last_posted_at || null,
       ban_risk: r.ban_risk || 'low',
       removal_count: r.removal_count || 0,
+      tags: Array.isArray(r.tags) ? r.tags : [],
     }));
     return {
       posts: postsRes || [],
@@ -360,6 +370,33 @@ function countVariations(text) {
   let count = 1; const r = /\{([^}]+)\}/g; let m;
   while ((m = r.exec(text)) !== null) count *= m[1].split('|').length;
   return count;
+}
+function normalizeGroupRef(g) {
+  if (!g) return '';
+  if (typeof g === 'string') return g;
+  return g.url || g.group_url || g.name || g.group_name || '';
+}
+function groupDisplayName(ref) {
+  const raw = normalizeGroupRef(ref);
+  if (!raw) return 'Unknown group';
+  const saved = (cachedData.groups || []).find(g => g.url === raw || g.name === raw);
+  if (saved?.name) return saved.name;
+  try {
+    const u = raw.includes('://') ? new URL(raw) : null;
+    const part = u ? u.pathname.split('/').filter(Boolean).pop() : raw.split('/').filter(Boolean).pop();
+    return decodeURIComponent(part || raw).replace(/[-_]/g, ' ');
+  } catch (_) {
+    return String(raw);
+  }
+}
+function isSystemJob(j) {
+  return !j || j.message === '__import_groups__' || (j.message || '').startsWith('__');
+}
+function jobResultCounts(j) {
+  const count = Math.max((Array.isArray(j.groups) ? j.groups.length : 0), 1);
+  if (j.status === 'done') return { ok: count, fail: 0 };
+  if (j.status === 'failed') return { ok: 0, fail: count };
+  return { ok: 0, fail: 0 };
 }
 
 // ═══ DASHBOARD ═══
@@ -477,22 +514,41 @@ async function loadDashboard() {
         </div>`;
       }).join(''));
 
-  // Top groups
+  // Top groups from real extension jobs plus legacy logs
   const groupStats = {};
+  (jobs || []).filter(j => !isSystemJob(j)).forEach(j => {
+    const refs = Array.isArray(j.groups) ? j.groups : [];
+    const { ok: jobOk, fail: jobFail } = jobResultCounts(j);
+    refs.forEach(ref => {
+      const key = normalizeGroupRef(ref);
+      if (!key) return;
+      if (!groupStats[key]) groupStats[key] = { ok: 0, fail: 0, name: groupDisplayName(key) };
+      if (j.status === 'done') groupStats[key].ok += 1;
+      else if (j.status === 'failed') groupStats[key].fail += 1;
+    });
+    if (!refs.length && (jobOk || jobFail)) {
+      const key = 'Unknown group';
+      if (!groupStats[key]) groupStats[key] = { ok: 0, fail: 0, name: key };
+      groupStats[key].ok += jobOk;
+      groupStats[key].fail += jobFail;
+    }
+  });
   (logs || []).forEach(l => {
     (l.results || []).forEach(r => {
-      if (!groupStats[r.group]) groupStats[r.group] = { ok: 0, fail: 0 };
-      if (r.success) groupStats[r.group].ok++; else groupStats[r.group].fail++;
+      const key = normalizeGroupRef(r.group);
+      if (!key) return;
+      if (!groupStats[key]) groupStats[key] = { ok: 0, fail: 0, name: groupDisplayName(key) };
+      if (r.success) groupStats[key].ok++; else groupStats[key].fail++;
     });
   });
-  const topGroups = Object.entries(groupStats)
-    .map(([name, s]) => ({ name, rate: s.ok + s.fail > 0 ? Math.round(s.ok / (s.ok + s.fail) * 100) : 0, ...s }))
-    .sort((a, b) => b.ok - a.ok).slice(0, 5);
+  const topGroups = Object.values(groupStats)
+    .map(s => ({ rate: s.ok + s.fail > 0 ? Math.round(s.ok / (s.ok + s.fail) * 100) : 0, ...s }))
+    .sort((a, b) => (b.ok + b.fail) - (a.ok + a.fail) || b.ok - a.ok).slice(0, 5);
   setHtml('dashTopGroups', topGroups.length === 0
-    ? '<div style="text-align:center;color:var(--text-3);font-size:13px;padding:12px;">No data yet</div>'
+    ? '<div style="text-align:center;color:var(--text-3);font-size:13px;padding:12px;">No post attempts yet</div>'
     : topGroups.map(g => `
       <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);">
-        <span style="font-size:13px;font-weight:600;">${esc(g.name)}</span>
+        <span style="font-size:13px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:160px;">${esc(g.name)}</span>
         <div style="display:flex;align-items:center;gap:8px;">
           <span style="font-size:12px;color:var(--text-3);">${g.ok}/${g.ok + g.fail}</span>
           <div style="width:50px;height:6px;background:var(--surface-2);border-radius:3px;overflow:hidden;">
@@ -609,9 +665,10 @@ async function savePost() {
 
 async function postNow() {
   const text = document.getElementById('createText').value.trim();
-  if (!text) return toast('Write something first');
   const groups = getSelectedGroups();
+  if (!text) return toast('Write something first');
   if (groups.length === 0) return toast('Select at least one group');
+  if (groups.length > 3 && !confirm(`Post this now to ${groups.length} groups?`)) return;
   const imageUrl = document.getElementById('createImageUrl')?.value.trim() || '';
 
   const waiting = document.getElementById('postWaiting');
@@ -1336,32 +1393,33 @@ async function removeGroup(url) {
 // ═══ LOGS ═══
 async function loadLogs() {
   cachedData = await fetchAll();
-  // Also fetch job history from Supabase
   const { data: jobs } = await sb.from('jsw_post_jobs')
     .select('*').eq('user_id', user.id)
-    .order('created_at', { ascending: false }).limit(50);
+    .order('created_at', { ascending: false }).limit(75);
 
   const el = document.getElementById('logsList');
   const logs = cachedData.logs || [];
-
-  // Merge Supabase jobs with local logs
   const allEntries = [];
-  if (jobs && jobs.length) {
-    jobs.forEach(j => {
-      const ok = j.status === 'done';
-      allEntries.push({
-        timestamp: j.completed_at || j.created_at,
-        postPreview: (j.message || '').substring(0, 80),
-        results: (j.groups || []).map(g => ({
-          group: typeof g === 'string' ? g.split('/').pop() : g,
-          success: ok,
-          error: j.error,
-          strategy: 'ext'
-        })),
-        status: j.status,
-      });
+
+  (jobs || []).filter(j => !isSystemJob(j)).forEach(j => {
+    const groups = Array.isArray(j.groups) ? j.groups : [];
+    const status = j.status || 'unknown';
+    const success = status === 'done';
+    const failed = status === 'failed';
+    allEntries.push({
+      timestamp: j.completed_at || j.updated_at || j.created_at,
+      postPreview: (j.message || '').substring(0, 100),
+      results: groups.map(g => ({
+        group: groupDisplayName(g),
+        rawGroup: normalizeGroupRef(g),
+        success,
+        failed,
+        error: j.error,
+      })),
+      status,
+      error: j.error,
     });
-  }
+  });
   logs.forEach(l => allEntries.push(l));
 
   if (allEntries.length === 0) {
@@ -1371,20 +1429,26 @@ async function loadLogs() {
   el.innerHTML = allEntries.map(l => {
     const results = l.results || [];
     const ok = results.filter(r => r.success).length;
-    const fail = results.length - ok;
-    const iconClass = ok > 0 && fail > 0 ? 'mix' : ok > 0 ? 'ok' : 'fail';
-    const icon = l.status === 'processing' ? '...' : ok > 0 && fail > 0 ? 'MIX' : ok > 0 ? 'OK' : 'FAIL';
-    const resultDetails = results.map(r =>
-      r.success
-        ? `<span style="color:var(--green);">OK ${esc(r.group)}</span>`
-        : `<span style="color:var(--red);">FAIL ${esc(r.group)}: ${esc(r.error || 'failed')}</span>`
-    ).join('<br>');
+    const fail = results.filter(r => r.failed || (!r.success && l.status === 'failed')).length;
+    const status = l.status || (ok > 0 ? 'done' : 'failed');
+    const iconClass = status === 'cancelled' ? 'fail' : ok > 0 && fail > 0 ? 'mix' : ok > 0 ? 'ok' : status === 'processing' ? 'mix' : 'fail';
+    const icon = status === 'processing' ? '...' : status === 'cancelled' ? 'CANCEL' : ok > 0 && fail > 0 ? 'MIX' : ok > 0 ? 'OK' : 'FAIL';
+    const total = results.length;
+    const resultDetails = status === 'cancelled'
+      ? '<span style="color:var(--text-3);">Cancelled before posting</span>'
+      : status === 'processing'
+        ? '<span style="color:var(--yellow);">Processing in extension</span>'
+        : results.map(r =>
+            r.success
+              ? `<span style="color:var(--green);">OK ${esc(r.group)}</span>`
+              : `<span style="color:var(--red);">FAIL ${esc(r.group)}${r.error ? ': ' + esc(String(r.error)) : ''}</span>`
+          ).join('<br>');
     return `<div class="log-row">
       <div class="log-icon ${iconClass}">${icon}</div>
       <div class="log-body">
-        <div class="log-time">${new Date(l.timestamp).toLocaleString()} • ${ok}/${results.length} succeeded</div>
+        <div class="log-time">${new Date(l.timestamp).toLocaleString()} • ${ok}/${total} succeeded • ${esc(status)}</div>
         <div class="log-preview">${esc(l.postPreview || l.text || '')}</div>
-        <div class="log-results" style="margin-top:4px;">${resultDetails}</div>
+        <div class="log-results" style="margin-top:4px;">${resultDetails || '<span style="color:var(--text-3);">No group-level results yet</span>'}</div>
       </div>
     </div>`;
   }).join('');
@@ -1506,17 +1570,18 @@ async function saveSettings() {
 }
 
 async function deleteAllPosts() {
-  if (!confirm('Delete ALL scheduled posts?')) return;
+  if (!confirm('Clear legacy recurring posts from this dashboard? This does not delete extension job history.')) return;
   cachedData.posts = [];
   await sbSet('posts', []);
-  toast('All posts deleted');
+  toast('Legacy recurring posts cleared');
   loadScheduled();
 }
 
 async function resetAll() {
-  if (!confirm('Reset EVERYTHING?')) return;
+  const typed = prompt('This clears dashboard settings/templates/legacy schedules only. Type RESET to continue:');
+  if (typed !== 'RESET') return;
   await sb.from('amplr_data').delete().eq('user_id', user.id);
-  toast('Reset complete');
+  toast('Dashboard data reset');
   location.reload();
 }
 
@@ -1618,12 +1683,13 @@ function deselectAllGroups() {
 function updateSelectedCount() {
   const count = document.querySelectorAll('#createGroupSelect .group-chip.selected').length;
   const el = document.getElementById('selectedGroupCount');
-  if (el) el.textContent = count + ' selected';
+  if (el) el.textContent = `${count} group${count === 1 ? '' : 's'} selected`;
 }
 
-// Update count when chips are toggled
+// Update count when chips are toggled, even when clicking inside a chip
+// rather than directly on the chip element.
 document.addEventListener('click', (e) => {
-  if (e.target.classList?.contains('group-chip')) {
+  if (e.target.closest?.('#createGroupSelect .group-chip')) {
     setTimeout(updateSelectedCount, 0);
   }
 });
