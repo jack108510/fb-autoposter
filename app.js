@@ -1165,20 +1165,45 @@ function isHeartbeatFresh(heartbeat) {
   return Number.isFinite(ts) && Date.now() - ts < 2 * 60 * 1000;
 }
 
+function isStaleGroupSyncJob(job) {
+  if (!job || !['pending', 'processing'].includes(job.status)) return false;
+  const raw = job.started_at || job.created_at;
+  const ts = raw ? Date.parse(raw) : 0;
+  return Number.isFinite(ts) && Date.now() - ts > 15 * 60 * 1000;
+}
+
+async function cancelStaleGroupSyncJob(job) {
+  if (!job?.id || !isStaleGroupSyncJob(job)) return false;
+  const { error } = await sb.from('jsw_post_jobs')
+    .update({
+      status: 'cancelled',
+      error: 'Stale group sync replaced by a new request',
+      result: { ...(job.result || {}), stale_cancelled: true, text: 'Stale sync request cancelled.' },
+      completed_at: new Date().toISOString()
+    })
+    .eq('id', job.id)
+    .eq('user_id', user.id);
+  if (error) throw new Error(error.message);
+  return true;
+}
+
 function renderGroupSyncStatus(job, groups = cachedData.groups || [], heartbeat = null) {
   const statusEl = document.getElementById('groupSyncStatus');
   const btn = document.getElementById('groupSyncBtn');
   if (!statusEl || !btn) return;
 
   const active = job && ['pending', 'processing'].includes(job.status);
+  const stale = isStaleGroupSyncJob(job);
   const online = isHeartbeatFresh(heartbeat);
-  btn.disabled = active;
-  btn.textContent = active ? 'Syncing...' : 'Sync Facebook Groups';
+  btn.disabled = active && !stale;
+  btn.textContent = active && !stale ? 'Syncing...' : stale ? 'Retry Sync' : 'Sync Facebook Groups';
 
   if (!job) {
     statusEl.textContent = groups.length
       ? `Last loaded: ${groups.length} group${groups.length === 1 ? '' : 's'}. Auto-sync runs daily when the extension is online.`
-      : 'No groups synced yet. Sync will start automatically when the extension is online.';
+      : online
+        ? 'No groups synced yet. Press Sync Facebook Groups to import them.'
+        : 'No groups synced yet. Open/sign into the Chrome extension, then press Sync Facebook Groups.';
     statusEl.style.color = online ? 'var(--text-3)' : 'var(--yellow)';
     return;
   }
@@ -1187,7 +1212,10 @@ function renderGroupSyncStatus(job, groups = cachedData.groups || [], heartbeat 
   const rel = when ? new Date(when).toLocaleString() : '';
   const result = job.result || {};
   if (active) {
-    if (!online) {
+    if (stale) {
+      statusEl.textContent = `Previous sync is stale${rel ? ' · ' + rel : ''}. Press Retry Sync to replace it. ${online ? '' : 'The extension currently looks offline.'}`.trim();
+      statusEl.style.color = 'var(--yellow)';
+    } else if (!online) {
       statusEl.textContent = 'Queued, but the Chrome extension is offline or signed out. Open Amplr extension and sign in; it will sync automatically.';
       statusEl.style.color = 'var(--yellow)';
     } else {
@@ -1201,6 +1229,9 @@ function renderGroupSyncStatus(job, groups = cachedData.groups || [], heartbeat 
   } else if (job.status === 'failed') {
     statusEl.textContent = `Last sync failed${rel ? ' · ' + rel : ''}: ${result.error || job.error || 'unknown error'}`;
     statusEl.style.color = 'var(--red)';
+  } else if (job.status === 'cancelled') {
+    statusEl.textContent = groups.length ? `Last loaded: ${groups.length} group${groups.length === 1 ? '' : 's'}.` : 'No active sync request.';
+    statusEl.style.color = 'var(--text-3)';
   } else {
     statusEl.textContent = `Last sync status: ${job.status}${rel ? ' · ' + rel : ''}`;
     statusEl.style.color = 'var(--text-3)';
@@ -1242,11 +1273,22 @@ async function refreshGroupSyncStatus() {
 async function syncFacebookGroups(automatic = false) {
   try {
     const existing = await getLatestGroupSyncJob();
+    const heartbeat = await getExtensionHeartbeat();
+    const online = isHeartbeatFresh(heartbeat);
+
     if (existing && ['pending', 'processing'].includes(existing.status)) {
-      const heartbeat = await getExtensionHeartbeat();
-      renderGroupSyncStatus(existing, cachedData.groups || [], heartbeat);
-      if (!automatic) toast('Group sync already running');
-      return existing;
+      if (isStaleGroupSyncJob(existing)) {
+        await cancelStaleGroupSyncJob(existing);
+      } else {
+        renderGroupSyncStatus(existing, cachedData.groups || [], heartbeat);
+        if (!automatic) toast('Group sync already running');
+        return existing;
+      }
+    }
+
+    if (automatic && !online) {
+      renderGroupSyncStatus(null, cachedData.groups || [], heartbeat);
+      return null;
     }
 
     const { error, data } = await sb.from('jsw_post_jobs').insert({
@@ -1254,7 +1296,7 @@ async function syncFacebookGroups(automatic = false) {
       message: '__import_groups__',
       groups: [],
       status: 'pending',
-      result: { text: 'Queued group sync. Extension will open Facebook in the background.' },
+      result: { text: online ? 'Queued group sync. Extension will open Facebook in the background.' : 'Queued group sync. Open/sign into the Chrome extension to run it.' },
       delay: 0,
       ai_enabled: false,
       scheduled_for: null,
@@ -1262,10 +1304,9 @@ async function syncFacebookGroups(automatic = false) {
     if (error) throw new Error(error.message);
 
     localStorage.setItem(`amplr_last_group_auto_sync_${user.id}`, String(Date.now()));
-    const heartbeat = await getExtensionHeartbeat();
     renderGroupSyncStatus(data, cachedData.groups || [], heartbeat);
     refreshGroupSyncStatus();
-    toast(automatic ? 'Auto-sync queued' : 'Group sync queued');
+    toast(automatic ? 'Auto-sync queued' : online ? 'Group sync queued' : 'Sync queued — open the extension to run it');
     return data;
   } catch (e) {
     console.error('[Amplr] syncFacebookGroups error:', e);
@@ -1282,7 +1323,7 @@ async function syncFacebookGroups(automatic = false) {
 async function maybeAutoSyncFacebookGroups(groups) {
   if (!user) return;
   const latest = await refreshGroupSyncStatus();
-  if (latest && ['pending', 'processing'].includes(latest.status)) return;
+  if (latest && ['pending', 'processing'].includes(latest.status) && !isStaleGroupSyncJob(latest)) return;
 
   const now = Date.now();
   const lastLocal = Number(localStorage.getItem(`amplr_last_group_auto_sync_${user.id}`) || 0);
