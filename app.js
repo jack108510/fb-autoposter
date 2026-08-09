@@ -153,7 +153,7 @@ function nav(page) {
 
 // ═══ SUPABASE DATA LAYER ═══
 // All dashboard data stored as JSON in amplr_data table.
-// Posting creates rows in jsw_post_jobs (extension polls every 10s).
+// Posting creates rows in jsw_post_jobs (extension polls every 30s).
 
 async function sbGet(key) {
   const { data } = await sb.from('amplr_data').select('value').eq('user_id', user.id).eq('key', key).maybeSingle();
@@ -169,35 +169,79 @@ async function sbSet(key, value) {
   return error;
 }
 
+async function getDashboardExtensionStatus() {
+  const { data } = await sb.from('amplr_data')
+    .select('value,updated_at')
+    .eq('user_id', user.id)
+    .eq('key', 'extension_status')
+    .maybeSingle();
+  return data?.value ? { ...data.value, row_updated_at: data.updated_at } : null;
+}
+
+function timeAgo(ts) {
+  const t = ts ? Date.parse(ts) : NaN;
+  if (!Number.isFinite(t)) return 'never';
+  const seconds = Math.max(0, Math.round((Date.now() - t) / 1000));
+  if (seconds < 10) return 'just now';
+  if (seconds < 60) return `${seconds}s ago`;
+  const minutes = Math.round(seconds / 60);
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.round(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  return `${Math.round(hours / 24)}d ago`;
+}
+
 async function checkConn() {
   const bar = document.getElementById('connBar');
   const dot = document.getElementById('connDot');
   const label = document.getElementById('connLabel');
 
-  if (!user) return;
+  if (!user || !bar || !dot || !label) return;
 
-  // Check extension heartbeat in jsw_settings
-  const { data: settingsRow } = await sb.from('jsw_settings')
-    .select('ext_heartbeat').eq('user_id', user.id).maybeSingle();
+  try {
+    const [settingsRes, status, recentRes] = await Promise.all([
+      sb.from('jsw_settings').select('ext_heartbeat').eq('user_id', user.id).maybeSingle(),
+      getDashboardExtensionStatus(),
+      sb.from('jsw_post_jobs')
+        .select('status,message')
+        .eq('user_id', user.id)
+        .in('status', ['pending', 'processing'])
+        .order('created_at', { ascending: false })
+        .limit(1)
+    ]);
 
-  const hb = settingsRow?.ext_heartbeat;
-  const hbAge = hb ? Date.now() - new Date(hb).getTime() : Infinity;
-  const isOnline = hbAge < 90000; // heartbeat within 90s
+    const hb = settingsRes.data?.ext_heartbeat || status?.last_seen || status?.row_updated_at;
+    const hbAge = hb ? Date.now() - new Date(hb).getTime() : Infinity;
+    const isOnline = hbAge < 90000; // heartbeat within 90s
+    const activeJob = recentRes.data?.[0] || null;
+    const extVersion = status?.version && status.version !== 'unknown' ? ` v${status.version}` : '';
+    const lastSeen = hb ? ` · ${timeAgo(hb)}` : '';
 
-  if (isOnline) {
-    connected = true;
-    bar.className = 'conn-bar connected';
-    dot.className = 'conn-dot on';
-    // Check if currently posting
-    const { data: recent } = await sb.from('jsw_post_jobs')
-      .select('status').eq('user_id', user.id)
-      .order('updated_at', { ascending: false }).limit(1);
-    label.textContent = recent?.[0]?.status === 'processing' ? 'Posting...' : 'Connected';
-  } else {
+    if (isOnline) {
+      connected = true;
+      bar.className = 'conn-bar connected';
+      dot.className = 'conn-dot on';
+      if (activeJob?.status === 'processing') {
+        label.textContent = activeJob.message === '__import_groups__' ? 'Syncing groups...' : 'Posting...';
+      } else if (activeJob?.status === 'pending') {
+        label.textContent = activeJob.message === '__import_groups__' ? 'Group sync queued' : 'Job queued';
+      } else {
+        label.textContent = `Connected${extVersion}${lastSeen}`;
+      }
+      label.title = `Extension online${extVersion}${hb ? ` · last seen ${new Date(hb).toLocaleString()}` : ''}`;
+    } else {
+      connected = false;
+      bar.className = 'conn-bar disconnected';
+      dot.className = 'conn-dot off';
+      label.textContent = hb ? `Extension offline · last seen ${timeAgo(hb)}` : 'Extension offline';
+      label.title = 'Open the Amplr Chrome extension and sign in with this dashboard account.';
+    }
+  } catch (e) {
     connected = false;
     bar.className = 'conn-bar disconnected';
     dot.className = 'conn-dot off';
-    label.textContent = 'Extension offline';
+    label.textContent = 'Connection check failed';
+    label.title = e.message || 'Could not check extension connection';
   }
 
   // Keep this lightweight. Heavy page data is loaded by the active page renderer,
