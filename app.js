@@ -69,7 +69,12 @@ async function bootApp() {
     showAuthFallback('');
     return;
   }
-  user = data.session.user;
+
+  await bootAuthenticatedApp(data.session);
+}
+
+async function bootAuthenticatedApp(session) {
+  user = session.user;
 
   const auth = document.getElementById('authScreen');
   const app = document.getElementById('app');
@@ -93,6 +98,7 @@ async function bootApp() {
   setInterval(() => checkConn().catch(e => console.warn('[Amplr] connection check failed', e)), 30000);
   safeStartupStep('schedule checker init', startScheduleChecker);
 }
+window.bootAuthenticatedApp = bootAuthenticatedApp;
 
 // ═══ THEME ═══
 function initTheme() {

@@ -1318,8 +1318,13 @@ Use {Hi|Hey|Hello} to spin unique variations — each group gets a different ver
           return;
         }
         if (result.data?.session) {
-          // Success — reload to init the app
-          window.location.reload();
+          // Success — do not reload. Some browsers/storage states race the
+          // Supabase session write, causing the reload to land on a blank app.
+          if (typeof window.bootAuthenticatedApp === 'function') {
+            await window.bootAuthenticatedApp(result.data.session);
+          } else {
+            window.location.href = window.location.pathname + '?signed_in=' + Date.now();
+          }
         }
       } catch (err) {
         showAuthError(err.message || 'Authentication failed');
@@ -1332,6 +1337,6 @@ Use {Hi|Hey|Hello} to spin unique variations — each group gets a different ver
       window.location.reload();
     }
   </script>
-  <script src="app.js?v=4"></script>
+  <script src="app.js?v=5"></script>
 </body>
 </html>
