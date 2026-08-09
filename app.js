@@ -49,12 +49,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     footer.insertBefore(userInfo, footer.firstChild);
   }
 
-  // Load settings immediately
-  cachedData = await fetchAll();
-  loadSettings();
-  
-  await checkConn();
-  setInterval(checkConn, 30000);
+  // Render the shell immediately, then hydrate data in the background.
+  // The old boot path waited on fetchAll(), then checkConn() fetched everything again.
+  // On slow Supabase/CDN/network moments that made the app look like it was stuck loading.
+  loadSettings().catch(e => console.warn('[Amplr] settings load failed', e));
+  loadDashboard().catch(e => console.warn('[Amplr] dashboard load failed', e));
+  checkConn().catch(e => console.warn('[Amplr] connection check failed', e));
+  setInterval(() => checkConn().catch(e => console.warn('[Amplr] connection check failed', e)), 30000);
   startScheduleChecker();
 });
 
@@ -153,9 +154,9 @@ async function checkConn() {
     label.textContent = 'Extension offline';
   }
 
-  // Always load data regardless of connection state
-  cachedData = await fetchAll();
-  if (typeof loadSettings === 'function') loadSettings();
+  // Keep this lightweight. Heavy page data is loaded by the active page renderer,
+  // not by the 30s heartbeat poll. Re-fetching everything here made startup and
+  // periodic checks feel slow.
 
   // Check for resolved group names from extension
   await pollGroupNames();
