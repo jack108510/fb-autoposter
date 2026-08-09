@@ -1136,6 +1136,137 @@ async function editPost(id) {
 // ═══ GROUPS ═══
 // ─── Group tag state ───
 let groupTagFilter = null; // null = all
+let groupSyncPollTimer = null;
+
+async function getLatestGroupSyncJob() {
+  const { data, error } = await sb.from('jsw_post_jobs')
+    .select('id,status,result,error,created_at,updated_at,completed_at')
+    .eq('user_id', user.id)
+    .eq('message', '__import_groups__')
+    .order('created_at', { ascending: false })
+    .limit(1);
+  if (error) throw new Error(error.message);
+  return data?.[0] || null;
+}
+
+function renderGroupSyncStatus(job, groups = cachedData.groups || []) {
+  const statusEl = document.getElementById('groupSyncStatus');
+  const btn = document.getElementById('groupSyncBtn');
+  if (!statusEl || !btn) return;
+
+  const active = job && ['pending', 'processing'].includes(job.status);
+  btn.disabled = active;
+  btn.textContent = active ? 'Syncing...' : 'Sync Facebook Groups';
+
+  if (!job) {
+    statusEl.textContent = groups.length ? `Last loaded: ${groups.length} group${groups.length === 1 ? '' : 's'}. No sync job yet.` : 'No groups synced yet. Sync will start automatically when the extension is online.';
+    statusEl.style.color = 'var(--text-3)';
+    return;
+  }
+
+  const when = job.completed_at || job.updated_at || job.created_at;
+  const rel = when ? new Date(when).toLocaleString() : '';
+  const result = job.result || {};
+  if (active) {
+    statusEl.textContent = result.text || (job.status === 'pending' ? 'Queued. Extension will pick it up shortly.' : 'Syncing groups in the background...');
+    statusEl.style.color = 'var(--yellow)';
+  } else if (job.status === 'done') {
+    const count = result.count ?? groups.length;
+    statusEl.textContent = `Last sync imported ${count} group${count === 1 ? '' : 's'}${rel ? ' · ' + rel : ''}.`;
+    statusEl.style.color = 'var(--green)';
+  } else if (job.status === 'failed') {
+    statusEl.textContent = `Last sync failed${rel ? ' · ' + rel : ''}: ${result.error || job.error || 'unknown error'}`;
+    statusEl.style.color = 'var(--red)';
+  } else {
+    statusEl.textContent = `Last sync status: ${job.status}${rel ? ' · ' + rel : ''}`;
+    statusEl.style.color = 'var(--text-3)';
+  }
+}
+
+async function refreshGroupSyncStatus() {
+  try {
+    const job = await getLatestGroupSyncJob();
+    renderGroupSyncStatus(job);
+    if (job && ['pending', 'processing'].includes(job.status)) {
+      if (!groupSyncPollTimer) {
+        groupSyncPollTimer = setInterval(async () => {
+          try {
+            const latest = await getLatestGroupSyncJob();
+            renderGroupSyncStatus(latest);
+            if (!latest || !['pending', 'processing'].includes(latest.status)) {
+              clearInterval(groupSyncPollTimer);
+              groupSyncPollTimer = null;
+              await loadGroups();
+            }
+          } catch (e) {
+            console.warn('[Amplr] group sync poll failed:', e.message);
+          }
+        }, 4000);
+      }
+    }
+    return job;
+  } catch (e) {
+    const statusEl = document.getElementById('groupSyncStatus');
+    if (statusEl) {
+      statusEl.textContent = 'Could not read sync status: ' + e.message;
+      statusEl.style.color = 'var(--red)';
+    }
+    return null;
+  }
+}
+
+async function syncFacebookGroups(automatic = false) {
+  try {
+    const existing = await getLatestGroupSyncJob();
+    if (existing && ['pending', 'processing'].includes(existing.status)) {
+      renderGroupSyncStatus(existing);
+      if (!automatic) toast('Group sync already running');
+      return existing;
+    }
+
+    const { error, data } = await sb.from('jsw_post_jobs').insert({
+      user_id: user.id,
+      message: '__import_groups__',
+      groups: [],
+      status: 'pending',
+      result: { text: 'Queued group sync. Extension will open Facebook in the background.' },
+      delay: 0,
+      ai_enabled: false,
+      scheduled_for: null,
+    }).select('id,status,result,created_at,updated_at,completed_at').single();
+    if (error) throw new Error(error.message);
+
+    localStorage.setItem(`amplr_last_group_auto_sync_${user.id}`, String(Date.now()));
+    renderGroupSyncStatus(data);
+    refreshGroupSyncStatus();
+    toast(automatic ? 'Auto-sync queued' : 'Group sync queued');
+    return data;
+  } catch (e) {
+    console.error('[Amplr] syncFacebookGroups error:', e);
+    if (!automatic) toast('Sync error: ' + e.message);
+    const statusEl = document.getElementById('groupSyncStatus');
+    if (statusEl) {
+      statusEl.textContent = 'Sync error: ' + e.message;
+      statusEl.style.color = 'var(--red)';
+    }
+    return null;
+  }
+}
+
+async function maybeAutoSyncFacebookGroups(groups) {
+  if (!user) return;
+  const latest = await refreshGroupSyncStatus();
+  if (latest && ['pending', 'processing'].includes(latest.status)) return;
+
+  const now = Date.now();
+  const lastLocal = Number(localStorage.getItem(`amplr_last_group_auto_sync_${user.id}`) || 0);
+  if (now - lastLocal < 6 * 60 * 60 * 1000) return; // local throttle
+
+  const lastDoneAt = latest?.status === 'done' ? new Date(latest.completed_at || latest.updated_at || latest.created_at).getTime() : 0;
+  const stale = !lastDoneAt || now - lastDoneAt > 24 * 60 * 60 * 1000;
+  const empty = !groups || groups.length === 0;
+  if (empty || stale) await syncFacebookGroups(true);
+}
 
 async function saveGroupTags(url, tags) {
   try {
@@ -1287,6 +1418,7 @@ async function loadGroups() {
 
   renderGroupTagBar(groups);
   renderGroupsList(groups);
+  maybeAutoSyncFacebookGroups(groups);
 }
 
 // Auto-detect group name from URL as user types/pastes
