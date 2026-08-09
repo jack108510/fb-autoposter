@@ -22,42 +22,77 @@ let calDate = new Date();
 let schedChecker = null;
 
 // ─── Init ───
-document.addEventListener('DOMContentLoaded', async () => {
-  initTheme();
-  renderDays();
-  renderCalNames();
-  setupNav();
+document.addEventListener('DOMContentLoaded', () => {
+  bootApp().catch(err => {
+    console.error('[Amplr] startup failed', err);
+    showAuthFallback(err?.message || 'Startup failed. Please refresh and sign in again.');
+  });
+});
 
-  // Check Supabase session
-  const { data } = await sb.auth.getSession();
+function showAuthFallback(message) {
+  const app = document.getElementById('app');
+  const auth = document.getElementById('authScreen');
+  if (app) app.style.display = 'none';
+  if (auth) auth.style.display = 'flex';
+  if (message) {
+    const err = document.getElementById('authError');
+    if (err) {
+      err.textContent = message;
+      err.style.display = 'block';
+    }
+  }
+}
+
+function safeStartupStep(name, fn) {
+  try { return fn(); }
+  catch (e) { console.warn(`[Amplr] ${name} skipped`, e); }
+}
+
+function byId(id) { return document.getElementById(id); }
+function setText(id, value) { const el = byId(id); if (el) el.textContent = value; }
+function setHtml(id, value) { const el = byId(id); if (el) el.innerHTML = value; }
+function setStyle(id, prop, value) { const el = byId(id); if (el) el.style[prop] = value; }
+
+async function bootApp() {
+  safeStartupStep('theme init', initTheme);
+  safeStartupStep('day picker init', renderDays);
+  safeStartupStep('calendar header init', renderCalNames);
+  safeStartupStep('nav init', setupNav);
+
+  if (!sb?.auth) throw new Error('Auth library did not load. Check your connection and refresh.');
+
+  // Check Supabase session. Do this inside a guarded boot path so a failed auth check
+  // cannot leave both the login screen and app hidden.
+  const { data, error } = await sb.auth.getSession();
+  if (error) throw error;
   if (!data.session) {
-    // Show login screen instead of redirecting
-    document.getElementById('authScreen').style.display = 'flex';
+    showAuthFallback('');
     return;
   }
   user = data.session.user;
 
-  // Show the app
-  document.getElementById('app').style.display = '';
+  const auth = document.getElementById('authScreen');
+  const app = document.getElementById('app');
+  if (auth) auth.style.display = 'none';
+  if (app) app.style.display = '';
 
-  // Show user email in sidebar
+  // Show user email in sidebar once per boot.
   const footer = document.querySelector('.sidebar-footer');
-  if (footer && user.email) {
+  if (footer && user.email && !footer.querySelector('[data-user-info]')) {
     const userInfo = document.createElement('div');
+    userInfo.dataset.userInfo = '1';
     userInfo.style.cssText = 'padding:8px 12px;font-size:12px;color:var(--text-3);border-bottom:1px solid var(--border);margin-bottom:8px;display:flex;align-items:center;gap:8px;';
-    userInfo.innerHTML = '<div style="width:24px;height:24px;border-radius:50%;background:linear-gradient(120deg,#5B6FE8,#F368A8);flex-shrink:0;"></div><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + user.email + '</span>';
+    userInfo.innerHTML = '<div style="width:24px;height:24px;border-radius:50%;background:linear-gradient(120deg,#5B6FE8,#F368A8);flex-shrink:0;"></div><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + esc(user.email) + '</span>';
     footer.insertBefore(userInfo, footer.firstChild);
   }
 
   // Render the shell immediately, then hydrate data in the background.
-  // The old boot path waited on fetchAll(), then checkConn() fetched everything again.
-  // On slow Supabase/CDN/network moments that made the app look like it was stuck loading.
   loadSettings().catch(e => console.warn('[Amplr] settings load failed', e));
   loadDashboard().catch(e => console.warn('[Amplr] dashboard load failed', e));
   checkConn().catch(e => console.warn('[Amplr] connection check failed', e));
   setInterval(() => checkConn().catch(e => console.warn('[Amplr] connection check failed', e)), 30000);
-  startScheduleChecker();
-});
+  safeStartupStep('schedule checker init', startScheduleChecker);
+}
 
 // ═══ THEME ═══
 function initTheme() {
@@ -387,12 +422,12 @@ async function loadDashboard() {
   const banLevel = banScore >= 60 ? 'High' : banScore >= 30 ? 'Medium' : 'Low';
   const banColor = banScore >= 60 ? 'var(--red)' : banScore >= 30 ? 'var(--yellow)' : 'var(--green)';
 
-  document.getElementById('sPostsWeek').textContent = postsThisWeek;
-  document.getElementById('sGroupsHit').textContent = groupUrls.size;
-  document.getElementById('sSuccessRate').textContent = hasActivity ? successRate + '%' : '—';
-  document.getElementById('sBanRisk').textContent = hasActivity ? banLevel : '—';
-  document.getElementById('sBanRisk').style.color = hasActivity ? banColor : 'var(--text-3)';
-  document.getElementById('navCount').textContent = posts.length;
+  setText('sPostsWeek', postsThisWeek);
+  setText('sGroupsHit', groupUrls.size);
+  setText('sSuccessRate', hasActivity ? successRate + '%' : '—');
+  setText('sBanRisk', hasActivity ? banLevel : '—');
+  setStyle('sBanRisk', 'color', hasActivity ? banColor : 'var(--text-3)');
+  setText('navCount', posts.length);
 
   // 7-day chart from real job data
   const days7 = [];
@@ -403,7 +438,7 @@ async function loadDashboard() {
     days7.push({ label: DAYS[d.getDay()], ok: entry.ok, fail: entry.fail, total: entry.ok + entry.fail });
   }
   const maxVal = Math.max(...days7.map(d => d.total), 1);
-  document.getElementById('chart7day').innerHTML = days7.map(d => {
+  setHtml('chart7day', days7.map(d => {
     const okH = (d.ok / maxVal) * 100;
     const failH = (d.fail / maxVal) * 100;
     return `<div class="chart-col">
@@ -413,11 +448,11 @@ async function loadDashboard() {
       </div>
       <div class="chart-label">${d.label}</div>
     </div>`;
-  }).join('');
+  }).join(''));
 
   // Upcoming
   const upcoming = posts.filter(p => p.enabled).slice(0, 5);
-  document.getElementById('dashUpcoming').innerHTML = upcoming.length === 0
+  setHtml('dashUpcoming', upcoming.length === 0
     ? '<div class="empty"><p>No scheduled posts</p></div>'
     : upcoming.map(p => {
         const days = p.schedule.days.map(d => DAYS[d]).join(', ');
@@ -429,7 +464,7 @@ async function loadDashboard() {
           </div>
           <button class="btn btn-primary btn-xs" onclick="firePost('${p.id}')">Post</button>
         </div>`;
-      }).join('');
+      }).join(''));
 
   // Top groups
   const groupStats = {};
@@ -442,7 +477,7 @@ async function loadDashboard() {
   const topGroups = Object.entries(groupStats)
     .map(([name, s]) => ({ name, rate: s.ok + s.fail > 0 ? Math.round(s.ok / (s.ok + s.fail) * 100) : 0, ...s }))
     .sort((a, b) => b.ok - a.ok).slice(0, 5);
-  document.getElementById('dashTopGroups').innerHTML = topGroups.length === 0
+  setHtml('dashTopGroups', topGroups.length === 0
     ? '<div style="text-align:center;color:var(--text-3);font-size:13px;padding:12px;">No data yet</div>'
     : topGroups.map(g => `
       <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);">
@@ -453,7 +488,7 @@ async function loadDashboard() {
             <div style="width:${g.rate}%;height:100%;background:${g.rate > 80 ? 'var(--green)' : g.rate > 50 ? 'var(--yellow)' : 'var(--red)'};"></div>
           </div>
         </div>
-      </div>`).join('');
+      </div>`).join(''));
 }
 
 // ═══ CALENDAR ═══
