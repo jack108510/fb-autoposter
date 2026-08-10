@@ -98,7 +98,8 @@ async function bootAuthenticatedApp(session) {
 
   // Render the shell immediately, then hydrate data in the background.
   loadSettings().catch(e => console.warn('[Amplr] settings load failed', e));
-  loadDashboard().catch(e => console.warn('[Amplr] dashboard load failed', e));
+  loadTemplates().catch(e => console.warn('[Amplr] post flow load failed', e));
+  loadDashboard().catch(e => console.warn('[Amplr] overview load failed', e));
   checkConn().catch(e => console.warn('[Amplr] connection check failed', e));
   setInterval(() => checkConn().catch(e => console.warn('[Amplr] connection check failed', e)), 30000);
   safeStartupStep('schedule checker init', startScheduleChecker);
@@ -139,6 +140,7 @@ function nav(page) {
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
   document.getElementById(`page-${page}`)?.classList.add('active');
   document.querySelector(`.nav-item[data-page="${page}"]`)?.classList.add('active');
+  if (window.history?.replaceState) window.history.replaceState(null, '', `#${page}`);
   switch (page) {
     case 'dashboard': loadDashboard(); break;
     case 'calendar': loadCalendar(); break;
@@ -741,6 +743,9 @@ async function loadDashboard() {
   setText('sBanRisk', hasActivity ? banLevel : '—');
   setStyle('sBanRisk', 'color', hasActivity ? banColor : 'var(--text-3)');
   setText('navCount', posts.length);
+  setText('dashProfilesCount', (cachedData.postingIdentities || []).length);
+  setText('dashGroupsCount', (cachedData.groups || []).length);
+  setText('dashScheduledCount', active);
 
   // 7-day chart from real job data
   const days7 = [];
@@ -822,7 +827,10 @@ async function loadDashboard() {
         </div>
       </div>`).join(''));
 
-  await refreshGroupSyncStatus();
+  await Promise.all([
+    refreshGroupSyncStatus(),
+    refreshIdentitySyncStatus()
+  ]);
 }
 
 // ═══ CALENDAR ═══

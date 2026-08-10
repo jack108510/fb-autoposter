@@ -7,7 +7,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400&display=swap" rel="stylesheet">
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Amplr — Dashboard</title>
+  <title>Amplr — Post</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     
@@ -563,8 +563,16 @@
     }
     body { background: radial-gradient(circle at top left, rgba(54,87,246,.06), transparent 28%), var(--bg); }
     .app { background: transparent; }
-    .sidebar { width: 218px; background: rgba(255,255,255,.86); backdrop-filter: blur(18px); box-shadow: none; }
-    [data-theme="dark"] .sidebar { background: rgba(23,24,32,.86); }
+    .sidebar { width: 218px; background: rgba(255,255,255,.92); backdrop-filter: blur(18px); box-shadow: none; }
+    [data-theme="dark"] .sidebar { background: rgba(255,255,255,.92); color: #11111B; }
+    [data-theme="dark"] .sidebar .brand-text { color: #11111B; }
+    [data-theme="dark"] .sidebar .brand-sub,
+    [data-theme="dark"] .sidebar .nav-section,
+    [data-theme="dark"] .sidebar .theme-toggle,
+    [data-theme="dark"] .sidebar .sidebar-signout { color: #8A8B98; }
+    [data-theme="dark"] .sidebar .nav-item { color: #55576A; }
+    [data-theme="dark"] .sidebar .nav-item:hover,
+    [data-theme="dark"] .sidebar .nav-item.active { background: #F3F4F8; color: #11111B; border-color: #E8E8F0; }
     .main { margin-left: 218px; padding: 46px 56px 64px; max-width: 1420px; }
     .brand { padding: 26px 22px 22px; background: transparent; }
     .brand-icon { width: 34px; height: 34px; border-radius: 11px; box-shadow: none; }
@@ -653,6 +661,33 @@
     .group-entry, .log-row { padding-top: 14px; padding-bottom: 14px; }
     .badge { border-radius: 999px; padding: 4px 11px; }
 
+    .overview-command-card {
+      display:grid; grid-template-columns:minmax(0,1fr) auto; gap:22px; align-items:center;
+      background:var(--surface); border:1px solid var(--border); border-radius:28px; padding:30px;
+      box-shadow:var(--shadow); margin-bottom:22px;
+    }
+    .overview-kicker { font-size:11px; font-weight:850; color:var(--blue); text-transform:uppercase; letter-spacing:.12em; margin-bottom:8px; }
+    .overview-command-card h2 { font-size:26px; letter-spacing:-.05em; margin:0 0 6px; }
+    .overview-command-card p { color:var(--text-2); font-size:14px; line-height:1.6; max-width:680px; }
+    .overview-grid { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:16px; margin-bottom:22px; }
+    .overview-health-card { background:var(--surface); border:1px solid var(--border); border-radius:22px; padding:20px; box-shadow:var(--shadow); }
+    .overview-card-top { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:18px; color:var(--text-2); font-size:12px; font-weight:800; text-transform:uppercase; letter-spacing:.08em; }
+    .overview-big { font-size:30px; line-height:1; font-weight:850; letter-spacing:-.06em; margin-bottom:10px; }
+    .overview-muted { color:var(--text-3); font-size:12px; line-height:1.45; }
+    .overview-detail-grid { display:grid; grid-template-columns:minmax(0,1.15fr) minmax(320px,.85fr); gap:22px; align-items:start; }
+    .overview-detail-grid .card:last-child { grid-column:2; }
+    .mini-metrics { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin-bottom:18px; }
+    .mini-metrics div { background:var(--surface-2); border-radius:14px; padding:14px; }
+    .mini-metrics span { display:block; font-size:20px; font-weight:850; letter-spacing:-.04em; }
+    .mini-metrics small { display:block; margin-top:4px; color:var(--text-3); font-size:11px; line-height:1.3; }
+    .chart-bar.compact { height:150px; }
+
+    @media (max-width: 1100px) {
+      .overview-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
+      .overview-detail-grid { grid-template-columns:1fr; }
+      .overview-detail-grid .card:last-child { grid-column:auto; }
+    }
+
     @media (max-width: 900px) {
       .sidebar { width: 232px; }
       .main { margin-left: 0; padding: 26px 18px 48px; }
@@ -723,19 +758,19 @@
         </div>
       </div>
       <div class="nav">
-        <div class="nav-section">Overview</div>
-        <div class="nav-item active" data-page="dashboard"><span class="icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="2" width="5" height="6" rx="1"/><rect x="9" y="2" width="5" height="4" rx="1"/><rect x="2" y="10" width="5" height="4" rx="1"/><rect x="9" y="8" width="5" height="6" rx="1"/></svg></span> Dashboard</div>
-        <div class="nav-item" data-page="calendar"><span class="icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="3" width="12" height="11" rx="1.5"/><line x1="2" y1="6" x2="14" y2="6"/><line x1="5" y1="1.5" x2="5" y2="4"/><line x1="11" y1="1.5" x2="11" y2="4"/></svg></span> Calendar</div>
-        
-        <div class="nav-section">Content</div>
-        <div class="nav-item" data-page="create"><span class="icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 2L14 4L6 12L2 13L3 9L12 2Z"/></svg></span> Create Post</div>
+        <div class="nav-section">Post</div>
+        <div class="nav-item active" data-page="create"><span class="icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 2L14 4L6 12L2 13L3 9L12 2Z"/></svg></span> New Post</div>
         <div class="nav-item" data-page="scheduled"><span class="icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="6"/><polyline points="8,4 8,8 11,9"/></svg></span> Scheduled <span class="nav-badge" id="navCount">0</span></div>
         <div class="nav-item" data-page="templates"><span class="icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="2" width="12" height="12" rx="1.5"/><line x1="2" y1="6" x2="14" y2="6"/><line x1="6" y1="6" x2="6" y2="14"/></svg></span> Templates</div>
-        
-        <div class="nav-section">Manage</div>
+
+        <div class="nav-section">Library</div>
         <div class="nav-item" data-page="groups"><span class="icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="5" cy="5" r="2.5"/><circle cx="11" cy="5" r="2.5"/><path d="M1 13C1 10.5 3 9 5 9C7 9 9 10.5 9 13"/><path d="M7 13C7 10.5 9 9 11 9C13 9 15 10.5 15 13"/></svg></span> Groups</div>
+        <div class="nav-item" data-page="settings"><span class="icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="2.5"/><path d="M8 1L8 3M8 13L8 15M1 8L3 8M13 8L15 8M2.5 2.5L4 4M12 12L13.5 13.5M2.5 13.5L4 12M12 4L13.5 2.5"/></svg></span> Profiles & Settings</div>
+
+        <div class="nav-section">Review</div>
+        <div class="nav-item" data-page="dashboard"><span class="icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="2" width="5" height="6" rx="1"/><rect x="9" y="2" width="5" height="4" rx="1"/><rect x="2" y="10" width="5" height="4" rx="1"/><rect x="9" y="8" width="5" height="6" rx="1"/></svg></span> Overview</div>
         <div class="nav-item" data-page="logs"><span class="icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><line x1="3" y1="4" x2="13" y2="4"/><line x1="3" y1="8" x2="13" y2="8"/><line x1="3" y1="12" x2="9" y2="12"/></svg></span> History</div>
-        <div class="nav-item" data-page="settings"><span class="icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="2.5"/><path d="M8 1L8 3M8 13L8 15M1 8L3 8M13 8L15 8M2.5 2.5L4 4M12 12L13.5 13.5M2.5 13.5L4 12M12 4L13.5 2.5"/></svg></span> Settings</div>
+        <div class="nav-item" data-page="calendar"><span class="icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="3" width="12" height="11" rx="1.5"/><line x1="2" y1="6" x2="14" y2="6"/><line x1="5" y1="1.5" x2="5" y2="4"/><line x1="11" y1="1.5" x2="11" y2="4"/></svg></span> Calendar</div>
       </div>
       <div class="sidebar-footer">
         <div class="theme-toggle" onclick="toggleTheme()">
@@ -750,90 +785,63 @@
 
     <div class="main">
 
-      <!-- ═══ DASHBOARD ═══ -->
-      <div class="page active" id="page-dashboard">
-        <div class="page-title">Dashboard</div>
-        <div class="page-subtitle">Overview of your Facebook Groups posting activity</div>
-        
-        <div class="stats-row">
-          <div class="stat">
-            <div class="stat-icon-box blue">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/></svg>
-            </div>
-            <div class="stat-val" id="sPostsWeek">—</div>
-            <div class="stat-lbl">Posts This Week</div>
+      <!-- ═══ OVERVIEW ═══ -->
+      <div class="page" id="page-dashboard">
+        <div class="page-title">Overview</div>
+        <div class="page-subtitle">Health checks only. The main workflow now starts in Post.</div>
+
+        <div class="overview-command-card">
+          <div>
+            <div class="overview-kicker">Ready check</div>
+            <h2>Is Amplr ready to post?</h2>
+            <p>Profiles, groups, queue, and warning signals in one place. No filler analytics.</p>
           </div>
-          <div class="stat">
-            <div class="stat-icon-box purple">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="7" r="3"/><circle cx="12" cy="7" r="3"/><circle cx="19" cy="7" r="3"/><path d="M2 17c0-2.2 1.8-4 3-4s3 1.8 3 4M9 17c0-2.2 1.8-4 3-4s3 1.8 3 4M16 17c0-2.2 1.8-4 3-4s3 1.8 3 4"/></svg>
-            </div>
-            <div class="stat-val" id="sGroupsHit">—</div>
-            <div class="stat-lbl">Groups Posted To</div>
+          <button class="btn btn-primary" onclick="nav('create')">Start a Post</button>
+        </div>
+
+        <div class="overview-grid">
+          <div class="overview-health-card">
+            <div class="overview-card-top"><span>Profiles synced</span><button id="dashIdentitySyncBtn" class="btn btn-secondary btn-sm identity-sync-btn" onclick="syncPostingIdentities(false)">Sync</button></div>
+            <div class="overview-big" id="dashProfilesCount">—</div>
+            <div id="dashIdentitySyncStatus" class="identity-sync-status overview-muted">Checking sync status...</div>
           </div>
-          <div class="stat">
-            <div class="stat-icon-box green">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-            </div>
-            <div class="stat-val" id="sSuccessRate">—</div>
-            <div class="stat-lbl">Success Rate</div>
+          <div class="overview-health-card">
+            <div class="overview-card-top"><span>Groups synced</span><button class="btn btn-secondary btn-sm group-sync-btn" onclick="syncFacebookGroups(false)">Sync</button></div>
+            <div class="overview-big" id="dashGroupsCount">—</div>
+            <div id="dashGroupSyncStatus" class="group-sync-status overview-muted">Checking group sync...</div>
           </div>
-          <div class="stat">
-            <div class="stat-icon-box red">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-            </div>
-            <div class="stat-val" id="sBanRisk">—</div>
-            <div class="stat-lbl">Ban Risk</div>
+          <div class="overview-health-card">
+            <div class="overview-card-top"><span>Scheduled queue</span><button class="btn btn-secondary btn-sm" onclick="nav('scheduled')">Open</button></div>
+            <div class="overview-big" id="dashScheduledCount">—</div>
+            <div class="overview-muted">Recurring posts saved</div>
+          </div>
+          <div class="overview-health-card">
+            <div class="overview-card-top"><span>Post risk</span><button class="btn btn-secondary btn-sm" onclick="nav('logs')">History</button></div>
+            <div class="overview-big" id="sBanRisk">—</div>
+            <div class="overview-muted">Based on recent volume and failures</div>
           </div>
         </div>
 
-        <div class="card" style="margin-bottom:16px;border-left:4px solid var(--blue);">
-          <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap;">
-            <div style="flex:1;min-width:260px;">
-              <div style="font-size:12px;font-weight:700;color:var(--blue);text-transform:uppercase;letter-spacing:.6px;margin-bottom:6px;">Profiles sync</div>
-              <div style="font-size:15px;font-weight:700;margin-bottom:4px;">Sync multiple Facebook profiles from the dashboard</div>
-              <div style="font-size:13px;color:var(--text-2);line-height:1.55;">Use this to sync every Facebook profile/Page visible in Chrome’s profile switcher — Vet Inc, Jack Sereda, Empty Slot, and any others. The dashboard queues the sync; the Chrome extension opens Facebook and saves those posting profiles here.</div>
-              <div id="dashIdentitySyncStatus" class="identity-sync-status" style="font-size:12px;color:var(--text-3);margin-top:8px;">Checking sync status...</div>
+        <div class="overview-detail-grid">
+          <div class="card">
+            <div class="card-header">
+              <div class="card-title">Next scheduled posts</div>
+              <button class="btn btn-primary btn-sm" onclick="nav('create')">New Post</button>
             </div>
-            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
-              <button id="dashIdentitySyncBtn" class="btn btn-primary identity-sync-btn" style="flex:0;" onclick="syncPostingIdentities(false)">Sync Profiles</button>
-              <button class="btn btn-secondary" style="flex:0;" onclick="nav('settings')">Manage Profiles</button>
-            </div>
+            <div id="dashUpcoming"></div>
           </div>
-        </div>
-
-        <div class="two-col">
-          <div>
-            <div class="card">
-              <div class="card-header">
-                <div class="card-title">Activity (Last 7 Days)</div>
-              </div>
-              <div class="chart-bar" id="chart7day">
-                <div class="chart-col"><div class="chart-bar-fill green" style="height:0%"></div><div class="chart-label">—</div></div>
-              </div>
+          <div class="card">
+            <div class="card-header"><div class="card-title">Recent reliability</div></div>
+            <div class="mini-metrics">
+              <div><span id="sPostsWeek">—</span><small>posts this week</small></div>
+              <div><span id="sGroupsHit">—</span><small>groups available</small></div>
+              <div><span id="sSuccessRate">—</span><small>success rate</small></div>
             </div>
-            <div class="card">
-              <div class="card-header">
-                <div class="card-title">Upcoming Posts</div>
-                <button class="btn btn-primary btn-sm" onclick="nav('create')">+ New</button>
-              </div>
-              <div id="dashUpcoming"></div>
-            </div>
+            <div class="chart-bar compact" id="chart7day"></div>
           </div>
-          <div>
-            <div class="card">
-              <div class="card-header">
-                <div class="card-title">Quick Actions</div>
-              </div>
-              <button class="btn btn-primary btn-block" style="margin-bottom:8px;" onclick="nav('create')">New Post</button>
-              <button class="btn btn-secondary btn-block" style="margin-bottom:8px;" onclick="nav('calendar')">View Calendar</button>
-              <button class="btn btn-secondary btn-block" onclick="nav('templates')">Templates</button>
-            </div>
-            <div class="card">
-              <div class="card-header">
-                <div class="card-title">Top Groups</div>
-              </div>
-              <div id="dashTopGroups"></div>
-            </div>
+          <div class="card">
+            <div class="card-header"><div class="card-title">Groups with activity</div></div>
+            <div id="dashTopGroups"></div>
           </div>
         </div>
       </div>
@@ -857,7 +865,7 @@
       </div>
 
       <!-- ═══ CREATE ═══ -->
-      <div class="page" id="page-create">
+      <div class="page active" id="page-create">
         <div class="cp-shell">
           <div class="cp-hero">
             <div>
