@@ -493,6 +493,9 @@ function getSelectedPostingIdentity() {
 function setSelectedPostingIdentity(key) {
   if (key) localStorage.setItem('amplr_selected_posting_identity', key);
   renderPostingIdentitySelect();
+  renderCreateProfileCards();
+  filterGroupsForSelectedIdentity();
+  updateCreateWizardSummary();
 }
 
 function renderPostingIdentitySelect() {
@@ -511,6 +514,8 @@ function renderPostingIdentitySelect() {
   if (key && [...select.options].some(o => o.value === key)) select.value = key;
   else select.value = identityKey(identities[0]);
   updateFacebookPreviewIdentity();
+  renderCreateProfileCards();
+  updateCreateWizardSummary();
 }
 
 function selectedGroupTargets() {
@@ -885,6 +890,7 @@ document.addEventListener('input', (e) => {
     window._draftTimer = setTimeout(() => {
       localStorage.setItem('amplr_draft', val);
     }, 2000);
+    updateCreateWizardSummary();
   }
 
   if (e.target.id === 'createImageUrl') {
@@ -898,6 +904,7 @@ document.addEventListener('input', (e) => {
     if (img && isValid) img.src = url;
     if (wrap) wrap.style.display = isValid ? 'block' : 'none';
     if (fbImg && isValid) fbImg.src = url;
+    updateCreateWizardSummary();
   }
 });
 
@@ -980,6 +987,7 @@ async function loadTemplates() {
   renderPostingIdentitySelect();
   restoreDraft();
   updateNextFire();
+  initCreateWizard();
   const templates = cachedData.templates || [];
   document.getElementById('quickTemplates').innerHTML = templates.length === 0
     ? '<div style="font-size:12px;color:var(--text-3);">No saved templates yet</div>'
@@ -993,6 +1001,9 @@ async function loadTemplates() {
 // ─── Tag filter state for group chip selectors ───
 let createGroupTagFilter = null;
 let tplGroupTagFilter = null;
+let createWizardStep = 1;
+let createDeliveryMode = 'now';
+let createContentType = localStorage.getItem('amplr_create_content_type') || 'standard';
 
 function renderTagFilterBar(containerId, groups, currentFilter, onClickFn) {
   const bar = document.getElementById(containerId);
@@ -1049,7 +1060,7 @@ function renderGroupChips() {
 
   container.innerHTML = groups.map((g, i) => {
     const c = GCOLORS[i % GCOLORS.length];
-    return `<div class="group-chip" onclick="this.classList.toggle('selected')" data-url="${esc(g.url)}" data-name="${esc(g.name)}"
+    return `<div class="group-chip" onclick="this.classList.toggle('selected'); updateSelectedCount(); updateCreateWizardSummary();" data-url="${esc(g.url)}" data-name="${esc(g.name)}"
       style="display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border-radius:20px;font-size:12px;cursor:pointer;border:1px solid var(--border);background:var(--surface);transition:all .15s;">
       <div style="width:8px;height:8px;border-radius:50%;background:${c};"></div>
       ${esc(g.name)}
@@ -2111,6 +2122,7 @@ function toggleAI() {
   // Ollama runs locally — no API key needed
   toggle.classList.toggle('on');
   if (status) status.style.display = toggle.classList.contains('on') ? 'flex' : 'none';
+  updateCreateWizardSummary();
 }
 
 // ─── AI toggle (Settings page) ───
@@ -2121,6 +2133,16 @@ function toggleSettingsAI() {
 
 // ─── Create page helpers ───
 
+function initCreateWizard() {
+  setCreateContentType(createContentType || 'standard', false);
+  setDeliveryMode(createDeliveryMode || 'now', false);
+  goCreateStep(createWizardStep || 1, false);
+  renderCreateProfileCards();
+  filterGroupsForSelectedIdentity();
+  updateSelectedCount();
+  updateCreateWizardSummary();
+}
+
 function clearCreateForm() {
   const ta = document.getElementById('createText');
   if (ta) { ta.value = ''; ta.dispatchEvent(new Event('input')); }
@@ -2128,9 +2150,13 @@ function clearCreateForm() {
   if (imgInput) { imgInput.value = ''; imgInput.dispatchEvent(new Event('input')); }
   const fcInput = document.getElementById('createFirstComment');
   if (fcInput) fcInput.value = '';
-  document.getElementById('spinInfo').style.display = 'none';
+  const spin = document.getElementById('spinInfo');
+  if (spin) spin.style.display = 'none';
   document.querySelectorAll('#createGroupSelect .group-chip.selected').forEach(c => c.classList.remove('selected'));
   localStorage.removeItem('amplr_draft');
+  goCreateStep(1, false);
+  updateSelectedCount();
+  updateCreateWizardSummary();
 }
 
 function restoreDraft() {
@@ -2142,27 +2168,149 @@ function restoreDraft() {
   }
 }
 
+function validateCreateStep(step) {
+  const text = document.getElementById('createText')?.value.trim() || '';
+  if (step >= 2 && !text) { toast('Write the post content first'); return false; }
+  if (step >= 3 && !getSelectedPostingIdentity()) { toast('Choose a posting profile first'); return false; }
+  return true;
+}
+
+function goCreateStep(step, validate=true) {
+  step = Math.max(1, Math.min(4, Number(step) || 1));
+  if (validate && !validateCreateStep(step)) return;
+  createWizardStep = step;
+  document.querySelectorAll('.cp-pane').forEach(p => p.classList.toggle('active', Number(p.dataset.pane) === step));
+  document.querySelectorAll('.cp-step').forEach(el => {
+    const n = Number(el.dataset.step);
+    el.classList.toggle('active', n === step);
+    el.classList.toggle('done', n < step);
+  });
+  const back = document.getElementById('cpBackBtn');
+  const next = document.getElementById('cpNextBtn');
+  if (back) back.style.visibility = step === 1 ? 'hidden' : 'visible';
+  if (next) next.textContent = step === 4 ? (createDeliveryMode === 'schedule' ? 'Save schedule' : 'Queue post') : 'Continue';
+  updateCreateWizardSummary();
+}
+
+function nextCreateStep() {
+  if (createWizardStep < 4) return goCreateStep(createWizardStep + 1);
+  if (createDeliveryMode === 'schedule') return savePost();
+  return postNow();
+}
+
+function prevCreateStep() { goCreateStep(createWizardStep - 1, false); }
+
+function setCreateContentType(type, persist=true) {
+  createContentType = type || 'standard';
+  if (persist) localStorage.setItem('amplr_create_content_type', createContentType);
+  document.querySelectorAll('[data-content-type]').forEach(el => el.classList.toggle('active', el.dataset.contentType === createContentType));
+  updateCreateWizardSummary();
+}
+
+function setDeliveryMode(mode, update=true) {
+  createDeliveryMode = mode === 'schedule' ? 'schedule' : 'now';
+  document.querySelectorAll('[data-delivery]').forEach(el => el.classList.toggle('active', el.dataset.delivery === createDeliveryMode));
+  const panel = document.getElementById('schedulePanel');
+  if (panel) panel.classList.toggle('active', createDeliveryMode === 'schedule');
+  const primary = document.getElementById('cpPrimaryAction');
+  const sched = document.getElementById('cpScheduleAction');
+  if (primary) {
+    primary.style.display = createDeliveryMode === 'now' ? 'flex' : 'none';
+    primary.textContent = 'Queue one-time post';
+  }
+  if (sched) sched.style.display = createDeliveryMode === 'schedule' ? 'flex' : 'none';
+  if (update) updateCreateWizardSummary();
+  goCreateStep(createWizardStep, false);
+}
+
+function renderCreateProfileCards() {
+  const el = document.getElementById('createProfileCards');
+  if (!el) return;
+  const identities = cachedData.postingIdentities || [];
+  const selected = getSelectedPostingIdentity();
+  if (!identities.length) {
+    el.innerHTML = '<div class="cp-empty-groups" style="grid-column:1/-1;">No Facebook profiles synced yet.</div>';
+    return;
+  }
+  el.innerHTML = identities.map(identity => {
+    const key = esc(identityKey(identity));
+    const active = selected && identityKey(selected) === identityKey(identity);
+    const initial = esc((identity.name || 'A').trim().charAt(0).toUpperCase());
+    const avatar = identity.avatar_url ? `<img src="${esc(identity.avatar_url)}" style="width:100%;height:100%;object-fit:cover;" alt="">` : initial;
+    return `<div class="cp-profile-card ${active ? 'active' : ''}" onclick="setSelectedPostingIdentity('${key}')">
+      <div class="cp-profile-avatar">${avatar}</div>
+      <div style="font-size:14px;font-weight:800;margin-bottom:3px;">${esc(identity.name || 'Unnamed profile')}</div>
+      <div style="font-size:12px;color:var(--text-3);">${esc(identity.type || 'Facebook profile')}${identity.is_active ? ' · active' : ''}</div>
+    </div>`;
+  }).join('');
+}
+
+function selectedProfileGroupTags() {
+  const identity = getSelectedPostingIdentity();
+  const name = (identity?.name || '').toLowerCase();
+  if (!name) return [];
+  return [name, name.replace(/\s+/g, '-'), name.replace(/\s+/g, '_')];
+}
+
+function groupBelongsToSelectedProfile(group) {
+  const tags = (group.tags || []).map(t => String(t).toLowerCase());
+  const profileTags = selectedProfileGroupTags();
+  if (!profileTags.length) return true;
+  const hasAnyProfileTaggedGroups = (cachedData.groups || []).some(g => (g.tags || []).map(t => String(t).toLowerCase()).some(t => profileTags.includes(t)));
+  if (!hasAnyProfileTaggedGroups) return true;
+  return tags.some(t => profileTags.includes(t));
+}
+
+function filterGroupsForSelectedIdentity() {
+  const search = (document.getElementById('createGroupSearch')?.value || '').toLowerCase().trim();
+  const groups = cachedData.groups || [];
+  const shown = groups.filter(g => groupBelongsToSelectedProfile(g)).filter(g => !search || (g.name || '').toLowerCase().includes(search) || (g.url || '').toLowerCase().includes(search));
+  document.querySelectorAll('#createGroupSelect .group-chip').forEach(chip => {
+    const g = groups.find(x => x.url === chip.dataset.url);
+    chip.style.display = g && shown.some(x => x.url === g.url) ? '' : 'none';
+  });
+  const hint = document.getElementById('createGroupScopeHint');
+  if (hint) {
+    const identity = getSelectedPostingIdentity();
+    hint.textContent = identity ? `Showing ${shown.length} of ${groups.length} groups for ${identity.name}. Add matching group tags later for strict profile-specific sets.` : `Showing ${shown.length} groups.`;
+  }
+}
+
 function selectAllGroups() {
-  document.querySelectorAll('#createGroupSelect .group-chip').forEach(c => c.classList.add('selected'));
+  document.querySelectorAll('#createGroupSelect .group-chip').forEach(c => { if (c.style.display !== 'none') c.classList.add('selected'); });
   updateSelectedCount();
+  updateCreateWizardSummary();
 }
 
 function deselectAllGroups() {
   document.querySelectorAll('#createGroupSelect .group-chip').forEach(c => c.classList.remove('selected'));
   updateSelectedCount();
+  updateCreateWizardSummary();
 }
 
 function updateSelectedCount() {
   const count = document.querySelectorAll('#createGroupSelect .group-chip.selected').length;
   const el = document.getElementById('selectedGroupCount');
   if (el) el.textContent = `${count} group${count === 1 ? '' : 's'} selected`;
+  updateCreateWizardSummary();
+}
+
+function updateCreateWizardSummary() {
+  const identity = getSelectedPostingIdentity();
+  const groupCount = document.querySelectorAll('#createGroupSelect .group-chip.selected').length;
+  const delivery = createDeliveryMode === 'schedule' ? `Schedule · ${document.getElementById('createTime')?.value || '09:00'}` : 'One-time post';
+  const aiOn = document.getElementById('aiToggle')?.classList.contains('on');
+  setText('createSummaryProfile', identity?.name || 'No profile selected');
+  setText('createSummaryGroups', `${groupCount} selected`);
+  setText('createSummaryDelivery', delivery);
+  setText('createSummaryAI', aiOn ? 'AI paraphrasing on' : 'AI paraphrasing off');
 }
 
 // Update count when chips are toggled, even when clicking inside a chip
 // rather than directly on the chip element.
 document.addEventListener('click', (e) => {
   if (e.target.closest?.('#createGroupSelect .group-chip')) {
-    setTimeout(updateSelectedCount, 0);
+    setTimeout(() => { updateSelectedCount(); updateCreateWizardSummary(); }, 0);
   }
 });
 
