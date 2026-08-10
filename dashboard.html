@@ -97,50 +97,61 @@
     .app { display: flex; min-height: 100vh; }
     .sidebar {
       width: 232px;
-      background: #0C0C18;
-      border-right: 1px solid rgba(255,255,255,.06);
+      background: var(--surface);
+      border-right: 1px solid var(--border);
       padding: 0; position: fixed; height: 100vh; overflow-y: auto; z-index: 100;
-      transition: transform .3s;
+      transition: transform .3s, background .2s, border-color .2s;
+      box-shadow: 1px 0 0 rgba(12,12,22,.02);
     }
     .main { margin-left: 232px; flex: 1; padding: 36px 44px; max-width: 1300px; }
     
     /* ─── Sidebar ─── */
     .brand {
       padding: 24px 20px 20px; display: flex; align-items: center; gap: 10px;
-      border-bottom: 1px solid rgba(255,255,255,.06);
+      border-bottom: 1px solid var(--border);
+      background: linear-gradient(180deg, rgba(255,255,255,.82), rgba(255,255,255,0));
     }
+    [data-theme="dark"] .brand { background: linear-gradient(180deg, rgba(255,255,255,.03), rgba(255,255,255,0)); }
     .brand-icon {
       width: 32px; height: 32px; border-radius: var(--radius-sm);
-      background: #4F46E5;
+      background: #0C0C18;
       display: flex; align-items: center; justify-content: center;
       font-size: 16px; color: white;
+      box-shadow: 0 1px 2px rgba(12,12,22,.12);
     }
-    .brand-text { font-size: 15px; font-weight: 700; color: #F0F0F8; }
-    .brand-sub { font-size: 10px; color: rgba(255,255,255,.3); font-weight: 500; text-transform: uppercase; letter-spacing: .5px; }
+    .brand-text { font-size: 15px; font-weight: 800; color: var(--text); letter-spacing: -.02em; }
+    .brand-sub { font-size: 10px; color: var(--text-3); font-weight: 700; text-transform: uppercase; letter-spacing: .7px; }
     
     .nav { padding: 12px 10px; }
-    .nav-section { font-size: 10px; font-weight: 600; color: rgba(255,255,255,.25); text-transform: uppercase; letter-spacing: .8px; padding: 16px 10px 6px; }
+    .nav-section { font-size: 10px; font-weight: 800; color: var(--text-3); text-transform: uppercase; letter-spacing: .9px; padding: 16px 10px 6px; }
     .nav-item {
       padding: 9px 10px; border-radius: var(--radius-sm); cursor: pointer;
-      font-size: 13px; font-weight: 500; color: rgba(255,255,255,.45);
+      font-size: 13px; font-weight: 600; color: var(--text-2);
       display: flex; align-items: center; gap: 10px; transition: all .15s;
-      margin-bottom: 1px;
+      margin-bottom: 2px; border: 1px solid transparent;
     }
-    .nav-item:hover { background: rgba(255,255,255,.06); color: rgba(255,255,255,.8); }
-    .nav-item.active { background: #4F46E5; color: white; }
-    .nav-item .icon { font-size: 16px; width: 18px; text-align: center; opacity: .8; }
+    .nav-item:hover { background: var(--surface-2); color: var(--text); border-color: var(--border); }
+    .nav-item.active { background: var(--blue); color: white; border-color: var(--blue); box-shadow: 0 8px 18px rgba(79,70,229,.18); }
+    .nav-item .icon { font-size: 16px; width: 18px; text-align: center; opacity: .75; }
     .nav-item.active .icon { opacity: 1; }
     .nav-badge {
-      margin-left: auto; background: rgba(239,68,68,.85); color: white;
-      font-size: 10px; padding: 2px 6px; border-radius: 10px; font-weight: 700;
+      margin-left: auto; background: var(--red); color: white;
+      font-size: 10px; padding: 2px 6px; border-radius: 10px; font-weight: 800;
     }
     .nav-item.active .nav-badge { background: rgba(255,255,255,.25); }
     
-    .sidebar-footer { padding: 16px 12px; margin-top: auto; border-top: 1px solid rgba(255,255,255,.06); }
+    .sidebar-footer { padding: 16px 12px; margin-top: auto; border-top: 1px solid var(--border); }
     .theme-toggle {
       display: flex; align-items: center; justify-content: space-between;
-      padding: 8px 10px; font-size: 12px; color: rgba(255,255,255,.35); cursor: pointer;
+      padding: 8px 10px; font-size: 12px; color: var(--text-2); cursor: pointer;
+      border-radius: var(--radius-sm); transition: background .15s, color .15s;
     }
+    .theme-toggle:hover { background: var(--surface-2); color: var(--text); }
+    .sidebar-signout {
+      padding: 8px 10px; margin-top: 4px; cursor: pointer; font-size: 12px; color: var(--text-3);
+      transition: color .15s, background .15s; border-radius: var(--radius-sm);
+    }
+    .sidebar-signout:hover { color: var(--red); background: var(--red-light); }
     .toggle-switch {
       width: 36px; height: 20px; background: rgba(255,255,255,.12); border-radius: 10px;
       position: relative; transition: background .2s;
@@ -569,7 +580,7 @@
     <!-- Sidebar -->
     <div class="sidebar" id="sidebar">
       <div class="brand">
-        <div class="brand-icon" style="background:#0C0C18;overflow:hidden;padding:2px;">
+        <div class="brand-icon" style="overflow:hidden;padding:2px;">
           <img src="logo.jpg" style="width:100%;height:100%;object-fit:cover;border-radius:6px;" alt="Amplr">
         </div>
         <div>
@@ -597,7 +608,7 @@
           <span>Dark Mode</span>
           <div class="toggle-switch" id="themeToggle"></div>
         </div>
-        <div style="padding:8px 10px;margin-top:4px;cursor:pointer;font-size:12px;color:rgba(255,255,255,.3);transition:color .15s;" onclick="logout()" onmouseover="this.style.color='rgba(239,68,68,.7)'" onmouseout="this.style.color='rgba(255,255,255,.3)'">
+        <div class="sidebar-signout" onclick="logout()">
           Sign Out
         </div>
       </div>
