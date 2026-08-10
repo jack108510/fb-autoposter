@@ -235,8 +235,9 @@ async function checkConn() {
       connected = false;
       bar.className = 'conn-bar disconnected';
       dot.className = 'conn-dot off';
-      label.textContent = hb ? `Extension offline · last seen ${timeAgo(hb)}` : 'Extension offline';
-      label.title = 'Open the Amplr Chrome extension and sign in with this dashboard account.';
+      const staleVersionHint = extVersion ? ` Reload the Amplr Chrome extension; dashboard last heard from${extVersion}.` : '';
+      label.textContent = hb ? `Extension offline · last seen ${timeAgo(hb)}${extVersion}` : 'Extension offline';
+      label.title = `Open/reload the Amplr Chrome extension and sign in with this dashboard account.${staleVersionHint}`;
     }
   } catch (e) {
     connected = false;
