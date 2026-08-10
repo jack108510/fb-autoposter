@@ -19,7 +19,7 @@ try {
 }
 
 let connected = false;
-let cachedData = { posts: [], logs: [], templates: [], groups: [], settings: {} };
+let cachedData = { posts: [], logs: [], templates: [], groups: [], settings: {}, postingIdentities: [] };
 let selDays = [1, 2, 3, 4, 5];
 let groupCount = 0;
 let calDate = new Date();
@@ -147,7 +147,7 @@ function nav(page) {
     case 'templates': loadTemplatesPage(); break;
     case 'groups': loadGroups(); break;
     case 'logs': loadLogs(); break;
-    case 'settings': loadSettings(); break;
+    case 'settings': loadSettings(); refreshIdentitySyncStatus(); break;
   }
 }
 
@@ -222,9 +222,9 @@ async function checkConn() {
       bar.className = 'conn-bar connected';
       dot.className = 'conn-dot on';
       if (activeJob?.status === 'processing') {
-        label.textContent = activeJob.message === '__import_groups__' ? 'Syncing groups...' : 'Posting...';
+        label.textContent = activeJob.message === '__sync_identities__' ? 'Syncing profiles...' : activeJob.message === '__import_groups__' ? 'Syncing groups...' : 'Posting...';
       } else if (activeJob?.status === 'pending') {
-        label.textContent = activeJob.message === '__import_groups__' ? 'Group sync queued' : 'Job queued';
+        label.textContent = activeJob.message === '__sync_identities__' ? 'Profile sync queued' : activeJob.message === '__import_groups__' ? 'Group sync queued' : 'Job queued';
       } else {
         label.textContent = `Connected${extVersion}${lastSeen}`;
       }
@@ -352,7 +352,7 @@ async function pollGroupNames() {
 
 async function fetchAll() {
   try {
-    const [postsRes, templatesRes, groupsRes, settings, logs] = await Promise.all([
+    const [postsRes, templatesRes, groupsRes, settings, logs, postingIdentitiesRes] = await Promise.all([
       sbGet('posts'),
       sbGet('templates'),
       // Groups always come from jsw_groups table (shared with extension)
@@ -362,6 +362,7 @@ async function fetchAll() {
         .order('created_at', { ascending: false }),
       sbGet('settings'),
       sbGet('logs'),
+      sbGet('posting_identities'),
     ]);
     const groups = (groupsRes.data || []).map(r => ({
       url: r.group_url,
@@ -377,6 +378,7 @@ async function fetchAll() {
       templates: templatesRes || [],
       groups,
       settings: settings || {},
+      postingIdentities: Array.isArray(postingIdentitiesRes) ? postingIdentitiesRes : (postingIdentitiesRes?.identities || []),
     };
   } catch (e) {
     return cachedData;
@@ -441,6 +443,144 @@ function jobResultCounts(j) {
   if (j.status === 'done') return { ok: count, fail: 0 };
   if (j.status === 'failed') return { ok: 0, fail: count };
   return { ok: 0, fail: 0 };
+}
+
+function jobResult(j) {
+  if (!j) return {};
+  if (!j.result) return {};
+  if (typeof j.result === 'string') {
+    try { return JSON.parse(j.result); } catch (_) { return { text: j.result }; }
+  }
+  return j.result || {};
+}
+
+function identityKey(identity) {
+  return identity?.id || identity?.url || identity?.name || '';
+}
+
+function renderPostingProfilesList(identities = cachedData.postingIdentities || []) {
+  const el = document.getElementById('postingProfilesList');
+  if (!el) return;
+  if (!identities.length) {
+    el.innerHTML = '<div class="empty" style="padding:22px 16px;text-align:center;"><p style="color:var(--text-3);font-size:13px;">No Facebook profiles synced yet. Click Sync Profiles while the extension is paired and Facebook is logged in.</p></div>';
+    return;
+  }
+  el.innerHTML = identities.map(identity => {
+    const name = esc(identity.name || 'Unnamed profile');
+    const type = esc(identity.type || 'Facebook profile');
+    const active = identity.is_active ? '<span style="font-size:11px;color:var(--green);font-weight:700;margin-left:6px;">active</span>' : '';
+    const avatar = identity.avatar_url
+      ? `<img src="${esc(identity.avatar_url)}" style="width:26px;height:26px;border-radius:50%;object-fit:cover;" alt="">`
+      : '<div style="width:26px;height:26px;border-radius:50%;background:linear-gradient(120deg,#5B6FE8,#F368A8);"></div>';
+    return `<div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border);">
+      ${avatar}
+      <div style="flex:1;min-width:0;">
+        <div style="font-size:13px;font-weight:700;color:var(--text);">${name}${active}</div>
+        <div style="font-size:12px;color:var(--text-3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${type}${identity.url ? ' · ' + esc(identity.url) : ''}</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+async function latestIdentitySyncJob() {
+  const { data } = await sb.from('jsw_post_jobs')
+    .select('id,status,result,error,created_at,started_at,completed_at')
+    .eq('user_id', user.id)
+    .eq('message', '__sync_identities__')
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  return data || null;
+}
+
+function renderIdentitySyncStatus(job = null, identities = cachedData.postingIdentities || []) {
+  const statuses = document.querySelectorAll('.identity-sync-status');
+  const buttons = document.querySelectorAll('.identity-sync-btn');
+  const active = job && ['pending', 'processing'].includes(job.status);
+  buttons.forEach(btn => { btn.disabled = !!active; btn.textContent = active ? 'Syncing...' : 'Sync Profiles'; });
+  let text = identities.length
+    ? `Last loaded: ${identities.length} Facebook profile${identities.length === 1 ? '' : 's'}.`
+    : 'No Facebook profiles synced yet. Press Sync Profiles.';
+  let color = identities.length ? 'var(--green)' : 'var(--text-3)';
+  if (job) {
+    const result = jobResult(job);
+    const rel = timeAgo(job.completed_at || job.started_at || job.created_at);
+    if (active) { text = result.text || (job.status === 'pending' ? 'Queued. Extension will pick it up shortly.' : 'Reading Facebook profile switcher...'); color = 'var(--yellow)'; }
+    else if (job.status === 'done') { const count = result.count ?? identities.length; text = `Last sync found ${count} Facebook profile${count === 1 ? '' : 's'} · ${rel}.`; color = 'var(--green)'; }
+    else if (job.status === 'failed') { text = `Profile sync failed${rel ? ' · ' + rel : ''}: ${result.error || job.error || 'unknown error'}`; color = 'var(--red)'; }
+  }
+  statuses.forEach(el => { el.textContent = text; el.style.color = color; });
+  renderPostingProfilesList(identities);
+}
+
+async function refreshIdentitySyncStatus() {
+  if (!user) return;
+  const identitiesValue = await sbGet('posting_identities');
+  cachedData.postingIdentities = Array.isArray(identitiesValue) ? identitiesValue : (identitiesValue?.identities || []);
+  renderIdentitySyncStatus(await latestIdentitySyncJob(), cachedData.postingIdentities);
+}
+
+async function syncPostingIdentities() {
+  if (!user) return;
+  try {
+    renderIdentitySyncStatus({ status: 'pending', result: { text: 'Queueing profile sync...' } }, cachedData.postingIdentities || []);
+    const { data: existing } = await sb.from('jsw_post_jobs')
+      .select('id,status,result,error,created_at,started_at,completed_at')
+      .eq('user_id', user.id)
+      .eq('message', '__sync_identities__')
+      .in('status', ['pending', 'processing'])
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (existing) {
+      renderIdentitySyncStatus(existing, cachedData.postingIdentities || []);
+      toast('Profile sync already running');
+      return existing;
+    }
+    const { error, data } = await sb.from('jsw_post_jobs').insert({
+      user_id: user.id,
+      message: '__sync_identities__',
+      groups: [],
+      status: 'pending',
+      result: { text: 'Queued profile sync. Extension will open Facebook and read the profile switcher.' },
+      delay: 0,
+      ai_enabled: false,
+      scheduled_for: null
+    }).select('id,status,result,error,created_at,started_at,completed_at').single();
+    if (error) throw new Error(error.message);
+    toast('Profile sync queued');
+    renderIdentitySyncStatus(data, cachedData.postingIdentities || []);
+    pollIdentitySyncJob(data.id);
+    checkConn().catch(() => {});
+    return data;
+  } catch (e) {
+    console.error('[Amplr] syncPostingIdentities error:', e);
+    document.querySelectorAll('.identity-sync-status').forEach(el => { el.textContent = 'Could not queue profile sync: ' + e.message; el.style.color = 'var(--red)'; });
+    document.querySelectorAll('.identity-sync-btn').forEach(btn => { btn.disabled = false; btn.textContent = 'Sync Profiles'; });
+    toast('Could not queue profile sync');
+  }
+}
+
+function pollIdentitySyncJob(jobId) {
+  const started = Date.now();
+  const timer = setInterval(async () => {
+    try {
+      const { data } = await sb.from('jsw_post_jobs').select('id,status,result,error,created_at,started_at,completed_at').eq('id', jobId).maybeSingle();
+      if (!data) return;
+      if (['done', 'failed', 'cancelled'].includes(data.status)) {
+        clearInterval(timer);
+        await refreshIdentitySyncStatus();
+        if (data.status === 'done') toast('Profiles synced');
+        else toast('Profile sync failed');
+      } else {
+        renderIdentitySyncStatus(data, cachedData.postingIdentities || []);
+      }
+      if (Date.now() - started > 180000) clearInterval(timer);
+    } catch (e) {
+      clearInterval(timer);
+      console.warn('[Amplr] identity sync poll failed', e);
+    }
+  }, 2500);
 }
 
 // ═══ DASHBOARD ═══
@@ -901,7 +1041,7 @@ function openTplModal(id) {
   const groups = cachedData.groups || [];
   const container = document.getElementById('tplGroupSelect');
   if (groups.length === 0) {
-    container.innerHTML = '<div style="font-size:13px;color:var(--text-3);">No channels yet — <a href="#" onclick="nav(\'groups\');closeTplModal();return false;" style="color:var(--blue);">sync channels first</a></div>';
+    container.innerHTML = '<div style="font-size:13px;color:var(--text-3);">No groups yet — <a href="#" onclick="nav(\'groups\');closeTplModal();return false;" style="color:var(--blue);">add groups first</a></div>';
   } else {
     container.innerHTML = groups.map((g, i) => {
       const c = GCOLORS[i % GCOLORS.length];
@@ -1250,14 +1390,14 @@ function renderGroupSyncStatus(job, groups = cachedData.groups || [], heartbeat 
   const active = job && ['pending', 'processing'].includes(job.status);
   const stale = isStaleGroupSyncJob(job);
   const online = isHeartbeatFresh(heartbeat);
-  setButtons(active && !stale ? 'Syncing...' : stale ? 'Retry Sync' : 'Sync Channels', active && !stale);
+  setButtons(active && !stale ? 'Syncing...' : stale ? 'Retry Sync' : 'Sync Groups', active && !stale);
 
   if (!job) {
     setStatus(groups.length
-      ? `Last loaded: ${groups.length} channel${groups.length === 1 ? '' : 's'}. Auto-sync runs daily when the extension is online.`
+      ? `Last loaded: ${groups.length} group${groups.length === 1 ? '' : 's'}. Auto-sync runs daily when the extension is online.`
       : online
-        ? 'No channels synced yet. Press Sync Channels to import them.'
-        : 'No channels synced yet. Open/sign into the Chrome extension, then press Sync Channels.', online ? 'var(--text-3)' : 'var(--yellow)');
+        ? 'No groups synced yet. Press Sync Groups to import them.'
+        : 'No groups synced yet. Open/sign into the Chrome extension, then press Sync Groups.', online ? 'var(--text-3)' : 'var(--yellow)');
     return;
   }
 
@@ -1270,15 +1410,15 @@ function renderGroupSyncStatus(job, groups = cachedData.groups || [], heartbeat 
     } else if (!online) {
       setStatus('Queued, but the Chrome extension is offline or signed out. Open Amplr extension and sign in; it will sync automatically.', 'var(--yellow)');
     } else {
-      setStatus(result.text || (job.status === 'pending' ? 'Queued. Extension will pick it up shortly.' : 'Syncing channels in the background...'), 'var(--yellow)');
+      setStatus(result.text || (job.status === 'pending' ? 'Queued. Extension will pick it up shortly.' : 'Syncing groups in the background...'), 'var(--yellow)');
     }
   } else if (job.status === 'done') {
     const count = result.count ?? groups.length;
-    setStatus(`Last sync imported ${count} channel${count === 1 ? '' : 's'}${rel ? ' · ' + rel : ''}.`, 'var(--green)');
+    setStatus(`Last sync imported ${count} group${count === 1 ? '' : 's'}${rel ? ' · ' + rel : ''}.`, 'var(--green)');
   } else if (job.status === 'failed') {
     setStatus(`Last sync failed${rel ? ' · ' + rel : ''}: ${result.error || job.error || 'unknown error'}`, 'var(--red)');
   } else if (job.status === 'cancelled') {
-    setStatus(groups.length ? `Last loaded: ${groups.length} channel${groups.length === 1 ? '' : 's'}.` : 'No active sync request.', 'var(--text-3)');
+    setStatus(groups.length ? `Last loaded: ${groups.length} group${groups.length === 1 ? '' : 's'}.` : 'No active sync request.', 'var(--text-3)');
   } else {
     setStatus(`Last sync status: ${job.status}${rel ? ' · ' + rel : ''}`, 'var(--text-3)');
   }
@@ -1327,7 +1467,7 @@ async function syncFacebookGroups(automatic = false) {
         await cancelStaleGroupSyncJob(existing);
       } else {
         renderGroupSyncStatus(existing, cachedData.groups || [], heartbeat);
-        if (!automatic) toast('Channel sync already running');
+        if (!automatic) toast('Group sync already running');
         return existing;
       }
     }
@@ -1342,7 +1482,7 @@ async function syncFacebookGroups(automatic = false) {
       message: '__import_groups__',
       groups: [],
       status: 'pending',
-      result: { text: online ? 'Queued channel sync. Extension will open Facebook in the background.' : 'Queued channel sync. Open/sign into the Chrome extension to run it.' },
+      result: { text: online ? 'Queued group sync. Extension will open Facebook in the background.' : 'Queued group sync. Open/sign into the Chrome extension to run it.' },
       delay: 0,
       ai_enabled: false,
       scheduled_for: null,
@@ -1352,7 +1492,7 @@ async function syncFacebookGroups(automatic = false) {
     localStorage.setItem(`amplr_last_group_auto_sync_${user.id}`, String(Date.now()));
     renderGroupSyncStatus(data, cachedData.groups || [], heartbeat);
     refreshGroupSyncStatus();
-    toast(automatic ? 'Auto-sync queued' : online ? 'Channel sync queued' : 'Sync queued — open the extension to run it');
+    toast(automatic ? 'Auto-sync queued' : online ? 'Group sync queued' : 'Sync queued — open the extension to run it');
     return data;
   } catch (e) {
     console.error('[Amplr] syncFacebookGroups error:', e);
