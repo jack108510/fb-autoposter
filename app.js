@@ -459,7 +459,7 @@ function jobResult(j) {
 function isValidPostingIdentity(identity) {
   const name = (identity?.name || '').trim();
   if (!name) return false;
-  if (/^(see all profiles?|settings(?: & privacy)?|help(?: & support)?|report a problem|give feedback|meta verified|meta business suite|display & accessibility|privacy|terms|advertising|ad choices|cookies|more|log out)$/i.test(name)) return false;
+  if (/^(quick switch profiles?|see all profiles?|settings(?: & privacy)?|help(?: & support)?|report a problem|give feedback|meta verified|meta business suite|display & accessibility|privacy|terms|advertising|ad choices|cookies|more|active|log out)$/i.test(name)) return false;
   if (/^https?:\/\//i.test(name)) return false;
   const url = identity?.url || '';
   return !/(\/settings|\/help|\/privacy|\/policies|\/business|\/ads|\/ad_|\/groups\/|\/marketplace|\/events)/i.test(url);
