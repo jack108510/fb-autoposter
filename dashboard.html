@@ -924,6 +924,15 @@ Use {Hi|Hey|Hello} to spin unique variations — each group gets a different ver
               <textarea id="createFirstComment" class="cp-url-input" rows="2" placeholder="Add a follow-up comment (link, CTA, etc.) — posts right after your main post"></textarea>
             </div>
 
+            <!-- Posting profile -->
+            <div class="cp-section">
+              <div class="cp-section-hd">
+                <span class="cp-label">Posting Profile <span class="cp-label-count">company identity</span></span>
+              </div>
+              <select id="createIdentitySelect" class="cp-url-input" onchange="setSelectedPostingIdentity(this.value); updateFacebookPreviewIdentity();"></select>
+              <div style="font-size:12px;color:var(--text-3);margin-top:8px;">Amplr switches Facebook to this profile/Page before posting.</div>
+            </div>
+
             <!-- Groups section -->
             <div class="cp-section">
               <div class="cp-section-hd">

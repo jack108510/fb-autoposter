@@ -378,7 +378,7 @@ async function fetchAll() {
       templates: templatesRes || [],
       groups,
       settings: settings || {},
-      postingIdentities: Array.isArray(postingIdentitiesRes) ? postingIdentitiesRes : (postingIdentitiesRes?.identities || []),
+      postingIdentities: sanitizePostingIdentities(Array.isArray(postingIdentitiesRes) ? postingIdentitiesRes : (postingIdentitiesRes?.identities || [])),
     };
   } catch (e) {
     return cachedData;
@@ -387,7 +387,8 @@ async function fetchAll() {
 
 // Create a posting job that the extension picks up
 async function createJob(post) {
-  const groups = (post.groups || []).map(g => typeof g === 'string' ? g : g.url).filter(Boolean);
+  const identityName = post.identityName || post.identity_name || getSelectedPostingIdentity()?.name || null;
+  const groups = (post.groups || []).map(g => typeof g === 'string' ? { url: g, identity_name: identityName } : { ...g, identity_name: g.identity_name || identityName }).filter(g => g && g.url);
   const settings = cachedData.settings || {};
   // Ollama needs no API key — toggle alone is enough
   const aiEnabled = document.getElementById('aiToggle')?.classList.contains('on');
@@ -396,6 +397,7 @@ async function createJob(post) {
     message: post.text,
     image_url: post.imageUrl || null,
     groups: groups,
+    identity_name: identityName,
     delay: settings.delay || 30,
     ai_enabled: !!aiEnabled,
     ai_prompt: settings.ai_prompt || null,
@@ -454,8 +456,80 @@ function jobResult(j) {
   return j.result || {};
 }
 
+function isValidPostingIdentity(identity) {
+  const name = (identity?.name || '').trim();
+  if (!name) return false;
+  if (/^(see all profiles?|settings(?: & privacy)?|help(?: & support)?|report a problem|give feedback|meta verified|meta business suite|display & accessibility|privacy|terms|advertising|ad choices|cookies|more|log out)$/i.test(name)) return false;
+  if (/^https?:\/\//i.test(name)) return false;
+  const url = identity?.url || '';
+  return !/(\/settings|\/help|\/privacy|\/policies|\/business|\/ads|\/ad_|\/groups\/|\/marketplace|\/events)/i.test(url);
+}
+
+function sanitizePostingIdentities(identities) {
+  const seen = new Set();
+  return (Array.isArray(identities) ? identities : [])
+    .filter(isValidPostingIdentity)
+    .filter(identity => {
+      const key = (identity.name || identityKey(identity)).toLowerCase();
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+}
+
 function identityKey(identity) {
   return identity?.id || identity?.url || identity?.name || '';
+}
+
+function getSelectedPostingIdentityKey() {
+  return localStorage.getItem('amplr_selected_posting_identity') || identityKey((cachedData.postingIdentities || [])[0]) || '';
+}
+
+function getSelectedPostingIdentity() {
+  const key = getSelectedPostingIdentityKey();
+  return (cachedData.postingIdentities || []).find(i => identityKey(i) === key) || (cachedData.postingIdentities || [])[0] || null;
+}
+
+function setSelectedPostingIdentity(key) {
+  if (key) localStorage.setItem('amplr_selected_posting_identity', key);
+  renderPostingIdentitySelect();
+}
+
+function renderPostingIdentitySelect() {
+  const select = document.getElementById('createIdentitySelect');
+  if (!select) return;
+  const identities = cachedData.postingIdentities || [];
+  if (!identities.length) {
+    select.innerHTML = '<option value="">No Facebook profiles synced yet</option>';
+    select.disabled = true;
+    updateFacebookPreviewIdentity();
+    return;
+  }
+  select.disabled = false;
+  select.innerHTML = identities.map(identity => `<option value="${esc(identityKey(identity))}">${esc(identity.name || 'Unnamed profile')} — ${esc(identity.type || 'Facebook profile')}</option>`).join('');
+  const key = getSelectedPostingIdentityKey();
+  if (key && [...select.options].some(o => o.value === key)) select.value = key;
+  else select.value = identityKey(identities[0]);
+  updateFacebookPreviewIdentity();
+}
+
+function selectedGroupTargets() {
+  const identity = getSelectedPostingIdentity();
+  const identityName = identity?.name || null;
+  return getSelectedGroups().map(g => ({
+    url: g.url,
+    name: g.name,
+    group_name: g.name,
+    identity_name: identityName
+  }));
+}
+
+function updateFacebookPreviewIdentity() {
+  const identity = getSelectedPostingIdentity();
+  const nameEl = document.querySelector('.cp-fb-name');
+  const avatarEl = document.querySelector('.cp-fb-av');
+  if (nameEl) nameEl.textContent = identity?.name || 'Your Page';
+  if (avatarEl) avatarEl.textContent = (identity?.name || 'A').trim().charAt(0).toUpperCase();
 }
 
 function renderPostingProfilesList(identities = cachedData.postingIdentities || []) {
@@ -463,8 +537,10 @@ function renderPostingProfilesList(identities = cachedData.postingIdentities || 
   if (!el) return;
   if (!identities.length) {
     el.innerHTML = '<div class="empty" style="padding:22px 16px;text-align:center;"><p style="color:var(--text-3);font-size:13px;">No Facebook profiles synced yet. Click Sync Profiles while the extension is paired and Facebook is logged in.</p></div>';
+    renderPostingIdentitySelect();
     return;
   }
+  renderPostingIdentitySelect();
   el.innerHTML = identities.map(identity => {
     const name = esc(identity.name || 'Unnamed profile');
     const type = esc(identity.type || 'Facebook profile');
@@ -516,7 +592,7 @@ function renderIdentitySyncStatus(job = null, identities = cachedData.postingIde
 async function refreshIdentitySyncStatus() {
   if (!user) return;
   const identitiesValue = await sbGet('posting_identities');
-  cachedData.postingIdentities = Array.isArray(identitiesValue) ? identitiesValue : (identitiesValue?.identities || []);
+  cachedData.postingIdentities = sanitizePostingIdentities(Array.isArray(identitiesValue) ? identitiesValue : (identitiesValue?.identities || []));
   renderIdentitySyncStatus(await latestIdentitySyncJob(), cachedData.postingIdentities);
 }
 
@@ -830,11 +906,12 @@ async function savePost() {
   const time = document.getElementById('createTime').value;
   if (!text) return toast('Write something first');
   if (selDays.length === 0) return toast('Pick at least one day');
-  const groups = getSelectedGroups();
+  const groups = selectedGroupTargets();
   if (groups.length === 0) return toast('Select at least one group');
+  const identityName = getSelectedPostingIdentity()?.name || null;
   const imageUrl = document.getElementById('createImageUrl')?.value.trim() || '';
   const post = {
-    id: Date.now().toString(), text, imageUrl, groups,
+    id: Date.now().toString(), text, imageUrl, groups, identityName,
     firstComment: document.getElementById('createFirstComment')?.value.trim() || '',
     schedule: { time, days: [...selDays] }, enabled: true,
     createdAt: new Date().toISOString(),
@@ -851,7 +928,8 @@ async function savePost() {
 
 async function postNow() {
   const text = document.getElementById('createText').value.trim();
-  const groups = getSelectedGroups();
+  const groups = selectedGroupTargets();
+  const identityName = getSelectedPostingIdentity()?.name || null;
   if (!text) return toast('Write something first');
   if (groups.length === 0) return toast('Select at least one group');
   if (groups.length > 3 && !confirm(`Post this now to ${groups.length} groups?`)) return;
@@ -865,7 +943,8 @@ async function postNow() {
       user_id: user.id,
       message: text,
       image_url: imageUrl || null,
-      groups: groups.map(g => g.url),
+      groups: groups,
+      identity_name: identityName,
       delay: cachedData.settings?.delay || 30,
       status: 'pending',
       first_comment: document.getElementById('createFirstComment')?.value.trim() || null,
@@ -898,6 +977,7 @@ async function saveTemplate() {
 async function loadTemplates() {
   cachedData = await fetchAll();
   renderGroupChips();
+  renderPostingIdentitySelect();
   restoreDraft();
   updateNextFire();
   const templates = cachedData.templates || [];
@@ -1152,7 +1232,13 @@ async function scheduleTemplate() {
   const t = (cachedData.templates || []).find(x => x.id === activeTplId);
   if (!t) return;
 
-  const selected = [...document.querySelectorAll('#tplGroupSelect .group-chip.selected')].map(c => c.dataset.url);
+  const identityName = getSelectedPostingIdentity()?.name || null;
+  const selected = [...document.querySelectorAll('#tplGroupSelect .group-chip.selected')].map(c => ({
+    url: c.dataset.url,
+    name: c.dataset.name || '',
+    group_name: c.dataset.name || '',
+    identity_name: identityName
+  }));
   if (selected.length === 0) return toast('Select at least one group');
 
   const days = [...document.querySelectorAll('#tplDayPicker .day-chip.selected')].map(c => parseInt(c.dataset.day));
@@ -1179,6 +1265,7 @@ async function scheduleTemplate() {
       message: t.text,
       image_url: null,
       groups: selected,
+      identity_name: identityName,
       delay: settings.delay || 30,
       ai_enabled: aiEnabled,
       ai_prompt: settings.ai_prompt || null,
