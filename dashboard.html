@@ -528,6 +528,140 @@
     .cp-fb-sub { font-size:10px; color:var(--text-3); display:block; }
     @media (max-width: 900px) { .cp-layout,.cp-content-grid,.cp-delivery-grid { grid-template-columns:1fr; } .cp-stepper { grid-template-columns:1fr 1fr; } .cp-summary { position:static; } .cp-pane { padding:22px; min-height:auto; } }
 
+    /* ─── Spacious product polish pass ───
+       Goal: less crowded, less SaaS-template cheap. More whitespace, calmer color,
+       clearer posting flow, and profile/group separation. */
+    :root {
+      --bg: #F7F7FA;
+      --surface: #FFFFFF;
+      --surface-2: #F6F6FA;
+      --border: #E8E8F0;
+      --text: #11111B;
+      --text-2: #5F6072;
+      --text-3: #9A9BAA;
+      --blue: #3657F6;
+      --blue-dark: #2745D8;
+      --blue-light: #EEF2FF;
+      --shadow: 0 1px 2px rgba(16, 24, 40, .04);
+      --shadow-md: 0 10px 24px rgba(16, 24, 40, .07);
+      --shadow-lg: 0 22px 48px rgba(16, 24, 40, .12);
+      --radius: 18px;
+      --radius-sm: 12px;
+      --radius-xs: 8px;
+    }
+    [data-theme="dark"] {
+      --bg: #0E0F14;
+      --surface: #171820;
+      --surface-2: #111219;
+      --border: #282A35;
+      --text: #F2F3F7;
+      --text-2: #B1B4C3;
+      --text-3: #747889;
+      --blue: #7C8CFF;
+      --blue-dark: #6375F4;
+      --blue-light: #1F2545;
+    }
+    body { background: radial-gradient(circle at top left, rgba(54,87,246,.06), transparent 28%), var(--bg); }
+    .app { background: transparent; }
+    .sidebar { width: 218px; background: rgba(255,255,255,.86); backdrop-filter: blur(18px); box-shadow: none; }
+    [data-theme="dark"] .sidebar { background: rgba(23,24,32,.86); }
+    .main { margin-left: 218px; padding: 46px 56px 64px; max-width: 1420px; }
+    .brand { padding: 26px 22px 22px; background: transparent; }
+    .brand-icon { width: 34px; height: 34px; border-radius: 11px; box-shadow: none; }
+    .brand-text { font-size: 16px; letter-spacing: -.04em; }
+    .brand-sub { letter-spacing: .08em; }
+    .nav { padding: 14px 12px; }
+    .nav-section { padding: 18px 10px 7px; font-size: 9px; letter-spacing: .12em; }
+    .nav-item { padding: 10px 11px; border-radius: 12px; font-weight: 650; color: var(--text-2); }
+    .nav-item.active { background: var(--surface-2); color: var(--text); border-color: var(--border); box-shadow: inset 0 0 0 1px rgba(54,87,246,.08); }
+    .nav-item.active .icon { color: var(--blue); }
+    .nav-badge { background: var(--surface-2); color: var(--text-3); border: 1px solid var(--border); }
+    .nav-item.active .nav-badge { background: var(--blue-light); color: var(--blue); }
+    .sidebar-footer { padding: 18px 14px; }
+    .conn-indicator { top: 18px; right: 24px; padding: 8px 13px; border-radius: 999px; box-shadow: var(--shadow); }
+    .conn-bar { height: 2px; opacity: .7; }
+
+    .page-title { font-size: 28px; letter-spacing: -.045em; margin-bottom: 6px; }
+    .page-subtitle { font-size: 14px; margin-bottom: 34px; max-width: 640px; line-height: 1.65; }
+    .card { padding: 28px; margin-bottom: 22px; border-radius: 20px; box-shadow: var(--shadow); }
+    .card:hover { box-shadow: var(--shadow-md); }
+    .card-header { margin-bottom: 22px; }
+    .card-title { font-size: 16px; letter-spacing: -.02em; }
+    .stats-row { gap: 18px; margin-bottom: 26px; }
+    .stat { padding: 24px; border-radius: 20px; }
+    .stat-icon-box { width: 34px; height: 34px; margin-bottom: 18px; opacity: .9; }
+    .stat-val { font-size: 30px; letter-spacing: -.06em; }
+    .stat-lbl { margin-top: 8px; }
+    .two-col { grid-template-columns: minmax(0,1.5fr) minmax(300px,.9fr); gap: 22px; }
+    .btn { border-radius: 12px; padding: 10px 17px; font-weight: 700; }
+    .btn-primary { box-shadow: 0 10px 22px rgba(54,87,246,.18); }
+    .btn-primary:hover { box-shadow: 0 14px 30px rgba(54,87,246,.22); }
+    .btn-secondary { background: var(--surface); }
+    input[type="text"], input[type="time"], input[type="url"], input[type="number"], input[type="password"], textarea, select {
+      border-radius: 13px; padding: 12px 14px; background: var(--surface-2); font-size: 14px;
+    }
+    label { margin-bottom: 7px; font-weight: 700; color: var(--text-2); }
+    .table th { padding: 12px 16px; }
+    .table td { padding: 16px; }
+    .post-card, .template-card, .log-row { border-radius: 16px; }
+
+    /* Create flow: make it feel like four pages, not one dense form. */
+    .cp-shell { max-width: 1240px; }
+    .cp-hero { margin-bottom: 26px; padding-right: 8px; }
+    .cp-hero .page-title { font-size: 32px; }
+    .cp-stepper { gap: 12px; margin-bottom: 24px; }
+    .cp-step { padding: 16px; border-radius: 18px; background: rgba(255,255,255,.74); }
+    [data-theme="dark"] .cp-step { background: rgba(23,24,32,.74); }
+    .cp-step.active { background: var(--surface); box-shadow: 0 0 0 4px var(--blue-light), var(--shadow); }
+    .cp-step-top { margin-bottom: 8px; }
+    .cp-step-num { width: 28px; height: 28px; }
+    .cp-step-title { font-size: 14px; }
+    .cp-step-sub { font-size: 12px; }
+    .cp-layout { grid-template-columns: minmax(0,1fr) 330px; gap: 24px; }
+    .cp-card { border-radius: 24px; box-shadow: var(--shadow); }
+    .cp-pane { padding: 44px 50px; min-height: 580px; }
+    .cp-pane-kicker { letter-spacing: .12em; margin-bottom: 10px; }
+    .cp-pane-title { font-size: 28px; letter-spacing: -.05em; margin-bottom: 8px; }
+    .cp-pane-copy { font-size: 14px; line-height: 1.7; margin-bottom: 30px; max-width: 720px; }
+    .cp-content-grid { grid-template-columns: minmax(0,1fr) 280px; gap: 22px; }
+    .cp-content-type-grid, .cp-delivery-grid { gap: 14px; }
+    .cp-choice { padding: 18px; border-radius: 18px; background: var(--surface-2); }
+    .cp-choice.active { background: var(--surface); box-shadow: 0 0 0 4px var(--blue-light); }
+    .cp-choice-title { font-size: 14px; }
+    .cp-choice-sub { font-size: 12px; line-height: 1.5; }
+    .cp-textarea { min-height: 330px; border-radius: 20px!important; padding: 22px!important; font-size: 16px; line-height: 1.75; background: var(--surface-2)!important; }
+    .cp-url-input, .cp-time { padding: 14px 15px; border-radius: 15px!important; background: var(--surface-2)!important; }
+    .cp-section { margin-top: 26px; }
+    .cp-profile-list { gap: 14px; }
+    .cp-profile-card { padding: 18px; border-radius: 18px; background: var(--surface-2); }
+    .cp-profile-card.active { background: var(--surface); box-shadow: 0 0 0 4px var(--blue-light); }
+    .cp-groups-toolbar { gap: 12px; margin-bottom: 18px; }
+    .cp-groups-wrap { grid-template-columns: repeat(auto-fill,minmax(250px,1fr)); gap: 12px; max-height: 470px; }
+    .group-chip { padding: 14px!important; border-radius: 16px!important; }
+    .cp-nav { padding: 20px 26px; background: var(--surface-2); }
+    .cp-summary { top: 42px; border-radius: 24px; }
+    .cp-summary-sec { padding: 22px; }
+    .cp-summary-lbl { letter-spacing: .12em; margin-bottom: 10px; }
+    .cp-summary-val { font-size: 14px; }
+    .cp-summary-muted { margin-top: 4px; }
+    .cp-preview-wrap { border-radius: 18px; }
+    .cp-fb-hd { padding: 15px; }
+    #fbPreviewText { padding: 16px; font-size: 14px; line-height: 1.65; }
+
+    /* Management pages: calmer density. */
+    #page-groups .card, #page-settings .card, #page-logs .card, #page-scheduled .card, #page-templates .card { max-width: 1060px; }
+    .group-entry, .log-row { padding-top: 14px; padding-bottom: 14px; }
+    .badge { border-radius: 999px; padding: 4px 11px; }
+
+    @media (max-width: 900px) {
+      .sidebar { width: 232px; }
+      .main { margin-left: 0; padding: 26px 18px 48px; }
+      .cp-pane { padding: 28px 22px; min-height: auto; }
+      .cp-layout, .cp-content-grid, .cp-delivery-grid { grid-template-columns: 1fr; }
+      .cp-stepper { grid-template-columns: 1fr; }
+      .cp-summary { position: static; }
+    }
+
 </style>
 </head>
 <body>
@@ -1225,6 +1359,6 @@ Example: Quick reminder for clinic owners — if your fee schedule is outdated, 
       }
     }, 1200);
   </script>
-  <script src="app.js?v=11"></script>
+  <script src="app.js?v=12"></script>
 </body>
 </html>
