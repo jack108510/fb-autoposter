@@ -2314,8 +2314,9 @@ function restoreDraft() {
 
 function validateCreateStep(step) {
   const text = document.getElementById('createText')?.value.trim() || '';
-  if (step >= 2 && !text) { toast('Write the post content first'); return false; }
-  if (step >= 3 && !getSelectedPostingIdentity()) { toast('Choose a posting profile first'); return false; }
+  const identity = getSelectedPostingIdentity();
+  if (step >= 2 && !identity) { toast('Choose what page/profile is posting first'); return false; }
+  if (step >= 3 && !text) { toast('Write the post content first'); return false; }
   return true;
 }
 
@@ -2332,7 +2333,7 @@ function goCreateStep(step, validate=true) {
   const back = document.getElementById('cpBackBtn');
   const next = document.getElementById('cpNextBtn');
   if (back) back.style.visibility = step === 1 ? 'hidden' : 'visible';
-  if (next) next.textContent = step === 4 ? (createDeliveryMode === 'schedule' ? 'Save schedule' : 'Queue post') : 'Continue';
+  if (next) next.textContent = step === 4 ? (createDeliveryMode === 'schedule' ? 'Save schedule' : 'Queue post') : (step === 1 ? 'Continue to post' : 'Continue');
   updateCreateWizardSummary();
 }
 
@@ -2380,10 +2381,11 @@ function renderCreateProfileCards() {
     const key = esc(identityKey(identity));
     const active = selected && identityKey(selected) === identityKey(identity);
     const avatar = identityAvatarHtml(identity, 'cp-profile-avatar');
-    return `<div class="cp-profile-card ${active ? 'active' : ''}" onclick="setSelectedPostingIdentity('${key}')">
+    return `<div class="cp-profile-card ${active ? 'active' : ''}" data-identity-key="${key}" onclick="setSelectedPostingIdentity(this.dataset.identityKey)">
       ${avatar}
       <div style="font-size:14px;font-weight:800;margin-bottom:3px;">${esc(identity.name || 'Unnamed profile')}</div>
       <div style="font-size:12px;color:var(--text-3);">${esc(identity.type || 'Facebook profile')}${identity.is_active ? ' · active' : ''}</div>
+      <div style="font-size:11px;color:${active ? 'var(--blue)' : 'var(--text-3)'};font-weight:800;margin-top:14px;text-transform:uppercase;letter-spacing:.08em;">${active ? 'Selected to post' : 'Click to select'}</div>
     </div>`;
   }).join('');
 }

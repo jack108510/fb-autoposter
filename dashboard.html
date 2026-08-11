@@ -650,6 +650,11 @@
     .cp-profile-list { gap: 14px; }
     .cp-profile-card { padding: 18px; border-radius: 18px; background: var(--surface-2); }
     .cp-profile-card.active { background: var(--surface); box-shadow: 0 0 0 4px var(--blue-light); }
+
+    .cp-profile-list-first { grid-template-columns:repeat(auto-fill,minmax(230px,1fr)); }
+    .cp-profile-list-first .cp-profile-card { min-height:150px; display:flex; flex-direction:column; justify-content:space-between; }
+    .cp-profile-list-first .cp-profile-avatar { width:58px; height:58px; font-size:18px; margin-bottom:16px; }
+    .cp-profile-fallback-select { margin-top:16px; opacity:.78; }
     .cp-groups-toolbar { gap: 12px; margin-bottom: 18px; }
     .cp-groups-wrap { grid-template-columns: repeat(auto-fill,minmax(250px,1fr)); gap: 12px; max-height: 470px; }
     .group-chip { padding: 14px!important; border-radius: 16px!important; }
@@ -877,22 +882,22 @@
           <div class="cp-hero">
             <div>
               <div class="page-title" style="margin-bottom:2px;">Create Post</div>
-              <div class="page-subtitle" style="margin-bottom:0;">Build the post in steps: content, profile, groups, then delivery.</div>
+              <div class="page-subtitle" style="margin-bottom:0;">Start by choosing the Facebook page/profile, then write the post, pick groups, and deliver.</div>
             </div>
             <button class="btn btn-secondary btn-sm" onclick="saveTemplate()">Save as Template</button>
           </div>
 
           <div class="cp-stepper" id="createStepper">
-            <div class="cp-step active" data-step="1" onclick="goCreateStep(1)"><div class="cp-step-top"><div class="cp-step-num">1</div><div class="cp-step-title">Content</div></div><div class="cp-step-sub">Text, image, first comment</div></div>
-            <div class="cp-step" data-step="2" onclick="goCreateStep(2)"><div class="cp-step-top"><div class="cp-step-num">2</div><div class="cp-step-title">Profile</div></div><div class="cp-step-sub">Choose the Facebook identity</div></div>
-            <div class="cp-step" data-step="3" onclick="goCreateStep(3)"><div class="cp-step-top"><div class="cp-step-num">3</div><div class="cp-step-title">Groups</div></div><div class="cp-step-sub">Pick the group set</div></div>
+            <div class="cp-step active" data-step="1" onclick="goCreateStep(1)"><div class="cp-step-top"><div class="cp-step-num">1</div><div class="cp-step-title">Page</div></div><div class="cp-step-sub">Pick who posts, with profile pics</div></div>
+            <div class="cp-step" data-step="2" onclick="goCreateStep(2)"><div class="cp-step-top"><div class="cp-step-num">2</div><div class="cp-step-title">Post</div></div><div class="cp-step-sub">Text, image, first comment</div></div>
+            <div class="cp-step" data-step="3" onclick="goCreateStep(3)"><div class="cp-step-top"><div class="cp-step-num">3</div><div class="cp-step-title">Groups</div></div><div class="cp-step-sub">Pick where it goes</div></div>
             <div class="cp-step" data-step="4" onclick="goCreateStep(4)"><div class="cp-step-top"><div class="cp-step-num">4</div><div class="cp-step-title">Delivery</div></div><div class="cp-step-sub">Post once or schedule</div></div>
           </div>
 
           <div class="cp-layout">
             <div class="cp-card">
-              <div class="cp-pane active" data-pane="1">
-                <div class="cp-pane-kicker">Step 1</div>
+              <div class="cp-pane" data-pane="2">
+                <div class="cp-pane-kicker">Step 2</div>
                 <div class="cp-pane-title">Write the post once.</div>
                 <div class="cp-pane-copy">Keep the main message clean here. You can still use spintax, and AI paraphrasing can rewrite it per group at delivery.</div>
                 <div class="cp-content-type-grid">
@@ -921,12 +926,12 @@ Example: Quick reminder for clinic owners — if your fee schedule is outdated, 
                 </div>
               </div>
 
-              <div class="cp-pane" data-pane="2">
-                <div class="cp-pane-kicker">Step 2</div>
-                <div class="cp-pane-title">Choose the posting profile.</div>
-                <div class="cp-pane-copy">This controls the Facebook identity the extension switches into before posting. Later we can map each profile to its own saved group sets and content defaults.</div>
-                <select id="createIdentitySelect" class="cp-url-input" onchange="setSelectedPostingIdentity(this.value); updateFacebookPreviewIdentity(); renderCreateProfileCards(); filterGroupsForSelectedIdentity(); updateCreateWizardSummary();"></select>
-                <div id="createProfileCards" class="cp-profile-list" style="margin-top:16px;"></div>
+              <div class="cp-pane active" data-pane="1">
+                <div class="cp-pane-kicker">Step 1</div>
+                <div class="cp-pane-title">Choose what page/profile is posting.</div>
+                <div class="cp-pane-copy">This is the first safety choice. Pick the exact Facebook profile or Page by its picture; Amplr will carry that identity into the job and the extension will verify it before posting.</div>
+                <div id="createProfileCards" class="cp-profile-list cp-profile-list-first"></div>
+                <select id="createIdentitySelect" class="cp-url-input cp-profile-fallback-select" onchange="setSelectedPostingIdentity(this.value); updateFacebookPreviewIdentity(); renderCreateProfileCards(); filterGroupsForSelectedIdentity(); updateCreateWizardSummary();"></select>
                 <div style="font-size:12px;color:var(--text-3);margin-top:14px;">Missing something? Sync profiles from Settings after reloading the extension.</div>
               </div>
 
@@ -1374,6 +1379,6 @@ Example: Quick reminder for clinic owners — if your fee schedule is outdated, 
       }
     }, 1200);
   </script>
-  <script src="app.js?v=15"></script>
+  <script src="app.js?v=16"></script>
 </body>
 </html>
