@@ -1565,35 +1565,63 @@ function renderSubscriptionsTable(posts = [], jobs = []) {
       <div><div class="subscription-title">Subscriptions</div><div class="subscription-subtitle">Recurring schedules inferred from the calendar.</div></div>
       <button class="btn btn-secondary btn-sm" onclick="nav('create')">Add subscription</button>
     </div>
-    <div class="subscription-table-wrap"><table class="table subscription-table">
-      <thead><tr><th>Profile</th><th>Post</th><th>Groups</th><th>Frequency</th><th>Next</th><th>Status</th><th style="text-align:right;">Actions</th></tr></thead>
-      <tbody>${subscriptions.map(post => {
-        const identityName = scheduledEventIdentityName(post);
-        const identity = findPostingIdentityByName(identityName);
-        const groups = scheduledEventGroups(post);
-        const groupCount = groups.length || 0;
-        const isQueued = post.kind === 'job_group';
-        const preview = isQueued && post.previews?.length
-          ? post.previews[0]
-          : (scheduledEventText(post).replace(/\s+/g, ' ').trim() || 'No post text saved');
-        const postMeta = isQueued
-          ? `${post.postCount || post.jobIds?.length || 0} scheduled post${(post.postCount || post.jobIds?.length || 0) === 1 ? '' : 's'}${post.previews?.length > 1 ? ` · ${post.previews.length} versions` : ''}`
-          : (scheduledEventImage(post) ? 'Includes image' : '');
-        const nextLabel = isQueued && post.nextDate ? `${post.nextDate.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })} · ${displayTime(post.schedule?.time || '09:00')}` : (post.enabled ? nextRunLabel(post) : 'Paused');
-        const actions = isQueued
-          ? `<button class="btn btn-secondary btn-sm" onclick="openQueuedJobDetail('${esc(post.id)}')">View</button><button class="btn btn-danger btn-sm" onclick="cancelScheduledJobs('${esc(post.jobIds.join(','))}')">Cancel</button>`
-          : `<button class="btn btn-secondary btn-sm" onclick="editPost('${esc(post.id)}')">Edit</button><button class="btn btn-secondary btn-sm" onclick="togglePost('${esc(post.id)}')">${post.enabled ? 'Pause' : 'Resume'}</button><button class="btn btn-danger btn-sm" onclick="delPost('${esc(post.id)}')">Delete</button>`;
-        return `<tr>
-          <td><div class="subscription-profile">${identityAvatarHtml(identity, '')}<div><div style="font-weight:750;color:var(--text);">${esc(identityName || identity?.name || 'Facebook profile')}</div><div class="subscription-muted">${isQueued ? 'Inferred subscription' : (post.enabled ? 'Active profile' : 'Paused')}</div></div></div></td>
-          <td><div class="subscription-post-preview" title="${esc(preview)}">${esc(preview)}</div>${postMeta ? `<div class="subscription-muted">${esc(postMeta)}</div>` : ''}</td>
-          <td><div style="font-weight:700;color:var(--text);">${groupCount} group${groupCount === 1 ? '' : 's'}</div><div class="subscription-muted">${groups.slice(0, 2).map(groupDisplayName).filter(Boolean).map(esc).join(', ')}${groups.length > 2 ? ` +${groups.length - 2}` : ''}</div></td>
-          <td>${esc(frequencyLabel(post))}</td>
-          <td>${esc(nextLabel)}</td>
-          <td><span class="badge ${post.enabled ? 'badge-green' : 'badge-gray'}">${isQueued ? 'Scheduled' : (post.enabled ? 'Active' : 'Paused')}</span></td>
-          <td><div class="subscription-actions">${actions}</div></td>
-        </tr>`;
-      }).join('')}</tbody>
-    </table></div>
+    <div class="subscription-list">${subscriptions.map(post => {
+      const identityName = scheduledEventIdentityName(post);
+      const identity = findPostingIdentityByName(identityName);
+      const groups = scheduledEventGroups(post);
+      const groupCount = groups.length || 0;
+      const isQueued = post.kind === 'job_group';
+      const preview = isQueued && post.previews?.length
+        ? post.previews[0]
+        : (scheduledEventText(post).replace(/\s+/g, ' ').trim() || 'No post text saved');
+      const postMeta = isQueued
+        ? `${post.postCount || post.jobIds?.length || 0} scheduled post${(post.postCount || post.jobIds?.length || 0) === 1 ? '' : 's'}${post.previews?.length > 1 ? ` · ${post.previews.length} versions` : ''}`
+        : (scheduledEventImage(post) ? 'Includes image' : '');
+      const groupNames = groups.map(groupDisplayName).filter(Boolean);
+      const groupLabel = groupCount
+        ? `${groupCount} group${groupCount === 1 ? '' : 's'}${groupNames.length ? ` · ${groupNames.slice(0, 2).join(', ')}${groupNames.length > 2 ? ` +${groupNames.length - 2}` : ''}` : ''}`
+        : 'No groups selected';
+      const frequency = frequencyLabel(post);
+      const nextLabel = isQueued && post.nextDate ? `${post.nextDate.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })} · ${displayTime(post.schedule?.time || '09:00')}` : (post.enabled ? nextRunLabel(post) : 'Paused');
+      const statusLabel = isQueued ? 'Scheduled' : (post.enabled ? 'Active' : 'Paused');
+      const statusClass = (isQueued || post.enabled) ? 'badge-green' : 'badge-gray';
+      const actions = isQueued
+        ? `<button class="btn btn-secondary btn-sm" onclick="openQueuedJobDetail('${esc(post.id)}')">View</button><button class="btn btn-danger btn-sm" onclick="cancelScheduledJobs('${esc(post.jobIds.join(','))}')">Cancel</button>`
+        : `<button class="btn btn-secondary btn-sm" onclick="editPost('${esc(post.id)}')">Edit</button><button class="btn btn-secondary btn-sm" onclick="togglePost('${esc(post.id)}')">${post.enabled ? 'Pause' : 'Resume'}</button><button class="btn btn-danger btn-sm" onclick="delPost('${esc(post.id)}')">Delete</button>`;
+      return `<div class="subscription-item">
+        <div class="subscription-item-top">
+          <div class="subscription-profile">
+            ${identityAvatarHtml(identity, '')}
+            <div style="min-width:0;">
+              <div class="subscription-profile-name">${esc(identityName || identity?.name || 'Facebook profile')}</div>
+              <div class="subscription-muted">${esc(isQueued ? 'Inferred from calendar' : 'Saved subscription')}</div>
+            </div>
+          </div>
+          <div class="subscription-actions-wrap">
+            <span class="badge ${statusClass}">${esc(statusLabel)}</span>
+            <div class="subscription-actions">${actions}</div>
+          </div>
+        </div>
+        <div style="min-width:0;">
+          <div class="subscription-post-preview" title="${esc(preview)}">${esc(preview)}</div>
+          ${postMeta ? `<div class="subscription-muted">${esc(postMeta)}</div>` : ''}
+        </div>
+        <div class="subscription-meta-row">
+          <div class="subscription-meta-pill">
+            <div class="subscription-meta-label">Groups</div>
+            <div class="subscription-meta-value" title="${esc(groupNames.join(', '))}">${esc(groupLabel)}</div>
+          </div>
+          <div class="subscription-meta-pill">
+            <div class="subscription-meta-label">Frequency</div>
+            <div class="subscription-meta-value" title="${esc(frequency)}">${esc(frequency)}</div>
+          </div>
+          <div class="subscription-meta-pill">
+            <div class="subscription-meta-label">Next</div>
+            <div class="subscription-meta-value" title="${esc(nextLabel)}">${esc(nextLabel)}</div>
+          </div>
+        </div>
+      </div>`;
+    }).join('')}</div>
   </div>`;
 }
 

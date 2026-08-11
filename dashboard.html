@@ -392,14 +392,23 @@
     .subscription-top { display:flex; justify-content:space-between; align-items:center; gap:16px; padding:18px 20px; border-bottom:1px solid var(--border); }
     .subscription-title { font-size:14px; font-weight:800; color:var(--text); }
     .subscription-subtitle { font-size:12px; color:var(--text-3); margin-top:3px; }
-    .subscription-table-wrap { overflow-x:auto; }
-    .subscription-table { min-width:880px; }
-    .subscription-profile { display:flex; align-items:center; gap:10px; min-width:160px; }
-    .subscription-profile .profile-avatar { width:34px; height:34px; flex:0 0 auto; }
-    .subscription-post-preview { max-width:260px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; color:var(--text); font-weight:600; }
-    .subscription-muted { color:var(--text-3); font-size:12px; margin-top:3px; }
-    .subscription-actions { display:flex; gap:6px; justify-content:flex-end; flex-wrap:wrap; }
+    .subscription-list { display:flex; flex-direction:column; gap:12px; padding:14px; }
+    .subscription-item { display:flex; flex-direction:column; gap:13px; padding:16px; border:1px solid var(--border); border-radius:18px; background:linear-gradient(180deg, var(--surface), var(--bg)); }
+    .subscription-item-top { display:flex; align-items:flex-start; justify-content:space-between; gap:14px; }
+    .subscription-profile { display:flex; align-items:center; gap:11px; min-width:0; }
+    .subscription-profile .profile-avatar { width:38px; height:38px; flex:0 0 auto; }
+    .subscription-profile-name { font-size:13px; font-weight:800; color:var(--text); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .subscription-post-preview { max-width:760px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; color:var(--text); font-size:13px; font-weight:700; line-height:1.35; }
+    .subscription-muted { color:var(--text-3); font-size:12px; margin-top:4px; line-height:1.35; }
+    .subscription-meta-row { display:grid; grid-template-columns:minmax(0,1.2fr) minmax(0,.95fr) minmax(0,.95fr); gap:10px; }
+    .subscription-meta-pill { min-width:0; padding:10px 12px; border:1px solid var(--border); border-radius:14px; background:var(--surface); }
+    .subscription-meta-label { color:var(--text-3); font-size:10px; font-weight:800; letter-spacing:.08em; text-transform:uppercase; margin-bottom:3px; }
+    .subscription-meta-value { color:var(--text); font-size:12px; font-weight:700; line-height:1.35; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .subscription-actions-wrap { display:flex; flex-direction:column; align-items:flex-end; gap:8px; flex:0 0 auto; }
+    .subscription-actions { display:flex; gap:8px; justify-content:flex-end; align-items:center; flex-wrap:nowrap; }
+    .subscription-actions .btn { white-space:nowrap; }
     .subscription-empty { padding:34px 20px; text-align:center; color:var(--text-3); }
+    @media (max-width: 980px) { .subscription-item-top { flex-direction:column; } .subscription-actions-wrap { align-items:flex-start; } .subscription-meta-row { grid-template-columns:1fr; } .subscription-post-preview { max-width:100%; } }
 
     /* ─── Toast ─── */
     .toast {
@@ -1422,6 +1431,6 @@ Example: Quick reminder for clinic owners — if your fee schedule is outdated, 
       }
     }, 1200);
   </script>
-  <script src="app.js?v=34"></script>
+  <script src="app.js?v=35"></script>
 </body>
 </html>
