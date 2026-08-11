@@ -1351,11 +1351,17 @@ function nextRunLabel(post, from = new Date()) {
   return 'Not in next 30 days';
 }
 
+function subscriptionPatternKey(item) {
+  const groups = scheduledEventGroups(item).map(g => g.url || g.group_url || groupDisplayName(g)).sort().join('|');
+  const time = normalizeTimeValue(item.schedule?.time || (() => {
+    const when = item.scheduled_for ? new Date(item.scheduled_for) : null;
+    return when ? `${String(when.getHours()).padStart(2, '0')}:${String(when.getMinutes()).padStart(2, '0')}` : '09:00';
+  })());
+  return [scheduledEventIdentityName(item), groups, time].join('||');
+}
+
 function jobGroupKey(job) {
-  const groups = scheduledEventGroups(job).map(g => g.url || g.group_url || groupDisplayName(g)).sort().join('|');
-  const when = job.scheduled_for ? new Date(job.scheduled_for) : null;
-  const time = when ? normalizeTimeValue(`${String(when.getHours()).padStart(2, '0')}:${String(when.getMinutes()).padStart(2, '0')}`) : '09:00';
-  return [scheduledEventIdentityName(job), scheduledEventText(job).replace(/\s+/g, ' ').trim(), scheduledEventImage(job), groups, time].join('||');
+  return subscriptionPatternKey(job);
 }
 
 function simpleHash(value) {
@@ -1375,6 +1381,8 @@ function queuedJobSubscriptionRows(jobs = []) {
         id: `jobs-${simpleHash(key)}`,
         kind: 'job_group',
         jobIds: [],
+        postCount: 0,
+        previews: [],
         text: scheduledEventText(job),
         imageUrl: scheduledEventImage(job),
         identityName: scheduledEventIdentityName(job),
@@ -1389,6 +1397,10 @@ function queuedJobSubscriptionRows(jobs = []) {
     }
     const row = grouped.get(key);
     row.jobIds.push(job.id);
+    row.postCount += 1;
+    const preview = scheduledEventText(job).replace(/\s+/g, ' ').trim();
+    if (preview && !row.previews.includes(preview)) row.previews.push(preview);
+    if (!row.imageUrl && scheduledEventImage(job)) row.imageUrl = scheduledEventImage(job);
     const day = when.getDay();
     if (!row.schedule.days.includes(day)) row.schedule.days.push(day);
     if (when < row.nextDate) row.nextDate = when;
@@ -1400,8 +1412,7 @@ function queuedJobSubscriptionRows(jobs = []) {
 }
 
 function subscriptionRowKey(row) {
-  const groups = scheduledEventGroups(row).map(g => g.url || g.group_url || groupDisplayName(g)).sort().join('|');
-  return [scheduledEventIdentityName(row), scheduledEventText(row).replace(/\s+/g, ' ').trim(), scheduledEventImage(row), groups, normalizeTimeValue(row.schedule?.time || '09:00')].join('||');
+  return subscriptionPatternKey(row);
 }
 
 function mergedSubscriptionRows(posts = [], jobs = []) {
@@ -1446,7 +1457,7 @@ function renderSubscriptionsTable(posts = [], jobs = []) {
 
   return `<div class="subscription-card">
     <div class="subscription-top">
-      <div><div class="subscription-title">Subscriptions</div><div class="subscription-subtitle">Manage recurring posts and queued daily schedules.</div></div>
+      <div><div class="subscription-title">Subscriptions</div><div class="subscription-subtitle">Recurring schedules inferred from the calendar.</div></div>
       <button class="btn btn-secondary btn-sm" onclick="nav('create')">Add subscription</button>
     </div>
     <div class="subscription-table-wrap"><table class="table subscription-table">
@@ -1456,19 +1467,24 @@ function renderSubscriptionsTable(posts = [], jobs = []) {
         const identity = findPostingIdentityByName(identityName);
         const groups = scheduledEventGroups(post);
         const groupCount = groups.length || 0;
-        const preview = scheduledEventText(post).replace(/\s+/g, ' ').trim() || 'No post text saved';
         const isQueued = post.kind === 'job_group';
+        const preview = isQueued && post.previews?.length
+          ? post.previews[0]
+          : (scheduledEventText(post).replace(/\s+/g, ' ').trim() || 'No post text saved');
+        const postMeta = isQueued
+          ? `${post.postCount || post.jobIds?.length || 0} scheduled post${(post.postCount || post.jobIds?.length || 0) === 1 ? '' : 's'}${post.previews?.length > 1 ? ` · ${post.previews.length} versions` : ''}`
+          : (scheduledEventImage(post) ? 'Includes image' : '');
         const nextLabel = isQueued && post.nextDate ? `${post.nextDate.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })} · ${displayTime(post.schedule?.time || '09:00')}` : (post.enabled ? nextRunLabel(post) : 'Paused');
         const actions = isQueued
           ? `<button class="btn btn-secondary btn-sm" onclick="openQueuedJobDetail('${esc(post.id)}')">View</button><button class="btn btn-danger btn-sm" onclick="cancelScheduledJobs('${esc(post.jobIds.join(','))}')">Cancel</button>`
           : `<button class="btn btn-secondary btn-sm" onclick="editPost('${esc(post.id)}')">Edit</button><button class="btn btn-secondary btn-sm" onclick="togglePost('${esc(post.id)}')">${post.enabled ? 'Pause' : 'Resume'}</button><button class="btn btn-danger btn-sm" onclick="delPost('${esc(post.id)}')">Delete</button>`;
         return `<tr>
-          <td><div class="subscription-profile">${identityAvatarHtml(identity, '')}<div><div style="font-weight:750;color:var(--text);">${esc(identityName || identity?.name || 'Facebook profile')}</div><div class="subscription-muted">${isQueued ? 'Queued schedule' : (post.enabled ? 'Active profile' : 'Paused')}</div></div></div></td>
-          <td><div class="subscription-post-preview" title="${esc(preview)}">${esc(preview)}</div>${scheduledEventImage(post) ? '<div class="subscription-muted">Includes image</div>' : ''}</td>
+          <td><div class="subscription-profile">${identityAvatarHtml(identity, '')}<div><div style="font-weight:750;color:var(--text);">${esc(identityName || identity?.name || 'Facebook profile')}</div><div class="subscription-muted">${isQueued ? 'Inferred subscription' : (post.enabled ? 'Active profile' : 'Paused')}</div></div></div></td>
+          <td><div class="subscription-post-preview" title="${esc(preview)}">${esc(preview)}</div>${postMeta ? `<div class="subscription-muted">${esc(postMeta)}</div>` : ''}</td>
           <td><div style="font-weight:700;color:var(--text);">${groupCount} group${groupCount === 1 ? '' : 's'}</div><div class="subscription-muted">${groups.slice(0, 2).map(groupDisplayName).filter(Boolean).map(esc).join(', ')}${groups.length > 2 ? ` +${groups.length - 2}` : ''}</div></td>
           <td>${esc(frequencyLabel(post))}</td>
           <td>${esc(nextLabel)}</td>
-          <td><span class="badge ${post.enabled ? 'badge-green' : 'badge-gray'}">${isQueued ? 'Queued' : (post.enabled ? 'Active' : 'Paused')}</span></td>
+          <td><span class="badge ${post.enabled ? 'badge-green' : 'badge-gray'}">${isQueued ? 'Scheduled' : (post.enabled ? 'Active' : 'Paused')}</span></td>
           <td><div class="subscription-actions">${actions}</div></td>
         </tr>`;
       }).join('')}</tbody>
