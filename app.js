@@ -15,7 +15,7 @@ try {
   window.sb = sb;
 } catch(e) {
   console.error('[Amplr] Supabase client failed', e);
-  showAuthFallback?.('Could not load Supabase auth. Check your connection and try again.');
+  showAuthFallback?.('Could not load sign-in. Check your connection and try again.');
 }
 
 let connected = false;
@@ -63,7 +63,7 @@ async function bootApp() {
   safeStartupStep('calendar header init', renderCalNames);
   safeStartupStep('nav init', setupNav);
 
-  if (!sb?.auth) throw new Error('Auth library did not load. Check your connection and refresh.');
+  if (!sb?.auth) throw new Error('Sign-in did not load. Check your connection and refresh.');
 
   // Check Supabase session. Do this inside a guarded boot path so a failed auth check
   // cannot leave both the login screen and app hidden.
@@ -223,27 +223,27 @@ async function checkConn() {
       bar.className = 'conn-bar connected';
       dot.className = 'conn-dot on';
       if (activeJob?.status === 'processing') {
-        label.textContent = activeJob.message === '__sync_identities__' ? 'Syncing profiles...' : activeJob.message === '__import_groups__' ? 'Syncing groups...' : 'Posting...';
+        label.textContent = activeJob.message === '__sync_identities__' ? 'Updating profiles...' : activeJob.message === '__import_groups__' ? 'Importing groups...' : 'Posting...';
       } else if (activeJob?.status === 'pending') {
-        label.textContent = activeJob.message === '__sync_identities__' ? 'Profile sync queued' : activeJob.message === '__import_groups__' ? 'Group sync queued' : 'Job queued';
+        label.textContent = activeJob.message === '__sync_identities__' ? 'Profile update waiting' : activeJob.message === '__import_groups__' ? 'Group import waiting' : 'Post waiting';
       } else {
         label.textContent = `Connected${extVersion}${lastSeen}`;
       }
-      label.title = `Extension online${extVersion}${hb ? ` · last seen ${new Date(hb).toLocaleString()}` : ''}`;
+      label.title = `Chrome helper connected${extVersion}${hb ? ` · last seen ${new Date(hb).toLocaleString()}` : ''}`;
     } else {
       connected = false;
       bar.className = 'conn-bar disconnected';
       dot.className = 'conn-dot off';
-      const staleVersionHint = extVersion ? ` Reload the Amplr Chrome extension; dashboard last heard from${extVersion}.` : '';
-      label.textContent = hb ? `Extension offline · last seen ${timeAgo(hb)}${extVersion}` : 'Extension offline';
-      label.title = `Open/reload the Amplr Chrome extension and sign in with this dashboard account.${staleVersionHint}`;
+      const staleVersionHint = extVersion ? ` Reopen Amplr in Chrome; dashboard last heard from${extVersion}.` : '';
+      label.textContent = hb ? `Chrome helper offline · last seen ${timeAgo(hb)}${extVersion}` : 'Chrome helper offline';
+      label.title = `Open Amplr in Chrome and sign in with this dashboard account.${staleVersionHint}`;
     }
   } catch (e) {
     connected = false;
     bar.className = 'conn-bar disconnected';
     dot.className = 'conn-dot off';
-    label.textContent = 'Connection check failed';
-    label.title = e.message || 'Could not check extension connection';
+    label.textContent = 'Could not check connection';
+    label.title = 'Open Amplr in Chrome and refresh this page.';
   }
 
   // Keep this lightweight. Heavy page data is loaded by the active page renderer,
@@ -271,7 +271,7 @@ async function pollExtLogs() {
 
     if (!logs || !logs.length) {
       if (!el.querySelector('[data-empty]')) {
-        el.innerHTML = '<div data-empty style="color:var(--text-3);padding:20px;text-align:center;">No activity yet. Extension logs will appear here.</div>';
+        el.innerHTML = '<div data-empty style="color:var(--text-3);padding:20px;text-align:center;">No activity yet. Recent Amplr activity will appear here.</div>';
       }
       return;
     }
@@ -292,8 +292,8 @@ async function pollExtLogs() {
         <span style="color:${color};font-weight:${l.level === 'error' ? '700' : '400'};word-break:break-word;">${esc(l.message)}</span>
       </div>`;
     });
-    if (suppressedPolling) rows.push(`<div style="color:var(--text-3);padding:6px 0;">Collapsed ${suppressedPolling} routine polling heartbeat log${suppressedPolling === 1 ? '' : 's'}.</div>`);
-    el.innerHTML = rows.length ? rows.join('') : '<div style="color:var(--text-3);padding:20px;text-align:center;">Only routine polling heartbeats recently.</div>';
+    if (suppressedPolling) rows.push(`<div style="color:var(--text-3);padding:6px 0;">Hid ${suppressedPolling} routine check-in${suppressedPolling === 1 ? '' : 's'}.</div>`);
+    el.innerHTML = rows.length ? rows.join('') : '<div style="color:var(--text-3);padding:20px;text-align:center;">Only routine check-ins recently.</div>';
 
     // Auto-cleanup old logs (>1 hour)
     await sb.from('jsw_ext_logs')
@@ -307,9 +307,9 @@ async function clearExtLogs() {
   try {
     await sb.from('jsw_ext_logs').delete().eq('user_id', user.id);
     const el = document.getElementById('extLogList');
-    if (el) el.innerHTML = '<div style="color:var(--text-3);padding:20px;text-align:center;">Logs cleared.</div>';
+    if (el) el.innerHTML = '<div style="color:var(--text-3);padding:20px;text-align:center;">Activity cleared.</div>';
   } catch (e) {
-    toast('Could not clear logs');
+    toast('Could not clear activity');
   }
 }
 
@@ -402,7 +402,7 @@ async function createJob(post) {
   const identity = getSelectedPostingIdentity();
   const identityName = post.identityName || post.identity_name || identity?.name || null;
   if (!identityName || !isValidPostingIdentity({ name: identityName })) {
-    throw new Error('Sync and select a Facebook profile before posting');
+    throw new Error('Update and select a Facebook profile before posting');
   }
   const groups = (post.groups || []).map(g => typeof g === 'string' ? { url: g, identity_name: identityName } : { ...g, identity_name: g.identity_name || identityName }).filter(g => g && g.url);
   const settings = cachedData.settings || {};
@@ -640,7 +640,7 @@ function renderPostingIdentitySelect() {
   if (!select) return;
   const identities = cachedData.postingIdentities || [];
   if (!identities.length) {
-    select.innerHTML = '<option value="">No Facebook profiles synced yet</option>';
+    select.innerHTML = '<option value="">No Facebook profiles added yet</option>';
     select.disabled = true;
     updateFacebookPreviewIdentity();
     return;
@@ -678,7 +678,7 @@ function renderPostingProfilesList(identities = cachedData.postingIdentities || 
   const el = document.getElementById('postingProfilesList');
   if (!el) return;
   if (!identities.length) {
-    el.innerHTML = '<div class="empty" style="padding:22px 16px;text-align:center;"><p style="color:var(--text-3);font-size:13px;">No Facebook profiles synced yet. Click Sync Profiles while the extension is paired and Facebook is logged in.</p></div>';
+    el.innerHTML = '<div class="empty" style="padding:22px 16px;text-align:center;"><p style="color:var(--text-3);font-size:13px;">No Facebook profiles added yet. Open Amplr in Chrome, sign in to Facebook, then click Update profiles.</p></div>';
     renderPostingIdentitySelect();
     return;
   }
@@ -713,18 +713,18 @@ function renderIdentitySyncStatus(job = null, identities = cachedData.postingIde
   const statuses = document.querySelectorAll('.identity-sync-status');
   const buttons = document.querySelectorAll('.identity-sync-btn');
   const active = job && ['pending', 'processing'].includes(job.status);
-  buttons.forEach(btn => { btn.disabled = !!active; btn.textContent = active ? 'Syncing...' : 'Sync Profiles'; });
+  buttons.forEach(btn => { btn.disabled = !!active; btn.textContent = active ? 'Updating...' : 'Update profiles'; });
   const avatarCount = identities.filter(identityHasAvatar).length;
   let text = identities.length
     ? `Last loaded: ${identities.length} Facebook profile${identities.length === 1 ? '' : 's'} · ${avatarCount} photo${avatarCount === 1 ? '' : 's'}.`
-    : 'No Facebook profiles synced yet. Press Sync Profiles.';
+    : 'No Facebook profiles added yet. Press Update profiles.';
   let color = identities.length ? 'var(--green)' : 'var(--text-3)';
   if (job) {
     const result = jobResult(job);
     const rel = timeAgo(job.completed_at || job.started_at || job.created_at);
-    if (active) { text = result.text || (job.status === 'pending' ? 'Queued. Extension will pick it up shortly.' : 'Reading Facebook profile switcher...'); color = 'var(--yellow)'; }
-    else if (job.status === 'done') { const count = result.count ?? identities.length; const photos = result.avatar_count ?? avatarCount; text = `Last sync found ${count} Facebook profile${count === 1 ? '' : 's'} · ${photos} photo${photos === 1 ? '' : 's'} · ${rel}.`; color = 'var(--green)'; }
-    else if (job.status === 'failed') { text = `Profile sync failed${rel ? ' · ' + rel : ''}: ${result.error || job.error || 'unknown error'}`; color = 'var(--red)'; }
+    if (active) { text = result.text || (job.status === 'pending' ? 'Waiting. Open Amplr in Chrome to continue.' : 'Reading your Facebook profiles...'); color = 'var(--yellow)'; }
+    else if (job.status === 'done') { const count = result.count ?? identities.length; const photos = result.avatar_count ?? avatarCount; text = `Last update found ${count} Facebook profile${count === 1 ? '' : 's'} · ${photos} photo${photos === 1 ? '' : 's'} · ${rel}.`; color = 'var(--green)'; }
+    else if (job.status === 'failed') { text = `Profile update failed${rel ? ' · ' + rel : ''}: ${result.error || job.error || 'unknown error'}`; color = 'var(--red)'; }
   }
   statuses.forEach(el => { el.textContent = text; el.style.color = color; });
   renderPostingProfilesList(identities);
@@ -740,7 +740,7 @@ async function refreshIdentitySyncStatus() {
 async function syncPostingIdentities() {
   if (!user) return;
   try {
-    renderIdentitySyncStatus({ status: 'pending', result: { text: 'Queueing profile sync...' } }, cachedData.postingIdentities || []);
+    renderIdentitySyncStatus({ status: 'pending', result: { text: 'Starting profile update...' } }, cachedData.postingIdentities || []);
     const { data: existing } = await sb.from('jsw_post_jobs')
       .select('id,status,result,error,created_at,started_at,completed_at')
       .eq('user_id', user.id)
@@ -751,7 +751,7 @@ async function syncPostingIdentities() {
       .maybeSingle();
     if (existing) {
       renderIdentitySyncStatus(existing, cachedData.postingIdentities || []);
-      toast('Profile sync already running');
+      toast('Profile update already running');
       return existing;
     }
     const { error, data } = await sb.from('jsw_post_jobs').insert({
@@ -759,22 +759,22 @@ async function syncPostingIdentities() {
       message: '__sync_identities__',
       groups: [],
       status: 'pending',
-      result: { text: 'Queued profile sync. Extension will open Facebook and read the profile switcher.' },
+      result: { text: 'Profile update waiting. Open Amplr in Chrome to continue.' },
       delay: 0,
       ai_enabled: false,
       scheduled_for: null
     }).select('id,status,result,error,created_at,started_at,completed_at').single();
     if (error) throw new Error(error.message);
-    toast('Profile sync queued');
+    toast('Profile update waiting');
     renderIdentitySyncStatus(data, cachedData.postingIdentities || []);
     pollIdentitySyncJob(data.id);
     checkConn().catch(() => {});
     return data;
   } catch (e) {
-    console.error('[Amplr] syncPostingIdentities error:', e);
-    document.querySelectorAll('.identity-sync-status').forEach(el => { el.textContent = 'Could not queue profile sync: ' + e.message; el.style.color = 'var(--red)'; });
-    document.querySelectorAll('.identity-sync-btn').forEach(btn => { btn.disabled = false; btn.textContent = 'Sync Profiles'; });
-    toast('Could not queue profile sync');
+    console.error('[Amplr] profile update error:', e);
+    document.querySelectorAll('.identity-sync-status').forEach(el => { el.textContent = 'Could not start profile update: ' + e.message; el.style.color = 'var(--red)'; });
+    document.querySelectorAll('.identity-sync-btn').forEach(btn => { btn.disabled = false; btn.textContent = 'Update profiles'; });
+    toast('Could not start profile update');
   }
 }
 
@@ -787,8 +787,8 @@ function pollIdentitySyncJob(jobId) {
       if (['done', 'failed', 'cancelled'].includes(data.status)) {
         clearInterval(timer);
         await refreshIdentitySyncStatus();
-        if (data.status === 'done') toast('Profiles synced');
-        else toast('Profile sync failed');
+        if (data.status === 'done') toast('Profiles updated');
+        else toast('Profile update failed');
       } else {
         renderIdentitySyncStatus(data, cachedData.postingIdentities || []);
       }
@@ -1058,7 +1058,7 @@ async function savePost() {
   const groups = selectedGroupTargets();
   if (groups.length === 0) return toast('Select at least one group');
   const identity = getSelectedPostingIdentity();
-  if (!identity?.name) return toast('Sync and select a Facebook profile before posting');
+  if (!identity?.name) return toast('Update and select a Facebook profile before posting');
   const identityName = identity.name;
   const imageUrl = document.getElementById('createImageUrl')?.value.trim() || '';
   const maxRuns = parsePositiveInt(document.getElementById('scheduleMaxRuns')?.value);
@@ -1086,7 +1086,7 @@ async function postNow() {
   const groups = selectedGroupTargets();
   const identity = getSelectedPostingIdentity();
   if (!text) return toast('Write something first');
-  if (!identity?.name) return toast('Sync and select a Facebook profile before posting');
+  if (!identity?.name) return toast('Update and select a Facebook profile before posting');
   const identityName = identity.name;
   if (groups.length === 0) return toast('Select at least one group');
   if (groups.length > 3 && !confirm(`Post this now to ${groups.length} groups?`)) return;
@@ -1110,7 +1110,7 @@ async function postNow() {
     if (error) throw new Error(error.message);
 
     if (waiting) waiting.style.display = 'none';
-    toast('Sent — extension will post it');
+    toast('Sent — Amplr will post it');
     clearCreateForm();
   } catch (e) {
     if (waiting) waiting.style.display = 'none';
@@ -1271,8 +1271,8 @@ async function loadScheduled() {
     </div>`;
   }).join('');
 
-  el.innerHTML = (scheduledJobs?.length ? `<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--text-3);padding:0 0 10px;">Scheduled Jobs</div>${jobsHtml}` : '') +
-    (legacyPosts.length ? `${scheduledJobs?.length ? '<div style="height:16px;"></div>' : ''}<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--text-3);padding:0 0 10px;">Recurring Posts</div>${legacyHtml}` : '');
+  el.innerHTML = (scheduledJobs?.length ? `<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--text-3);padding:0 0 10px;">Scheduled posts</div>${jobsHtml}` : '') +
+    (legacyPosts.length ? `${scheduledJobs?.length ? '<div style="height:16px;"></div>' : ''}<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--text-3);padding:0 0 10px;">Recurring posts</div>${legacyHtml}` : '');
 }
 
 async function cancelScheduledJob(id) {
@@ -1286,7 +1286,7 @@ async function cancelScheduledJob(id) {
 async function firePost(id) {
   const p = (cachedData.posts || []).find(x => x.id === id);
   if (!p) return;
-  try { await createJob(p); toast('Post job sent — extension will execute'); }
+  try { await createJob(p); toast('Post sent — Amplr will handle it'); }
   catch (e) { toast(e.message); }
 }
 
@@ -1376,8 +1376,8 @@ async function cancelStaleGroupSyncJob(job) {
   const { error } = await sb.from('jsw_post_jobs')
     .update({
       status: 'cancelled',
-      error: 'Stale group sync replaced by a new request',
-      result: { ...(job.result || {}), stale_cancelled: true, text: 'Stale sync request cancelled.' },
+      error: 'Old group import replaced by a new request',
+      result: { ...(job.result || {}), stale_cancelled: true, text: 'Old import request cancelled.' },
       completed_at: new Date().toISOString()
     })
     .eq('id', job.id)
@@ -1403,14 +1403,14 @@ function renderGroupSyncStatus(job, groups = cachedData.groups || [], heartbeat 
   const active = job && ['pending', 'processing'].includes(job.status);
   const stale = isStaleGroupSyncJob(job);
   const online = isHeartbeatFresh(heartbeat);
-  setButtons(active && !stale ? 'Syncing...' : stale ? 'Retry Sync' : 'Sync Groups', active && !stale);
+  setButtons(active && !stale ? 'Importing...' : stale ? 'Try again' : 'Import groups', active && !stale);
 
   if (!job) {
     setStatus(groups.length
-      ? `Last loaded: ${groups.length} group${groups.length === 1 ? '' : 's'}. Auto-sync runs daily when the extension is online.`
+      ? `Last loaded: ${groups.length} group${groups.length === 1 ? '' : 's'}. Amplr refreshes this daily when Chrome is open.`
       : online
-        ? 'No groups synced yet. Press Sync Groups to import them.'
-        : 'No groups synced yet. Open/sign into the Chrome extension, then press Sync Groups.', online ? 'var(--text-3)' : 'var(--yellow)');
+        ? 'No groups added yet. Press Import groups.'
+        : 'No groups added yet. Open Amplr in Chrome, sign in, then press Import groups.', online ? 'var(--text-3)' : 'var(--yellow)');
     return;
   }
 
@@ -1419,19 +1419,19 @@ function renderGroupSyncStatus(job, groups = cachedData.groups || [], heartbeat 
   const result = job.result || {};
   if (active) {
     if (stale) {
-      setStatus(`Previous sync is stale${rel ? ' · ' + rel : ''}. Press Retry Sync to replace it. ${online ? '' : 'The extension currently looks offline.'}`.trim(), 'var(--yellow)');
+      setStatus(`Previous import is old${rel ? ' · ' + rel : ''}. Press Try again to replace it. ${online ? '' : 'Amplr in Chrome currently looks offline.'}`.trim(), 'var(--yellow)');
     } else if (!online) {
-      setStatus('Queued, but the Chrome extension is offline or signed out. Open Amplr extension and sign in; it will sync automatically.', 'var(--yellow)');
+      setStatus('Waiting. Open Amplr in Chrome and sign in; your groups will import automatically.', 'var(--yellow)');
     } else {
-      setStatus(result.text || (job.status === 'pending' ? 'Queued. Extension will pick it up shortly.' : 'Syncing groups in the background...'), 'var(--yellow)');
+      setStatus(result.text || (job.status === 'pending' ? 'Waiting. Open Amplr in Chrome to continue.' : 'Importing groups...'), 'var(--yellow)');
     }
   } else if (job.status === 'done') {
     const count = result.count ?? groups.length;
     setStatus(`Last sync imported ${count} group${count === 1 ? '' : 's'}${rel ? ' · ' + rel : ''}.`, 'var(--green)');
   } else if (job.status === 'failed') {
-    setStatus(`Last sync failed${rel ? ' · ' + rel : ''}: ${result.error || job.error || 'unknown error'}`, 'var(--red)');
+    setStatus(`Last import failed${rel ? ' · ' + rel : ''}: ${result.error || job.error || 'unknown error'}`, 'var(--red)');
   } else if (job.status === 'cancelled') {
-    setStatus(groups.length ? `Last loaded: ${groups.length} group${groups.length === 1 ? '' : 's'}.` : 'No active sync request.', 'var(--text-3)');
+    setStatus(groups.length ? `Last loaded: ${groups.length} group${groups.length === 1 ? '' : 's'}.` : 'No active import request.', 'var(--text-3)');
   } else {
     setStatus(`Last sync status: ${job.status}${rel ? ' · ' + rel : ''}`, 'var(--text-3)');
   }
@@ -1462,7 +1462,7 @@ async function refreshGroupSyncStatus() {
   } catch (e) {
     const statusEls = [...document.querySelectorAll('.group-sync-status')];
     statusEls.forEach(el => {
-      el.textContent = 'Could not read sync status: ' + e.message;
+      el.textContent = 'Could not check import status: ' + e.message;
       el.style.color = 'var(--red)';
     });
     return null;
@@ -1480,7 +1480,7 @@ async function syncFacebookGroups(automatic = false) {
         await cancelStaleGroupSyncJob(existing);
       } else {
         renderGroupSyncStatus(existing, cachedData.groups || [], heartbeat);
-        if (!automatic) toast('Group sync already running');
+        if (!automatic) toast('Group import already running');
         return existing;
       }
     }
@@ -1495,7 +1495,7 @@ async function syncFacebookGroups(automatic = false) {
       message: '__import_groups__',
       groups: [],
       status: 'pending',
-      result: { text: online ? 'Queued group sync. Extension will open Facebook in the background.' : 'Queued group sync. Open/sign into the Chrome extension to run it.' },
+      result: { text: online ? 'Group import waiting. Amplr will open Facebook to collect your groups.' : 'Group import waiting. Open Amplr in Chrome and sign in to continue.' },
       delay: 0,
       ai_enabled: false,
       scheduled_for: null,
@@ -1505,14 +1505,14 @@ async function syncFacebookGroups(automatic = false) {
     localStorage.setItem(`amplr_last_group_auto_sync_${user.id}`, String(Date.now()));
     renderGroupSyncStatus(data, cachedData.groups || [], heartbeat);
     refreshGroupSyncStatus();
-    toast(automatic ? 'Auto-sync queued' : online ? 'Group sync queued' : 'Sync queued — open the extension to run it');
+    toast(automatic ? 'Auto-import waiting' : online ? 'Group import waiting' : 'Import waiting — open Amplr in Chrome to continue');
     return data;
   } catch (e) {
     console.error('[Amplr] syncFacebookGroups error:', e);
-    if (!automatic) toast('Sync error: ' + e.message);
+    if (!automatic) toast('Import error: ' + e.message);
     const statusEls = [...document.querySelectorAll('.group-sync-status')];
     statusEls.forEach(el => {
-      el.textContent = 'Sync error: ' + e.message;
+      el.textContent = 'Import error: ' + e.message;
       el.style.color = 'var(--red)';
     });
     return null;
@@ -1858,7 +1858,7 @@ async function clearLogs() {
     cachedData.logs = [];
     await sbSet('logs', []);
     loadLogs();
-    toast('Logs cleared');
+    toast('Activity cleared');
   } catch (e) {
     toast('Error: ' + e.message);
   }
@@ -1866,9 +1866,9 @@ async function clearLogs() {
 
 async function exportLogs() {
   const logs = cachedData.logs || [];
-  if (logs.length === 0) return toast('No logs to export');
+  if (logs.length === 0) return toast('No activity to export');
 
-  // Also include Supabase job history
+  // Also include recent post history
   const { data: jobs } = await sb.from('jsw_post_jobs').select('*').eq('user_id', user.id).order('created_at', { ascending: false }).limit(50);
   const rows = [['Timestamp', 'Preview', 'Group', 'Success', 'Error']];
   logs.forEach(l => {
@@ -2174,7 +2174,7 @@ function renderCreateProfileCards() {
   const identities = cachedData.postingIdentities || [];
   const selected = getSelectedPostingIdentity();
   if (!identities.length) {
-    el.innerHTML = '<div class="cp-empty-groups" style="grid-column:1/-1;">No Facebook profiles synced yet.</div>';
+    el.innerHTML = '<div class="cp-empty-groups" style="grid-column:1/-1;">No Facebook profiles added yet.</div>';
     return;
   }
   el.innerHTML = identities.map(identity => {
