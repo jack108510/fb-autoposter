@@ -490,7 +490,11 @@
     .cp-profile-card { border:1px solid var(--border); border-radius:16px; padding:16px; background:var(--surface); cursor:pointer; transition:.15s; }
     .cp-profile-card:hover { border-color:rgba(79,70,229,.35); transform:translateY(-1px); }
     .cp-profile-card.active { border-color:var(--blue); box-shadow:0 0 0 3px var(--blue-light); }
-    .cp-profile-avatar { width:38px; height:38px; border-radius:50%; background:linear-gradient(135deg,#5B6FE8,#F368A8); color:white; display:flex; align-items:center; justify-content:center; font-size:14px; font-weight:900; margin-bottom:12px; overflow:hidden; }
+    .profile-avatar { width:42px; height:42px; border-radius:50%; background:linear-gradient(135deg,#5B6FE8,#F368A8); color:white; display:flex; align-items:center; justify-content:center; font-size:14px; font-weight:900; overflow:hidden; flex-shrink:0; box-shadow:inset 0 0 0 1px rgba(255,255,255,.18), 0 8px 18px rgba(79,70,229,.14); letter-spacing:.02em; }
+    .profile-avatar img { width:100%; height:100%; object-fit:cover; display:block; }
+    .profile-avatar.avatar-fallback { background:linear-gradient(135deg,#4F46E5,#14B8A6); }
+    .profile-avatar-sm { width:30px; height:30px; font-size:11px; box-shadow:none; }
+    .cp-profile-avatar { width:44px; height:44px; font-size:15px; margin-bottom:12px; }
     .cp-groups-toolbar { display:flex; gap:10px; align-items:center; margin-bottom:14px; }
     .cp-groups-toolbar input { flex:1; }
     .cp-actions-row { display:flex; gap:6px; align-items:center; }
@@ -523,7 +527,7 @@
     .cp-next-fire { margin-top:8px; padding:9px 11px; border-radius:10px; background:var(--blue-light); color:var(--blue); font-size:12px; font-weight:700; }
     .cp-preview-wrap { border-radius:12px; overflow:hidden; background:var(--surface-2); border:1px solid var(--border); }
     .cp-fb-hd { padding:12px 13px; display:flex; align-items:center; gap:9px; border-bottom:1px solid var(--border); }
-    .cp-fb-av { width:34px; height:34px; border-radius:50%; background:linear-gradient(135deg,#5B6FE8,#F368A8); flex-shrink:0; display:flex; align-items:center; justify-content:center; color:white; font-weight:900; font-size:12px; }
+    .cp-fb-av { width:34px; height:34px; font-size:12px; box-shadow:none; }
     .cp-fb-name { font-weight:800; font-size:12px; display:block; color:var(--text); }
     .cp-fb-sub { font-size:10px; color:var(--text-3); display:block; }
     @media (max-width: 900px) { .cp-layout,.cp-content-grid,.cp-delivery-grid { grid-template-columns:1fr; } .cp-stepper { grid-template-columns:1fr 1fr; } .cp-summary { position:static; } .cp-pane { padding:22px; min-height:auto; } }
@@ -1367,6 +1371,6 @@ Example: Quick reminder for clinic owners — if your fee schedule is outdated, 
       }
     }, 1200);
   </script>
-  <script src="app.js?v=12"></script>
+  <script src="app.js?v=13"></script>
 </body>
 </html>

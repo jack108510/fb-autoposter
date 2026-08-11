@@ -472,6 +472,10 @@ function sanitizePostingIdentities(identities) {
   const seen = new Set();
   return (Array.isArray(identities) ? identities : [])
     .filter(isValidPostingIdentity)
+    .map(identity => {
+      const avatar_url = identity.avatar_url || identity.picture_url || identity.profile_picture_url || identity.photo_url || identity.image_url || identity.thumbnail_url || null;
+      return { ...identity, avatar_url };
+    })
     .filter(identity => {
       const key = (identity.name || identityKey(identity)).toLowerCase();
       if (seen.has(key)) return false;
@@ -482,6 +486,84 @@ function sanitizePostingIdentities(identities) {
 
 function identityKey(identity) {
   return identity?.id || identity?.url || identity?.name || '';
+}
+
+function identityInitials(name='') {
+  const parts = String(name || '').trim().split(/\s+/).filter(Boolean);
+  return (parts.length ? parts.slice(0, 2).map(p => p[0]).join('') : 'A').toUpperCase();
+}
+
+function inferredFacebookPictureUrls(identity={}) {
+  const urls = [];
+  const rawUrl = identity.url || '';
+  const addGraph = id => {
+    if (id && /^\d{5,}$/.test(String(id))) urls.push(`https://graph.facebook.com/${encodeURIComponent(id)}/picture?type=large`);
+  };
+  try {
+    const parsed = new URL(rawUrl, 'https://www.facebook.com');
+    addGraph(parsed.searchParams.get('id'));
+    const vanity = parsed.pathname.replace(/^\/+|\/+$/g, '');
+    if (vanity && !/^(pages|groups|profile.php|people|help|settings)$/i.test(vanity)) {
+      urls.push(`https://graph.facebook.com/${encodeURIComponent(vanity)}/picture?type=large`);
+    }
+  } catch (_) {}
+  addGraph(identity.facebook_id || identity.page_id || identity.profile_id);
+  return urls;
+}
+
+function identityAvatarCandidates(identity={}) {
+  const candidates = [
+    identity.avatar_url,
+    identity.picture_url,
+    identity.profile_picture_url,
+    identity.photo_url,
+    identity.image_url,
+    identity.thumbnail_url,
+    ...(Array.isArray(identity.avatar_urls) ? identity.avatar_urls : []),
+    ...inferredFacebookPictureUrls(identity)
+  ];
+  const seen = new Set();
+  return candidates
+    .map(v => String(v || '').trim())
+    .filter(Boolean)
+    .filter(v => /^(https?:|data:image\/)/i.test(v))
+    .filter(v => {
+      if (seen.has(v)) return false;
+      seen.add(v);
+      return true;
+    });
+}
+
+function avatarImgOnError(img, initials) {
+  try {
+    const queue = JSON.parse(img.dataset.fallbacks || '[]');
+    const next = queue.shift();
+    if (next) {
+      img.dataset.fallbacks = JSON.stringify(queue);
+      img.src = next;
+      return;
+    }
+  } catch (_) {}
+  const parent = img.parentElement;
+  if (parent) {
+    parent.classList.add('avatar-fallback');
+    parent.textContent = initials || 'A';
+  }
+}
+
+function identityAvatarHtml(identity={}, className='') {
+  const name = identity.name || 'Facebook profile';
+  const initials = esc(identityInitials(name));
+  const urls = identityAvatarCandidates(identity);
+  const first = urls[0];
+  const rest = esc(JSON.stringify(urls.slice(1)));
+  const cls = `profile-avatar ${className}`.trim();
+  if (!first) return `<div class="${cls} avatar-fallback">${initials}</div>`;
+  return `<div class="${cls}"><img src="${esc(first)}" alt="${esc(name)}" referrerpolicy="no-referrer" loading="lazy" data-fallbacks='${rest}' onerror="avatarImgOnError(this,'${initials}')"></div>`;
+}
+
+function identityHasAvatar(identity={}) {
+  return identityAvatarCandidates(identity).length > 0;
 }
 
 function getSelectedPostingIdentityKey() {
@@ -537,7 +619,7 @@ function updateFacebookPreviewIdentity() {
   const nameEl = document.querySelector('.cp-fb-name');
   const avatarEl = document.querySelector('.cp-fb-av');
   if (nameEl) nameEl.textContent = identity?.name || 'Your Page';
-  if (avatarEl) avatarEl.textContent = (identity?.name || 'A').trim().charAt(0).toUpperCase();
+  if (avatarEl) avatarEl.outerHTML = identityAvatarHtml(identity || { name: 'Your Page' }, 'cp-fb-av');
 }
 
 function renderPostingProfilesList(identities = cachedData.postingIdentities || []) {
@@ -553,9 +635,7 @@ function renderPostingProfilesList(identities = cachedData.postingIdentities || 
     const name = esc(identity.name || 'Unnamed profile');
     const type = esc(identity.type || 'Facebook profile');
     const active = identity.is_active ? '<span style="font-size:11px;color:var(--green);font-weight:700;margin-left:6px;">active</span>' : '';
-    const avatar = identity.avatar_url
-      ? `<img src="${esc(identity.avatar_url)}" style="width:26px;height:26px;border-radius:50%;object-fit:cover;" alt="">`
-      : '<div style="width:26px;height:26px;border-radius:50%;background:linear-gradient(120deg,#5B6FE8,#F368A8);"></div>';
+    const avatar = identityAvatarHtml(identity, 'profile-avatar-sm');
     return `<div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border);">
       ${avatar}
       <div style="flex:1;min-width:0;">
@@ -582,15 +662,16 @@ function renderIdentitySyncStatus(job = null, identities = cachedData.postingIde
   const buttons = document.querySelectorAll('.identity-sync-btn');
   const active = job && ['pending', 'processing'].includes(job.status);
   buttons.forEach(btn => { btn.disabled = !!active; btn.textContent = active ? 'Syncing...' : 'Sync Profiles'; });
+  const avatarCount = identities.filter(identityHasAvatar).length;
   let text = identities.length
-    ? `Last loaded: ${identities.length} Facebook profile${identities.length === 1 ? '' : 's'}.`
+    ? `Last loaded: ${identities.length} Facebook profile${identities.length === 1 ? '' : 's'} · ${avatarCount} photo${avatarCount === 1 ? '' : 's'}.`
     : 'No Facebook profiles synced yet. Press Sync Profiles.';
   let color = identities.length ? 'var(--green)' : 'var(--text-3)';
   if (job) {
     const result = jobResult(job);
     const rel = timeAgo(job.completed_at || job.started_at || job.created_at);
     if (active) { text = result.text || (job.status === 'pending' ? 'Queued. Extension will pick it up shortly.' : 'Reading Facebook profile switcher...'); color = 'var(--yellow)'; }
-    else if (job.status === 'done') { const count = result.count ?? identities.length; text = `Last sync found ${count} Facebook profile${count === 1 ? '' : 's'} · ${rel}.`; color = 'var(--green)'; }
+    else if (job.status === 'done') { const count = result.count ?? identities.length; const photos = result.avatar_count ?? avatarCount; text = `Last sync found ${count} Facebook profile${count === 1 ? '' : 's'} · ${photos} photo${photos === 1 ? '' : 's'} · ${rel}.`; color = 'var(--green)'; }
     else if (job.status === 'failed') { text = `Profile sync failed${rel ? ' · ' + rel : ''}: ${result.error || job.error || 'unknown error'}`; color = 'var(--red)'; }
   }
   statuses.forEach(el => { el.textContent = text; el.style.color = color; });
@@ -2244,10 +2325,9 @@ function renderCreateProfileCards() {
   el.innerHTML = identities.map(identity => {
     const key = esc(identityKey(identity));
     const active = selected && identityKey(selected) === identityKey(identity);
-    const initial = esc((identity.name || 'A').trim().charAt(0).toUpperCase());
-    const avatar = identity.avatar_url ? `<img src="${esc(identity.avatar_url)}" style="width:100%;height:100%;object-fit:cover;" alt="">` : initial;
+    const avatar = identityAvatarHtml(identity, 'cp-profile-avatar');
     return `<div class="cp-profile-card ${active ? 'active' : ''}" onclick="setSelectedPostingIdentity('${key}')">
-      <div class="cp-profile-avatar">${avatar}</div>
+      ${avatar}
       <div style="font-size:14px;font-weight:800;margin-bottom:3px;">${esc(identity.name || 'Unnamed profile')}</div>
       <div style="font-size:12px;color:var(--text-3);">${esc(identity.type || 'Facebook profile')}${identity.is_active ? ' · active' : ''}</div>
     </div>`;
