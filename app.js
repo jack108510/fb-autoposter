@@ -142,13 +142,13 @@ function nav(page) {
   document.querySelector(`.nav-item[data-page="${page}"]`)?.classList.add('active');
   if (window.history?.replaceState) window.history.replaceState(null, '', `#${page}`);
   switch (page) {
-    case 'dashboard': loadDashboard(); break;
-    case 'calendar': loadCalendar(); break;
-    case 'create': loadCreate(); break;
-    case 'scheduled': loadScheduled(); break;
-    case 'groups': loadGroups(); break;
-    case 'logs': loadLogs(); break;
-    case 'settings': loadSettings(); refreshIdentitySyncStatus(); break;
+    case 'dashboard': return loadDashboard();
+    case 'calendar': return loadCalendar();
+    case 'create': return loadCreate();
+    case 'scheduled': return loadScheduled();
+    case 'groups': return loadGroups();
+    case 'logs': return loadLogs();
+    case 'settings': loadSettings(); return refreshIdentitySyncStatus();
   }
 }
 
@@ -1320,6 +1320,75 @@ function upcomingAvatarHtml(item) {
     .replace('<div ', `<div role="button" tabindex="0" title="${esc(item.title)}" onclick="openUpcomingPostDetail('${esc(item.id)}')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openUpcomingPostDetail('${esc(item.id)}')}" `);
 }
 
+function frequencyLabel(post) {
+  const days = Array.isArray(post.schedule?.days) ? post.schedule.days : [];
+  if (!days.length) return 'Not set';
+  const sorted = [...days].sort((a, b) => a - b);
+  const weekday = [1,2,3,4,5];
+  const weekend = [0,6];
+  const same = (a, b) => a.length === b.length && a.every((v, i) => v === b[i]);
+  if (days.length === 7) return `Daily at ${displayTime(post.schedule?.time || '09:00')}`;
+  if (same(sorted, weekday)) return `Weekdays at ${displayTime(post.schedule?.time || '09:00')}`;
+  if (same(sorted, weekend)) return `Weekends at ${displayTime(post.schedule?.time || '09:00')}`;
+  return `${sorted.map(d => DAYS[d]?.slice(0, 3) || d).join(', ')} at ${displayTime(post.schedule?.time || '09:00')}`;
+}
+
+function nextRunLabel(post, from = new Date()) {
+  const days = Array.isArray(post.schedule?.days) ? post.schedule.days : [];
+  const time = normalizeTimeValue(post.schedule?.time || '09:00');
+  if (!days.length || !time) return 'Not set';
+  const [hh, mm] = time.split(':').map(Number);
+  const endsAt = post.schedule?.endsAt ? new Date(post.schedule.endsAt) : null;
+  for (let i = 0; i < 30; i++) {
+    const day = addDays(startOfLocalDay(from), i);
+    if (!days.includes(day.getDay())) continue;
+    day.setHours(hh || 0, mm || 0, 0, 0);
+    if (day < from) continue;
+    if (endsAt && day > endsAt) return 'Ended';
+    return `${day.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })} · ${displayTime(time)}`;
+  }
+  return 'Not in next 30 days';
+}
+
+function renderSubscriptionsTable(posts = []) {
+  const subscriptions = (posts || []).filter(p => p.schedule?.time && Array.isArray(p.schedule?.days));
+  if (!subscriptions.length) {
+    return `<div class="subscription-card">
+      <div class="subscription-top">
+        <div><div class="subscription-title">Subscriptions</div><div class="subscription-subtitle">Recurring posts you can edit, pause, or delete.</div></div>
+        <button class="btn btn-secondary btn-sm" onclick="nav('create')">Add subscription</button>
+      </div>
+      <div class="subscription-empty">No recurring posts yet.</div>
+    </div>`;
+  }
+
+  return `<div class="subscription-card">
+    <div class="subscription-top">
+      <div><div class="subscription-title">Subscriptions</div><div class="subscription-subtitle">Manage profile, groups, and frequency.</div></div>
+      <button class="btn btn-secondary btn-sm" onclick="nav('create')">Add subscription</button>
+    </div>
+    <div class="subscription-table-wrap"><table class="table subscription-table">
+      <thead><tr><th>Profile</th><th>Post</th><th>Groups</th><th>Frequency</th><th>Next</th><th>Status</th><th style="text-align:right;">Actions</th></tr></thead>
+      <tbody>${subscriptions.map(post => {
+        const identityName = scheduledEventIdentityName(post);
+        const identity = findPostingIdentityByName(identityName);
+        const groups = scheduledEventGroups(post);
+        const groupCount = groups.length || 0;
+        const preview = scheduledEventText(post).replace(/\s+/g, ' ').trim() || 'No post text saved';
+        return `<tr>
+          <td><div class="subscription-profile">${identityAvatarHtml(identity, '')}<div><div style="font-weight:750;color:var(--text);">${esc(identityName || identity?.name || 'Facebook profile')}</div><div class="subscription-muted">${post.enabled ? 'Active profile' : 'Paused'}</div></div></div></td>
+          <td><div class="subscription-post-preview" title="${esc(preview)}">${esc(preview)}</div>${scheduledEventImage(post) ? '<div class="subscription-muted">Includes image</div>' : ''}</td>
+          <td><div style="font-weight:700;color:var(--text);">${groupCount} group${groupCount === 1 ? '' : 's'}</div><div class="subscription-muted">${groups.slice(0, 2).map(groupDisplayName).filter(Boolean).map(esc).join(', ')}${groups.length > 2 ? ` +${groups.length - 2}` : ''}</div></td>
+          <td>${esc(frequencyLabel(post))}</td>
+          <td>${esc(post.enabled ? nextRunLabel(post) : 'Paused')}</td>
+          <td><span class="badge ${post.enabled ? 'badge-green' : 'badge-gray'}">${post.enabled ? 'Active' : 'Paused'}</span></td>
+          <td><div class="subscription-actions"><button class="btn btn-secondary btn-sm" onclick="editPost('${esc(post.id)}')">Edit</button><button class="btn btn-secondary btn-sm" onclick="togglePost('${esc(post.id)}')">${post.enabled ? 'Pause' : 'Resume'}</button><button class="btn btn-danger btn-sm" onclick="delPost('${esc(post.id)}')">Delete</button></div></td>
+        </tr>`;
+      }).join('')}</tbody>
+    </table></div>
+  </div>`;
+}
+
 async function loadScheduled() {
   cachedData = await fetchAll();
   const el = document.getElementById('scheduledList');
@@ -1348,7 +1417,7 @@ async function loadScheduled() {
         <button class="btn btn-primary btn-sm" onclick="nav('create')">Schedule a post</button>
       </div>
       <div class="upcoming-empty"><h3>No posts this week</h3><p>Schedule a post and it will show up here by profile picture.</p></div>
-    </div>`;
+    </div>${renderSubscriptionsTable(cachedData.posts || [])}`;
     return;
   }
 
@@ -1379,7 +1448,7 @@ async function loadScheduled() {
       <button class="btn btn-primary btn-sm" onclick="nav('create')">Schedule a post</button>
     </div>
     <div class="week-scroll"><div class="week-calendar">${header}${rows}</div></div>
-  </div>`;
+  </div>${renderSubscriptionsTable(cachedData.posts || [])}`;
 }
 
 function openUpcomingPostDetail(id) {
@@ -1451,27 +1520,52 @@ async function delPost(id) {
 async function editPost(id) {
   const p = (cachedData.posts || []).find(x => x.id === id);
   if (!p) return;
-  document.getElementById('createText').value = p.text;
-  document.getElementById('createTime').value = p.schedule?.time || '09:00';
-  selDays = [...(p.schedule?.days || [])]; renderDays();
-  document.getElementById('createText').dispatchEvent(new Event('input'));
 
-  // Pre-select the groups that were on this post
-  nav('create');
-  await loadCreate(); // renders group chips
-  if (p.groups) {
-    p.groups.forEach(pg => {
-      const chip = [...document.querySelectorAll('#createGroupSelect .group-chip')].find(c => c.dataset.url === pg.url);
-      if (chip) chip.classList.add('selected');
-    });
-  }
+  await nav('create');
 
-  // Delete the old post silently (no confirm, no toast, no reload)
+  const identityName = scheduledEventIdentityName(p);
+  const identity = findPostingIdentityByName(identityName);
+  if (identity) setSelectedPostingIdentity(identityKey(identity));
+
+  const textEl = document.getElementById('createText');
+  if (textEl) { textEl.value = scheduledEventText(p); textEl.dispatchEvent(new Event('input')); }
+
+  const imgEl = document.getElementById('createImageUrl');
+  if (imgEl) { imgEl.value = scheduledEventImage(p); imgEl.dispatchEvent(new Event('input')); }
+
+  const fcEl = document.getElementById('createFirstComment');
+  if (fcEl) fcEl.value = p.firstComment || p.first_comment || '';
+
+  const timeEl = document.getElementById('createTime');
+  if (timeEl) timeEl.value = p.schedule?.time || '09:00';
+
+  selDays = [...(p.schedule?.days || [])];
+  renderDays();
+  setDeliveryMode('schedule', false);
+
+  const maxRunsEl = document.getElementById('scheduleMaxRuns');
+  if (maxRunsEl) maxRunsEl.value = p.schedule?.maxRuns || '';
+  const weeksEl = document.getElementById('scheduleWeeks');
+  if (weeksEl) weeksEl.value = '';
+
+  const aiToggle = document.getElementById('aiToggle');
+  if (aiToggle) aiToggle.classList.toggle('on', !!(p.aiEnabled ?? p.ai_enabled));
+
+  filterGroupsForSelectedIdentity();
+  const wantedUrls = new Set(scheduledEventGroups(p).map(g => typeof g === 'string' ? g : (g.url || g.group_url)).filter(Boolean));
+  document.querySelectorAll('#createGroupSelect .group-chip').forEach(chip => chip.classList.toggle('selected', wantedUrls.has(chip.dataset.url)));
+
+  updateSelectedCount();
+  updateNextFire();
+  updateCreateWizardSummary();
+  goCreateStep(4, false);
+
+  // Delete the old post silently so saving creates the updated subscription.
   const posts = (cachedData.posts || []).filter(x => x.id !== id);
   cachedData.posts = posts;
   await sbSet('posts', posts);
 
-  toast('Editing — save to update');
+  toast('Editing subscription — save to update');
 }
 
 // ═══ GROUPS ═══

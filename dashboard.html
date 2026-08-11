@@ -258,6 +258,8 @@
     }
     .badge-on { background: var(--green-light); color: var(--green); }
     .badge-off { background: var(--red-light); color: var(--red); }
+    .badge-green { background: var(--green-light); color: var(--green); }
+    .badge-gray { background: var(--surface-2); color: var(--text-3); }
     .badge-blue { background: var(--blue-light); color: var(--blue); }
     .badge-purple { background: var(--purple-light); color: var(--purple); }
     .badge-yellow { background: var(--yellow-light); color: var(--yellow); }
@@ -386,6 +388,18 @@
     .profile-avatar.week-post-avatar img { width:100%; height:100%; object-fit:cover; border-radius:inherit; display:block; }
     .upcoming-empty { padding:72px 24px; text-align:center; color:var(--text-3); }
     .upcoming-empty h3 { color:var(--text); margin-bottom:8px; font-size:18px; }
+    .subscription-card { max-width:1180px; margin-top:18px; background:var(--surface); border:1px solid var(--border); border-radius:22px; box-shadow:var(--shadow); overflow:hidden; }
+    .subscription-top { display:flex; justify-content:space-between; align-items:center; gap:16px; padding:18px 20px; border-bottom:1px solid var(--border); }
+    .subscription-title { font-size:14px; font-weight:800; color:var(--text); }
+    .subscription-subtitle { font-size:12px; color:var(--text-3); margin-top:3px; }
+    .subscription-table-wrap { overflow-x:auto; }
+    .subscription-table { min-width:880px; }
+    .subscription-profile { display:flex; align-items:center; gap:10px; min-width:160px; }
+    .subscription-profile .profile-avatar { width:34px; height:34px; flex:0 0 auto; }
+    .subscription-post-preview { max-width:260px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; color:var(--text); font-weight:600; }
+    .subscription-muted { color:var(--text-3); font-size:12px; margin-top:3px; }
+    .subscription-actions { display:flex; gap:6px; justify-content:flex-end; flex-wrap:wrap; }
+    .subscription-empty { padding:34px 20px; text-align:center; color:var(--text-3); }
 
     /* ─── Toast ─── */
     .toast {
@@ -1394,6 +1408,6 @@ Example: Quick reminder for clinic owners — if your fee schedule is outdated, 
       }
     }, 1200);
   </script>
-  <script src="app.js?v=30"></script>
+  <script src="app.js?v=31"></script>
 </body>
 </html>
