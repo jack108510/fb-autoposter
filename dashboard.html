@@ -87,6 +87,14 @@
       background: var(--surface); padding: 6px 12px; border-radius: 20px;
       border: 1px solid var(--border); box-shadow: var(--shadow);
     }
+    .mobile-menu-btn {
+      position: fixed; top: 12px; left: 14px; z-index: 1002; display: none;
+      width: 38px; height: 38px; border: 1px solid var(--border); border-radius: 12px;
+      background: var(--surface); color: var(--text); box-shadow: var(--shadow); cursor: pointer;
+      align-items: center; justify-content: center; font-size: 20px; font-weight: 800;
+    }
+    .sidebar-backdrop { position: fixed; inset: 0; background: rgba(12,12,22,.36); z-index: 90; display: none; }
+    .sidebar-backdrop.show { display: block; }
     .conn-dot { width: 7px; height: 7px; border-radius: 50%; }
     .conn-dot.on { background: var(--green); box-shadow: 0 0 6px var(--green); }
     .conn-dot.off { background: var(--red); animation: pulse 1.5s infinite; }
@@ -486,9 +494,11 @@
     }
     
     @media (max-width: 900px) {
+      .mobile-menu-btn { display:flex; }
+      .conn-indicator { right: 12px; }
       .sidebar { transform: translateX(-100%); }
       .sidebar.open { transform: translateX(0); }
-      .main { margin-left: 0; padding: 20px 16px; }
+      .main { margin-left: 0; padding: 64px 16px 20px; }
       .stats-row { grid-template-columns: repeat(2, 1fr); }
       .two-col { grid-template-columns: 1fr; }
       .cal-day { min-height: 60px; }
@@ -759,7 +769,6 @@
     .page:not(#page-create) textarea { border-radius:12px!important; background:var(--bg)!important; border:1px solid var(--border)!important; }
     .page:not(#page-create) .row { gap:14px; flex-wrap:wrap; }
     #page-settings .card > p, #page-settings .card [style*="line-height:1.8"], #installHint { color:var(--text-3)!important; }
-    #page-settings .card:nth-of-type(n+4) { display:none; }
     #page-groups .card:first-of-type, #page-settings .card:first-of-type { background:var(--surface); }
     #page-calendar .card, #page-scheduled .card, #page-logs .card, #page-groups .card { max-width:none; }
     #page-logs .card-header > div:last-child { gap:10px!important; }
@@ -811,7 +820,14 @@
 </head>
 <body>
 
+  <script>
+    window.AMPLR_SUPABASE_URL = 'https://xacehhtgvubcqdoltazg.supabase.co';
+    window.AMPLR_SUPABASE_KEY = 'sb_publishable_1TNu5hqotJ7GGQXfjliivQ_ttK51EAA';
+  </script>
+
   <div class="conn-bar disconnected" id="connBar"></div>
+  <button class="mobile-menu-btn" id="mobileMenuBtn" type="button" onclick="toggleMobileNav()" aria-label="Open navigation">☰</button>
+  <div class="sidebar-backdrop" id="sidebarBackdrop" onclick="closeMobileNav()"></div>
   <div class="conn-indicator" id="connPill" onclick="nav('settings')">
     <div class="conn-dot off" id="connDot"></div>
     <span id="connLabel">Not connected</span>
@@ -1129,7 +1145,7 @@ Example: Quick reminder for clinic owners — if your fee schedule is outdated, 
             <input type="text" id="groupUrlInput" placeholder="Paste Facebook group URL..." style="flex:1;">
             <button class="btn btn-primary" style="flex:0;" onclick="addGroupFromInput()">Add</button>
           </div>
-          <div id="groupAutoName" style="display:none;font-size:12px;color:var(--green);margin-top:8px;display:flex;align-items:center;gap:6px;">
+          <div id="groupAutoName" style="display:none;font-size:12px;color:var(--green);margin-top:8px;align-items:center;gap:6px;">
             <span style="width:6px;height:6px;border-radius:50%;background:var(--green);"></span>
             Auto-detected: <strong style="color:var(--text);"></strong>
           </div>
@@ -1181,7 +1197,7 @@ Example: Quick reminder for clinic owners — if your fee schedule is outdated, 
           <!-- Always-visible scheduling tip -->
           <div style="margin-top:14px;padding:12px 14px;background:var(--blue-light);border-radius:var(--radius-sm);font-size:12px;color:var(--blue);line-height:1.7;">
             <strong>For scheduled posts:</strong><br>
-            Keep Chrome open or allow Chrome to keep running after you close the window.
+            Keep Chrome open with the Amplr helper signed in near posting time. The dashboard queues scheduled jobs; the Chrome helper publishes them to Facebook.
           </div>
           <div id="installHint" style="display:none;margin-top:16px;padding-top:16px;border-top:1px solid var(--border);font-size:12px;color:var(--text-3);line-height:1.8;">
             <strong style="color:var(--text-2);">Not connected?</strong><br>
@@ -1234,7 +1250,7 @@ Example: Quick reminder for clinic owners — if your fee schedule is outdated, 
               <input type="number" id="setCooldown" value="2" min="0" max="30" style="width:80px;" />
             </div>
           </div>
-          <button class="btn btn-primary" onclick="saveProfiles()">Save</button>
+          <button class="btn btn-primary" onclick="saveSettings()">Save</button>
         </div>
 
         <!-- AI Paraphrasing -->
@@ -1245,7 +1261,7 @@ Example: Quick reminder for clinic owners — if your fee schedule is outdated, 
           <!-- Enable toggle -->
           <div class="form-group" style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;">
             <label style="margin:0;">Enable AI Paraphrasing</label>
-            <div class="toggle-switch" id="setAiEnabled" onclick="toggleProfilesAI()" style="cursor:pointer;"></div>
+            <div class="toggle-switch" id="setAiEnabled" onclick="toggleSettingsAI()" style="cursor:pointer;"></div>
           </div>
 
           <!-- AI service + writing model -->
@@ -1266,7 +1282,7 @@ Example: Quick reminder for clinic owners — if your fee schedule is outdated, 
 
           <div class="form-group">
             <label>AI access key</label>
-            <input type="password" id="setAiKey" placeholder="sk-...">
+            <input type="password" id="setAiKey" placeholder="Leave blank to keep current key">
           </div>
 
           <div class="form-group">
@@ -1274,7 +1290,7 @@ Example: Quick reminder for clinic owners — if your fee schedule is outdated, 
             <textarea id="setAiPrompt" rows="3" placeholder="Rewrite this as a unique Facebook group post. Keep the same message but vary the hook, tone, and structure. Sound natural and human."></textarea>
           </div>
 
-          <button class="btn btn-primary" onclick="saveProfiles()">Save</button>
+          <button class="btn btn-primary" onclick="saveSettings()">Save</button>
         </div>
 
         <!-- Reset options -->
@@ -1330,10 +1346,23 @@ Example: Quick reminder for clinic owners — if your fee schedule is outdated, 
       document.getElementById('authError').style.display = 'none';
     }
 
-    function showAuthError(msg) {
+    function showAuthMessage(msg, type = 'error') {
       const el = document.getElementById('authError');
       el.textContent = msg;
       el.style.display = 'block';
+      if (type === 'success') {
+        el.style.background = '#ECFDF5';
+        el.style.borderColor = '#A7F3D0';
+        el.style.color = '#047857';
+      } else {
+        el.style.background = '#FEF2F2';
+        el.style.borderColor = '#FECACA';
+        el.style.color = '#DC2626';
+      }
+    }
+
+    function showAuthError(msg) {
+      showAuthMessage(msg, 'error');
     }
 
     function withAuthTimeout(promise, ms = 12000) {
@@ -1348,8 +1377,8 @@ Example: Quick reminder for clinic owners — if your fee schedule is outdated, 
       if (window.sb) return window.sb;
       if (!window.supabase?.createClient) throw new Error('Supabase auth library did not load. Refresh and try again.');
       window.sb = window.supabase.createClient(
-        'https://xacehhtgvubcqdoltazg.supabase.co',
-        'sb_publishable_1TNu5hqotJ7GGQXfjliivQ_ttK51EAA'
+        window.AMPLR_SUPABASE_URL,
+        window.AMPLR_SUPABASE_KEY
       );
       return window.sb;
     }
@@ -1409,7 +1438,7 @@ Example: Quick reminder for clinic owners — if your fee schedule is outdated, 
         const redirectTo = window.location.origin + window.location.pathname;
         const result = await withAuthTimeout(authClient.auth.resetPasswordForEmail(email, { redirectTo }));
         if (result.error) throw result.error;
-        showAuthError('Password reset email sent. Check your inbox.');
+        showAuthMessage('Password reset email sent. Check your inbox.', 'success');
       } catch (err) {
         showAuthError(err.message || 'Could not send password reset email.');
       }
@@ -1431,6 +1460,6 @@ Example: Quick reminder for clinic owners — if your fee schedule is outdated, 
       }
     }, 1200);
   </script>
-  <script src="app.js?v=35"></script>
+  <script src="app.js?v=36"></script>
 </body>
 </html>

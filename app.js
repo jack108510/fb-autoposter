@@ -5,8 +5,8 @@ const MONTHS = ['January','February','March','April','May','June','July','August
 const GCOLORS = ['#3b82f6','#ef4444','#10b981','#f59e0b','#8b5cf6','#ec4899','#06b6d4','#84cc16'];
 
 // ─── Supabase ───
-const SUPABASE_URL = 'https://xacehhtgvubcqdoltazg.supabase.co';
-const SUPABASE_KEY = 'sb_publishable_1TNu5hqotJ7GGQXfjliivQ_ttK51EAA';
+const SUPABASE_URL = window.AMPLR_SUPABASE_URL || 'https://xacehhtgvubcqdoltazg.supabase.co';
+const SUPABASE_KEY = window.AMPLR_SUPABASE_KEY || 'sb_publishable_1TNu5hqotJ7GGQXfjliivQ_ttK51EAA';
 let sb = null;
 let user = null;
 
@@ -21,6 +21,7 @@ try {
 let connected = false;
 let cachedData = { posts: [], logs: [], groups: [], settings: {}, postingIdentities: [] };
 let selDays = [1, 2, 3, 4, 5];
+let editingPostId = null;
 let groupCount = 0;
 let calDate = new Date();
 let schedChecker = null;
@@ -101,7 +102,7 @@ async function bootAuthenticatedApp(session) {
   loadCreate().catch(e => console.warn('[Amplr] post flow load failed', e));
   loadDashboard().catch(e => console.warn('[Amplr] overview load failed', e));
   checkConn().catch(e => console.warn('[Amplr] connection check failed', e));
-  setInterval(() => checkConn().catch(e => console.warn('[Amplr] connection check failed', e)), 30000);
+  setInterval(() => checkConn().catch(e => console.warn('[Amplr] connection check failed', e)), 60000);
   safeStartupStep('schedule checker init', startScheduleChecker);
 }
 window.bootAuthenticatedApp = bootAuthenticatedApp;
@@ -135,7 +136,18 @@ function setupNav() {
   });
 }
 
+function toggleMobileNav() {
+  document.getElementById('sidebar')?.classList.toggle('open');
+  document.getElementById('sidebarBackdrop')?.classList.toggle('show');
+}
+
+function closeMobileNav() {
+  document.getElementById('sidebar')?.classList.remove('open');
+  document.getElementById('sidebarBackdrop')?.classList.remove('show');
+}
+
 function nav(page) {
+  closeMobileNav();
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
   document.getElementById(`page-${page}`)?.classList.add('active');
@@ -1056,7 +1068,7 @@ function fileToDataUrl(file) {
 }
 
 async function useInlineImageFallback(file, reason) {
-  if (file.size > 1500 * 1024) throw reason;
+  if (file.size > 350 * 1024) throw reason;
   const dataUrl = await fileToDataUrl(file);
   const urlInput = document.getElementById('createImageUrl');
   const uploadedInput = document.getElementById('createUploadedImageUrl');
@@ -1160,28 +1172,45 @@ async function savePost() {
   const time = document.getElementById('createTime').value;
   if (!text) return toast('Write something first');
   if (selDays.length === 0) return toast('Pick at least one day');
-  const groups = selectedGroupTargets();
+  const existing = editingPostId ? (cachedData.posts || []).find(p => p.id === editingPostId) : null;
+  let groups = selectedGroupTargets();
+  if (groups.length === 0 && existing) groups = scheduledEventGroups(existing);
   if (groups.length === 0) return toast('Select at least one group');
   const identity = getSelectedPostingIdentity();
-  if (!identity?.name) return toast('Update and select a Facebook profile before posting');
-  const identityName = identity.name;
+  const fallbackIdentityName = existing ? scheduledEventIdentityName(existing) : '';
+  if ((!identity?.name || !isValidPostingIdentity(identity)) && !isValidPostingIdentity({ name: fallbackIdentityName })) return toast('Update and select a Facebook profile before posting');
+  const identityName = isValidPostingIdentity(identity) ? identity.name : fallbackIdentityName;
   const imageUrl = getCreateImageUrl();
   const maxRuns = parsePositiveInt(document.getElementById('scheduleMaxRuns')?.value);
   const weeks = parsePositiveInt(document.getElementById('scheduleWeeks')?.value);
   const endsAt = weeks ? new Date(Date.now() + weeks * 7 * 24 * 60 * 60 * 1000).toISOString() : null;
   const post = {
-    id: Date.now().toString(), text, imageUrl, groups, identityName,
+    ...(existing || {}),
+    id: existing?.id || Date.now().toString(), text, imageUrl, groups, identityName,
     firstComment: document.getElementById('createFirstComment')?.value.trim() || '',
     aiEnabled: !!document.getElementById('aiToggle')?.classList.contains('on'),
-    schedule: { time, days: [...selDays], maxRuns, endsAt, firedCount: 0 }, enabled: true,
-    createdAt: new Date().toISOString(),
+    schedule: {
+      ...(existing?.schedule || {}),
+      time,
+      days: [...selDays],
+      maxRuns,
+      endsAt,
+      firedCount: existing?.schedule?.firedCount || 0,
+    },
+    enabled: true,
+    createdAt: existing?.createdAt || new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
     hasSpintax: hasSpintax(text), variations: countVariations(text),
   };
-  const posts = [...(cachedData.posts || []), post];
+  const posts = editingPostId
+    ? (cachedData.posts || []).map(p => p.id === editingPostId ? post : p)
+    : [...(cachedData.posts || []), post];
   cachedData.posts = posts;
   const err = await sbSet('posts', posts);
   if (err) return toast('Error: ' + err.message);
-  toast('Scheduled!');
+  const wasEdit = !!editingPostId;
+  editingPostId = null;
+  toast(wasEdit ? 'Schedule updated' : 'Scheduled!');
   clearCreateForm();
   nav('scheduled');
 }
@@ -1191,7 +1220,7 @@ async function postNow() {
   const groups = selectedGroupTargets();
   const identity = getSelectedPostingIdentity();
   if (!text) return toast('Write something first');
-  if (!identity?.name) return toast('Update and select a Facebook profile before posting');
+  if (!identity?.name || !isValidPostingIdentity(identity)) return toast('Update and select a Facebook profile before posting');
   const identityName = identity.name;
   if (groups.length === 0) return toast('Select at least one group');
   if (groups.length > 3 && !confirm(`Post this now to ${groups.length} groups?`)) return;
@@ -1787,6 +1816,9 @@ async function editPost(id) {
   if (!p) return;
 
   await nav('create');
+  if (!(cachedData.posts || []).some(x => x.id === id)) {
+    cachedData.posts = [...(cachedData.posts || []), p];
+  }
 
   const identityName = scheduledEventIdentityName(p);
   const identity = findPostingIdentityByName(identityName);
@@ -1825,11 +1857,7 @@ async function editPost(id) {
   updateCreateWizardSummary();
   goCreateStep(4, false);
 
-  // Delete the old post silently so saving creates the updated subscription.
-  const posts = (cachedData.posts || []).filter(x => x.id !== id);
-  cachedData.posts = posts;
-  await sbSet('posts', posts);
-
+  editingPostId = id;
   toast('Editing subscription — save to update');
 }
 
@@ -2194,9 +2222,9 @@ document.addEventListener('input', (e) => {
     const url = e.target.value.trim();
     const hint = document.getElementById('groupAutoName');
     if (!hint) return;
-    const name = extractGroupName(url);
+    const name = extractGroupName(normalizeFacebookGroupUrl(url) || url);
     if (name) {
-      hint.style.display = 'block';
+      hint.style.display = 'flex';
       hint.querySelector('strong').textContent = name;
     } else {
       hint.style.display = 'none';
@@ -2211,14 +2239,36 @@ document.addEventListener('paste', (e) => {
       const url = e.target.value.trim();
       const hint = document.getElementById('groupAutoName');
       if (!hint) return;
-      const name = extractGroupName(url);
+      const name = extractGroupName(normalizeFacebookGroupUrl(url) || url);
       if (name) {
-        hint.style.display = 'block';
+        hint.style.display = 'flex';
         hint.querySelector('strong').textContent = name;
       }
     }, 0);
   }
 });
+
+function normalizeFacebookGroupUrl(input) {
+  let value = (input || '').trim();
+  if (!value) return null;
+  if (!/^https?:\/\//i.test(value)) {
+    value = value.replace(/^@+/, '').replace(/^\/+|\/+$/g, '');
+    if (/^facebook\.com\/groups\//i.test(value) || /^www\.facebook\.com\/groups\//i.test(value)) value = 'https://' + value;
+    else value = 'https://www.facebook.com/groups/' + value;
+  }
+  try {
+    const u = new URL(value);
+    const host = u.hostname.replace(/^www\./i, '').toLowerCase();
+    if (!['facebook.com', 'fb.com', 'm.facebook.com'].includes(host)) return null;
+    const parts = u.pathname.split('/').filter(Boolean);
+    const groupIndex = parts.findIndex(p => p.toLowerCase() === 'groups');
+    const slug = groupIndex >= 0 ? parts[groupIndex + 1] : null;
+    if (!slug || /^(feed|discover|joins|create)$/i.test(slug)) return null;
+    return `https://www.facebook.com/groups/${encodeURIComponent(decodeURIComponent(slug))}`;
+  } catch (_) {
+    return null;
+  }
+}
 
 function extractGroupName(url) {
   if (!url) return null;
@@ -2238,12 +2288,8 @@ async function addGroupFromInput() {
   try {
     const input = document.getElementById('groupUrlInput');
     if (!input) return;
-    let url = input.value.trim();
-    if (!url) return toast('Enter a group URL');
-
-    // Normalize URL
-    if (!url.startsWith('http')) url = 'https://www.facebook.com/groups/' + url;
-    url = url.replace(/\/$/, '');
+    let url = normalizeFacebookGroupUrl(input.value);
+    if (!url) return toast('Paste a valid Facebook group URL');
 
     // Check for duplicates
     const groups = cachedData.groups || [];
@@ -2424,7 +2470,7 @@ async function loadSettings() {
   const aiModelEl = document.getElementById('setAiModel');
   if (aiModelEl && s.ai_model) aiModelEl.value = s.ai_model;
   const aiKeyEl = document.getElementById('setAiKey');
-  if (aiKeyEl && s.ai_key) aiKeyEl.value = s.ai_key;
+  if (aiKeyEl) aiKeyEl.value = '';
   const aiPromptEl = document.getElementById('setAiPrompt');
   if (aiPromptEl && s.ai_prompt) aiPromptEl.value = s.ai_prompt;
 }
@@ -2445,22 +2491,23 @@ async function saveSettings() {
     ai_enabled: aiEnabled,
     ai_provider: aiProvider,
     ai_model: aiModel,
-    ai_key: aiKey,
     ai_prompt: aiPrompt,
   };
+  delete settings.ai_key;
   cachedData.settings = settings;
   await sbSet('settings', settings);
 
   // Also update jsw_settings so the extension can read ai_key, ai_provider, ai_model, ai_prompt
   try {
-    await sb.from('jsw_settings').upsert({
+    const jswSettings = {
       user_id: user.id,
       ai_provider: aiProvider,
       ai_model: aiModel,
-      ai_key: aiKey,
       ai_prompt: aiPrompt || null,
       ai_enabled: aiEnabled,
-    }, { onConflict: 'user_id' });
+    };
+    if (aiKey) jswSettings.ai_key = aiKey;
+    await sb.from('jsw_settings').upsert(jswSettings, { onConflict: 'user_id' });
   } catch (e) {
     console.warn('[Amplr] jsw_settings upsert failed:', e.message);
   }
@@ -2506,15 +2553,12 @@ function startScheduleChecker() {
         continue;
       }
       if (post.schedule.days.includes(currentDay) && post.schedule.time === currentTime) {
-        // Check we haven't already fired this in the last 2 minutes
-        const logs = await sbGet('logs') || [];
-        const recent = logs.find(l =>
-          l.postId === post.id &&
-          Date.now() - new Date(l.timestamp).getTime() < 120000
-        );
-        if (recent) continue;
+        const fireKey = `${post.id}:${now.toISOString().slice(0, 16)}`;
+        if (post.schedule.lastFiredKey === fireKey) continue;
         try {
           await createJob(post);
+          post.schedule.lastFiredKey = fireKey;
+          post.schedule.lastFiredAt = now.toISOString();
           post.schedule.firedCount = (Number(post.schedule.firedCount) || 0) + 1;
           if (scheduleLimitReached(post, now)) post.enabled = false;
           changed = true;
@@ -2584,6 +2628,7 @@ function initCreateWizard() {
 }
 
 function clearCreateForm() {
+  editingPostId = null;
   const ta = document.getElementById('createText');
   if (ta) { ta.value = ''; ta.dispatchEvent(new Event('input')); }
   const imgInput = document.getElementById('createImageUrl');
