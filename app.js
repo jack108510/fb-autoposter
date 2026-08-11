@@ -355,14 +355,24 @@ async function pollGroupNames() {
 
 async function fetchAll() {
   try {
+    const fetchGroups = async () => {
+      let res = await sb.from('jsw_groups')
+        .select('group_url, group_name, group_avatar_url, last_posted_at, ban_risk, removal_count, tags')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false });
+      if (res.error && /group_avatar_url|schema cache|column/i.test(res.error.message || '')) {
+        res = await sb.from('jsw_groups')
+          .select('group_url, group_name, last_posted_at, ban_risk, removal_count, tags')
+          .eq('user_id', user.id)
+          .order('created_at', { ascending: false });
+      }
+      return res;
+    };
     const [postsRes, templatesRes, groupsRes, settings, logs, postingIdentitiesRes] = await Promise.all([
       sbGet('posts'),
       sbGet('templates'),
       // Groups always come from jsw_groups table (shared with extension)
-      sb.from('jsw_groups')
-        .select('group_url, group_name, last_posted_at, ban_risk, removal_count, tags')
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: false }),
+      fetchGroups(),
       sbGet('settings'),
       sbGet('logs'),
       sbGet('posting_identities'),
@@ -370,6 +380,8 @@ async function fetchAll() {
     const groups = (groupsRes.data || []).map(r => ({
       url: r.group_url,
       name: r.group_name || r.group_url.split('/').filter(Boolean).pop(),
+      group_avatar_url: r.group_avatar_url || null,
+      avatar_url: r.group_avatar_url || null,
       last_posted_at: r.last_posted_at || null,
       ban_risk: r.ban_risk || 'low',
       removal_count: r.removal_count || 0,
@@ -564,6 +576,34 @@ function identityAvatarHtml(identity={}, className='') {
 
 function identityHasAvatar(identity={}) {
   return identityAvatarCandidates(identity).length > 0;
+}
+
+function groupInitials(name='') {
+  const cleaned = String(name || '').replace(/[^a-zA-Z0-9\s]/g, ' ').trim();
+  const parts = cleaned.split(/\s+/).filter(Boolean).filter(p => !/^(the|and|of|for)$/i.test(p));
+  return (parts.length ? parts.slice(0, 2).map(p => p[0]).join('') : 'G').toUpperCase();
+}
+
+function groupAvatarCandidates(group={}) {
+  const candidates = [group.group_avatar_url, group.avatar_url, group.image_url, group.cover_url, group.picture_url, group.photo_url];
+  try {
+    const parsed = new URL(group.url || group.group_url || '', 'https://www.facebook.com');
+    const match = parsed.pathname.match(/\/groups\/([^/?#]+)/i);
+    const idOrSlug = match?.[1];
+    if (idOrSlug && /^\d{5,}$/.test(idOrSlug)) candidates.push(`https://graph.facebook.com/${encodeURIComponent(idOrSlug)}/picture?type=large`);
+  } catch (_) {}
+  const seen = new Set();
+  return candidates.map(v => String(v || '').trim()).filter(Boolean).filter(v => /^(https?:|data:image\/)/i.test(v)).filter(v => { if (seen.has(v)) return false; seen.add(v); return true; });
+}
+
+function groupAvatarHtml(group={}, className='') {
+  const name = group.name || group.group_name || 'Facebook group';
+  const initials = esc(groupInitials(name));
+  const urls = groupAvatarCandidates(group);
+  const cls = `group-avatar ${className}`.trim();
+  if (!urls.length) return `<div class="${cls} avatar-fallback">${initials}</div>`;
+  const rest = esc(JSON.stringify(urls.slice(1)));
+  return `<div class="${cls}"><img src="${esc(urls[0])}" alt="${esc(name)}" referrerpolicy="no-referrer" loading="lazy" data-fallbacks='${rest}' onerror="avatarImgOnError(this,'${initials}')"></div>`;
 }
 
 function getSelectedPostingIdentityKey() {
@@ -1149,11 +1189,10 @@ function renderGroupChips() {
   if (noGroups) noGroups.style.display = 'none';
 
   container.innerHTML = groups.map((g, i) => {
-    const c = GCOLORS[i % GCOLORS.length];
     return `<div class="group-chip" onclick="this.classList.toggle('selected'); updateSelectedCount(); updateCreateWizardSummary();" data-url="${esc(g.url)}" data-name="${esc(g.name)}"
-      style="display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border-radius:20px;font-size:12px;cursor:pointer;border:1px solid var(--border);background:var(--surface);transition:all .15s;">
-      <div style="width:8px;height:8px;border-radius:50%;background:${c};"></div>
-      ${esc(g.name)}
+      style="display:inline-flex;align-items:center;gap:8px;padding:7px 12px 7px 8px;border-radius:22px;font-size:12px;cursor:pointer;border:1px solid var(--border);background:var(--surface);transition:all .15s;">
+      ${groupAvatarHtml(g, 'group-avatar-chip')}
+      <span>${esc(g.name)}</span>
     </div>`;
   }).join('');
 
@@ -1225,10 +1264,9 @@ function openTplModal(id) {
     container.innerHTML = '<div style="font-size:13px;color:var(--text-3);">No groups yet — <a href="#" onclick="nav(\'groups\');closeTplModal();return false;" style="color:var(--blue);">add groups first</a></div>';
   } else {
     container.innerHTML = groups.map((g, i) => {
-      const c = GCOLORS[i % GCOLORS.length];
       return `<div class="group-chip" data-url="${esc(g.url)}" data-name="${esc(g.name)}" onclick="this.classList.toggle('selected')"
-        style="display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border-radius:20px;font-size:12px;cursor:pointer;border:1px solid var(--border);background:var(--surface);transition:all .15s;">
-        <div style="width:8px;height:8px;border-radius:50%;background:${c};"></div>${esc(g.name)}</div>`;
+        style="display:inline-flex;align-items:center;gap:8px;padding:7px 12px 7px 8px;border-radius:22px;font-size:12px;cursor:pointer;border:1px solid var(--border);background:var(--surface);transition:all .15s;">
+        ${groupAvatarHtml(g, 'group-avatar-chip')}<span>${esc(g.name)}</span></div>`;
     }).join('');
     // Render tag filter bar for modal
     tplGroupTagFilter = null;
