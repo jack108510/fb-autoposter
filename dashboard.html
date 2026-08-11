@@ -656,19 +656,10 @@
     .cp-profile-list-first .cp-profile-avatar { width:58px; height:58px; font-size:18px; margin-bottom:16px; }
     .cp-profile-fallback-select { margin-top:16px; opacity:.78; }
 
-    /* Focus mode for Step 1: only the posting identity selector matters. */
-    .cp-profile-focus .cp-hero,
-    .cp-profile-focus .cp-stepper,
-    .cp-profile-focus .cp-summary,
-    .cp-profile-focus .cp-pane-kicker,
-    .cp-profile-focus .cp-pane-copy,
+    /* Focus mode for Step 1: the card click is the action. */
     .cp-profile-focus .cp-profile-fallback-select,
     .cp-profile-focus .cp-profile-sync-help,
     .cp-profile-focus .cp-nav { display:none!important; }
-    .cp-profile-focus .cp-layout { display:block; max-width:940px; margin:0 auto; }
-    .cp-profile-focus .cp-card { box-shadow:none; border:0; background:transparent; }
-    .cp-profile-focus .cp-pane { padding:8px 0 0; min-height:auto; }
-    .cp-profile-focus .cp-pane-title { font-size:24px; margin-bottom:18px; }
     .cp-profile-focus .cp-profile-list-first { justify-content:center; }
     .cp-groups-toolbar { gap: 12px; margin-bottom: 18px; }
     .cp-groups-wrap { grid-template-columns: repeat(auto-fill,minmax(250px,1fr)); gap: 12px; max-height: 470px; }
@@ -682,6 +673,22 @@
     .cp-preview-wrap { border-radius: 18px; }
     .cp-fb-hd { padding: 15px; }
     #fbPreviewText { padding: 16px; font-size: 14px; line-height: 1.65; }
+
+    /* Quiet create flow: show the working control, not the explainer UI. */
+    #page-create .cp-hero,
+    #page-create .cp-stepper,
+    #page-create .cp-summary,
+    #page-create .cp-pane-kicker,
+    #page-create .cp-pane-copy,
+    #page-create .cp-content-type-grid,
+    #page-create .cp-choice-sub,
+    #createGroupScopeHint { display:none!important; }
+    #page-create .cp-layout { display:block; max-width:940px; margin:0 auto; }
+    #page-create .cp-card { box-shadow:none; border:0; background:transparent; }
+    #page-create .cp-pane { padding:8px 0 0; min-height:auto; }
+    #page-create .cp-pane-title { font-size:24px; margin-bottom:18px; }
+    #page-create .cp-nav { max-width:940px; margin:18px auto 0; border:0; background:transparent; padding:0; }
+    #page-create .cp-content-grid { grid-template-columns:minmax(0,1fr) 260px; }
 
     /* Management pages: calmer density. */
     #page-groups .card, #page-settings .card, #page-logs .card, #page-scheduled .card, #page-templates .card { max-width: 1060px; }
@@ -1394,6 +1401,6 @@ Example: Quick reminder for clinic owners — if your fee schedule is outdated, 
       }
     }, 1200);
   </script>
-  <script src="app.js?v=18"></script>
+  <script src="app.js?v=19"></script>
 </body>
 </html>
