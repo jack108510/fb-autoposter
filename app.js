@@ -1009,6 +1009,116 @@ function renderDays() {
 }
 function toggleDay(d) { selDays = selDays.includes(d) ? selDays.filter(x => x !== d) : [...selDays, d].sort(); renderDays(); updateNextFire(); }
 
+function setCreateImageStatus(message, type = '') {
+  const el = document.getElementById('createImageUploadStatus');
+  if (!el) return;
+  el.textContent = message || '';
+  el.classList.toggle('error', type === 'error');
+  el.classList.toggle('ok', type === 'ok');
+}
+
+function setCreateImagePreview(url, fileName = '') {
+  const isValid = !!url && /^(https?:\/\/|data:image\/)/i.test(url);
+  const thumb = document.getElementById('imagePreviewThumb');
+  const img = document.getElementById('imagePreviewImg');
+  const wrap = document.getElementById('fbPreviewImgWrap');
+  const fbImg = document.getElementById('fbPreviewImgEl');
+  const remove = document.getElementById('removeImageBtn');
+  const name = document.getElementById('createImageFileName');
+  if (thumb) thumb.style.display = isValid ? 'block' : 'none';
+  if (img && isValid) img.src = url;
+  if (wrap) wrap.style.display = isValid ? 'block' : 'none';
+  if (fbImg && isValid) fbImg.src = url;
+  if (remove) remove.style.display = isValid ? 'inline-flex' : 'none';
+  if (name) name.textContent = fileName || '';
+  updateCreateWizardSummary();
+}
+
+function getCreateImageUrl() {
+  return document.getElementById('createUploadedImageUrl')?.value.trim()
+    || document.getElementById('createImageUrl')?.value.trim()
+    || '';
+}
+
+function safeStorageFileName(name = 'image') {
+  const ext = (name.match(/\.([a-z0-9]{1,8})$/i)?.[1] || 'jpg').toLowerCase();
+  const base = name.replace(/\.[^.]+$/, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 50) || 'image';
+  return `${base}-${Date.now()}.${ext}`;
+}
+
+function fileToDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = () => reject(reader.error || new Error('Could not read image file.'));
+    reader.readAsDataURL(file);
+  });
+}
+
+async function useInlineImageFallback(file, reason) {
+  if (file.size > 1500 * 1024) throw reason;
+  const dataUrl = await fileToDataUrl(file);
+  const urlInput = document.getElementById('createImageUrl');
+  const uploadedInput = document.getElementById('createUploadedImageUrl');
+  if (uploadedInput) uploadedInput.value = dataUrl;
+  if (urlInput) urlInput.value = dataUrl;
+  setCreateImagePreview(dataUrl, file.name);
+  setCreateImageStatus('Image attached locally. Add Supabase Storage for larger images.', 'ok');
+}
+
+async function handleCreateImageFile(file) {
+  if (!file) return;
+  const allowed = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+  if (!allowed.includes(file.type)) return setCreateImageStatus('Use JPG, PNG, WEBP, or GIF.', 'error');
+  if (file.size > 8 * 1024 * 1024) return setCreateImageStatus('Image is too large. Max 8 MB.', 'error');
+  if (!user?.id) return setCreateImageStatus('Sign in before uploading images.', 'error');
+
+  const urlInput = document.getElementById('createImageUrl');
+  const uploadedInput = document.getElementById('createUploadedImageUrl');
+  const fileInput = document.getElementById('createImageFile');
+  const nameEl = document.getElementById('createImageFileName');
+  if (nameEl) nameEl.textContent = file.name;
+  setCreateImageStatus('Uploading image…');
+
+  try {
+    const path = `${user.id}/${safeStorageFileName(file.name)}`;
+    const { error } = await sb.storage.from('post-images').upload(path, file, {
+      cacheControl: '31536000',
+      upsert: false,
+      contentType: file.type || 'image/jpeg',
+    });
+    if (error) throw error;
+    const { data } = sb.storage.from('post-images').getPublicUrl(path);
+    const publicUrl = data?.publicUrl;
+    if (!publicUrl) throw new Error('Upload succeeded but no public URL was returned.');
+    if (uploadedInput) uploadedInput.value = publicUrl;
+    if (urlInput) urlInput.value = publicUrl;
+    setCreateImagePreview(publicUrl, file.name);
+    setCreateImageStatus('Image uploaded.', 'ok');
+  } catch (e) {
+    console.error('[Amplr] image upload failed', e);
+    try {
+      await useInlineImageFallback(file, e);
+      return;
+    } catch (fallbackError) {
+      if (uploadedInput) uploadedInput.value = '';
+      if (fileInput) fileInput.value = '';
+      setCreateImageStatus(`Upload failed: ${fallbackError.message || fallbackError}. Storage bucket "post-images" may need setup.`, 'error');
+    }
+  }
+}
+
+function clearCreateImage() {
+  const urlInput = document.getElementById('createImageUrl');
+  const uploadedInput = document.getElementById('createUploadedImageUrl');
+  const fileInput = document.getElementById('createImageFile');
+  if (urlInput) urlInput.value = '';
+  if (uploadedInput) uploadedInput.value = '';
+  if (fileInput) fileInput.value = '';
+  setCreateImagePreview('', '');
+  setCreateImageStatus('Use JPG, PNG, WEBP, or GIF. Max 8 MB.');
+}
+
 document.addEventListener('input', (e) => {
   if (e.target.id === 'createText') {
     const val = e.target.value;
@@ -1037,16 +1147,11 @@ document.addEventListener('input', (e) => {
 
   if (e.target.id === 'createImageUrl') {
     const url = e.target.value.trim();
-    const isValid = url.startsWith('http');
-    const thumb = document.getElementById('imagePreviewThumb');
-    const img = document.getElementById('imagePreviewImg');
-    const wrap = document.getElementById('fbPreviewImgWrap');
-    const fbImg = document.getElementById('fbPreviewImgEl');
-    if (thumb) thumb.style.display = isValid ? 'block' : 'none';
-    if (img && isValid) img.src = url;
-    if (wrap) wrap.style.display = isValid ? 'block' : 'none';
-    if (fbImg && isValid) fbImg.src = url;
-    updateCreateWizardSummary();
+    const uploadedInput = document.getElementById('createUploadedImageUrl');
+    if (uploadedInput && uploadedInput.value !== url) uploadedInput.value = '';
+    setCreateImagePreview(url, '');
+    if (url) setCreateImageStatus(/^https?:\/\//i.test(url) ? 'Image URL ready.' : 'Paste a full image URL starting with http.', /^https?:\/\//i.test(url) ? 'ok' : 'error');
+    else setCreateImageStatus('Use JPG, PNG, WEBP, or GIF. Max 8 MB.');
   }
 });
 
@@ -1060,7 +1165,7 @@ async function savePost() {
   const identity = getSelectedPostingIdentity();
   if (!identity?.name) return toast('Update and select a Facebook profile before posting');
   const identityName = identity.name;
-  const imageUrl = document.getElementById('createImageUrl')?.value.trim() || '';
+  const imageUrl = getCreateImageUrl();
   const maxRuns = parsePositiveInt(document.getElementById('scheduleMaxRuns')?.value);
   const weeks = parsePositiveInt(document.getElementById('scheduleWeeks')?.value);
   const endsAt = weeks ? new Date(Date.now() + weeks * 7 * 24 * 60 * 60 * 1000).toISOString() : null;
@@ -1090,7 +1195,7 @@ async function postNow() {
   const identityName = identity.name;
   if (groups.length === 0) return toast('Select at least one group');
   if (groups.length > 3 && !confirm(`Post this now to ${groups.length} groups?`)) return;
-  const imageUrl = document.getElementById('createImageUrl')?.value.trim() || '';
+  const imageUrl = getCreateImageUrl();
 
   const waiting = document.getElementById('postWaiting');
   if (waiting) waiting.style.display = 'block';
@@ -2454,7 +2559,8 @@ function clearCreateForm() {
   const ta = document.getElementById('createText');
   if (ta) { ta.value = ''; ta.dispatchEvent(new Event('input')); }
   const imgInput = document.getElementById('createImageUrl');
-  if (imgInput) { imgInput.value = ''; imgInput.dispatchEvent(new Event('input')); }
+  if (imgInput) imgInput.value = '';
+  clearCreateImage();
   const fcInput = document.getElementById('createFirstComment');
   if (fcInput) fcInput.value = '';
   const maxRuns = document.getElementById('scheduleMaxRuns');

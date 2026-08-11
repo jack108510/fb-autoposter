@@ -682,6 +682,12 @@
     .cp-choice-sub { font-size: 12px; line-height: 1.5; }
     .cp-textarea { min-height: 330px; border-radius: 20px!important; padding: 22px!important; font-size: 16px; line-height: 1.75; background: var(--surface-2)!important; }
     .cp-url-input, .cp-time { padding: 14px 15px; border-radius: 15px!important; background: var(--surface-2)!important; }
+    .cp-file-row { display:flex; gap:10px; align-items:center; margin-top:10px; flex-wrap:wrap; }
+    .cp-file-input { position:absolute; width:1px; height:1px; opacity:0; pointer-events:none; }
+    .cp-file-name { font-size:12px; color:var(--text-3); min-height:18px; }
+    .cp-upload-status { font-size:12px; color:var(--text-3); margin-top:8px; line-height:1.45; }
+    .cp-upload-status.error { color:var(--red); }
+    .cp-upload-status.ok { color:var(--green); }
     .cp-section { margin-top: 26px; }
     .cp-profile-list { gap: 14px; }
     .cp-profile-card { padding: 18px; border-radius: 18px; background: var(--surface-2); }
@@ -999,7 +1005,15 @@ Example: Quick reminder for clinic owners — if your fee schedule is outdated, 
                   <div>
                     <div class="cp-section" style="margin-top:0;">
                       <div class="cp-section-hd"><span class="cp-label">Image <span class="cp-label-count">optional</span></span></div>
-                      <input type="url" id="createImageUrl" class="cp-url-input" placeholder="Image URL">
+                      <input type="url" id="createImageUrl" class="cp-url-input" placeholder="Paste image URL or upload a file">
+                      <input type="hidden" id="createUploadedImageUrl" value="">
+                      <div class="cp-file-row">
+                        <input type="file" id="createImageFile" class="cp-file-input" accept="image/jpeg,image/png,image/webp,image/gif" onchange="handleCreateImageFile(this.files?.[0])">
+                        <button type="button" class="btn btn-secondary btn-sm" onclick="document.getElementById('createImageFile')?.click()">Upload image</button>
+                        <button type="button" class="btn btn-ghost btn-sm" id="removeImageBtn" style="display:none;" onclick="clearCreateImage()">Remove</button>
+                        <span id="createImageFileName" class="cp-file-name"></span>
+                      </div>
+                      <div id="createImageUploadStatus" class="cp-upload-status">Use JPG, PNG, WEBP, or GIF. Max 8 MB.</div>
                       <div id="imagePreviewThumb" style="display:none;margin-top:10px;"><img id="imagePreviewImg" style="width:100%;border-radius:12px;border:1px solid var(--border);display:block;" src="" alt="Preview" onerror="this.parentElement.style.display='none'"></div>
                     </div>
                     <div class="cp-section">
@@ -1408,6 +1422,6 @@ Example: Quick reminder for clinic owners — if your fee schedule is outdated, 
       }
     }, 1200);
   </script>
-  <script src="app.js?v=33"></script>
+  <script src="app.js?v=34"></script>
 </body>
 </html>
