@@ -406,6 +406,7 @@ async function createJob(post) {
   }
   const groups = (post.groups || []).map(g => typeof g === 'string' ? { url: g, identity_name: identityName } : { ...g, identity_name: g.identity_name || identityName }).filter(g => g && g.url);
   const settings = cachedData.settings || {};
+  const minDelay = Math.max(parseInt(settings.delay, 10) || 90, 90);
   const aiEnabled = post.aiEnabled ?? post.ai_enabled ?? document.getElementById('aiToggle')?.classList.contains('on');
   const { error } = await sb.from('jsw_post_jobs').insert({
     user_id: user.id,
@@ -413,7 +414,7 @@ async function createJob(post) {
     image_url: post.imageUrl || null,
     groups: groups,
     identity_name: identityName,
-    delay: settings.delay || 30,
+    delay: minDelay,
     ai_enabled: !!aiEnabled,
     ai_prompt: settings.ai_prompt || null,
     first_comment: post.firstComment || post.first_comment || null,
@@ -1101,7 +1102,7 @@ async function postNow() {
       image_url: imageUrl || null,
       groups: groups,
       identity_name: identityName,
-      delay: cachedData.settings?.delay || 30,
+      delay: Math.max(parseInt(cachedData.settings?.delay, 10) || 90, 90),
       status: 'pending',
       first_comment: document.getElementById('createFirstComment')?.value.trim() || null,
       ai_enabled: !!document.getElementById('aiToggle')?.classList.contains('on'),
@@ -1936,7 +1937,7 @@ async function saveSettings() {
 
   const settings = {
     ...(cachedData.settings || {}),
-    delay: parseInt(document.getElementById('setDelay').value) || 10,
+    delay: Math.max(parseInt(document.getElementById('setDelay').value) || 90, 90),
     maxGroups: parseInt(document.getElementById('setMaxGroups').value) || 10,
     jitter: parseInt(document.getElementById('setJitter').value) || 5,
     cooldown_days: parseInt(document.getElementById('setCooldown')?.value ?? 2),
