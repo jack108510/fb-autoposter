@@ -402,7 +402,11 @@ async function fetchAll() {
 
 // Create a posting job that the extension picks up
 async function createJob(post) {
-  const identityName = post.identityName || post.identity_name || getSelectedPostingIdentity()?.name || null;
+  const identity = getSelectedPostingIdentity();
+  const identityName = post.identityName || post.identity_name || identity?.name || null;
+  if (!identityName || !isValidPostingIdentity({ name: identityName })) {
+    throw new Error('Sync and select a Facebook profile before posting');
+  }
   const groups = (post.groups || []).map(g => typeof g === 'string' ? { url: g, identity_name: identityName } : { ...g, identity_name: g.identity_name || identityName }).filter(g => g && g.url);
   const settings = cachedData.settings || {};
   // Ollama needs no API key — toggle alone is enough
@@ -472,9 +476,11 @@ function jobResult(j) {
 }
 
 function isValidPostingIdentity(identity) {
-  const name = (identity?.name || '').trim();
+  const name = (identity?.name || '').trim().replace(/\s+/g, ' ');
   if (!name) return false;
-  if (/^(quick switch profiles?|see all profiles?|settings(?: & privacy)?|help(?: & support)?|report a problem|give feedback|meta verified|meta business suite|display & accessibility|privacy|terms|advertising|ad choices|cookies|more|active|log out)$/i.test(name)) return false;
+  if (/^(quick switch profiles?|see all profiles?|see all pages?|settings(?: & privacy)?|help(?: & support)?|report a problem|give feedback|meta verified|meta business suite|display & accessibility|privacy|terms|privacy policy|advertising|ad choices|cookies|more|active|log out)$/i.test(name)) return false;
+  if (/^(?:[A-Z]\s*){1,3}$/i.test(name.replace(/\./g, ''))) return false;
+  if (/^(facebook|meta|pages?|profiles?|home|watch|marketplace|groups?|notifications?|menu)$/i.test(name)) return false;
   if (/^https?:\/\//i.test(name)) return false;
   const url = identity?.url || '';
   return !/(\/settings|\/help|\/privacy|\/policies|\/business|\/ads|\/ad_|\/groups\/|\/marketplace|\/events)/i.test(url);
@@ -611,8 +617,12 @@ function getSelectedPostingIdentityKey() {
 }
 
 function getSelectedPostingIdentity() {
+  const identities = sanitizePostingIdentities(cachedData.postingIdentities || []);
+  cachedData.postingIdentities = identities;
   const key = getSelectedPostingIdentityKey();
-  return (cachedData.postingIdentities || []).find(i => identityKey(i) === key) || (cachedData.postingIdentities || [])[0] || null;
+  const selected = identities.find(i => identityKey(i) === key) || identities[0] || null;
+  if (!selected) localStorage.removeItem('amplr_selected_posting_identity');
+  return selected;
 }
 
 function setSelectedPostingIdentity(key) {
@@ -1045,7 +1055,9 @@ async function savePost() {
   if (selDays.length === 0) return toast('Pick at least one day');
   const groups = selectedGroupTargets();
   if (groups.length === 0) return toast('Select at least one group');
-  const identityName = getSelectedPostingIdentity()?.name || null;
+  const identity = getSelectedPostingIdentity();
+  if (!identity?.name) return toast('Sync and select a Facebook profile before posting');
+  const identityName = identity.name;
   const imageUrl = document.getElementById('createImageUrl')?.value.trim() || '';
   const post = {
     id: Date.now().toString(), text, imageUrl, groups, identityName,
@@ -1066,8 +1078,10 @@ async function savePost() {
 async function postNow() {
   const text = document.getElementById('createText').value.trim();
   const groups = selectedGroupTargets();
-  const identityName = getSelectedPostingIdentity()?.name || null;
+  const identity = getSelectedPostingIdentity();
   if (!text) return toast('Write something first');
+  if (!identity?.name) return toast('Sync and select a Facebook profile before posting');
+  const identityName = identity.name;
   if (groups.length === 0) return toast('Select at least one group');
   if (groups.length > 3 && !confirm(`Post this now to ${groups.length} groups?`)) return;
   const imageUrl = document.getElementById('createImageUrl')?.value.trim() || '';
@@ -1371,7 +1385,9 @@ async function scheduleTemplate() {
   const t = (cachedData.templates || []).find(x => x.id === activeTplId);
   if (!t) return;
 
-  const identityName = getSelectedPostingIdentity()?.name || null;
+  const identity = getSelectedPostingIdentity();
+  if (!identity?.name) return toast('Sync and select a Facebook profile before posting');
+  const identityName = identity.name;
   const selected = [...document.querySelectorAll('#tplGroupSelect .group-chip.selected')].map(c => ({
     url: c.dataset.url,
     name: c.dataset.name || '',
