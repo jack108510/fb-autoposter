@@ -409,8 +409,7 @@ async function createJob(post) {
   }
   const groups = (post.groups || []).map(g => typeof g === 'string' ? { url: g, identity_name: identityName } : { ...g, identity_name: g.identity_name || identityName }).filter(g => g && g.url);
   const settings = cachedData.settings || {};
-  // Ollama needs no API key — toggle alone is enough
-  const aiEnabled = document.getElementById('aiToggle')?.classList.contains('on');
+  const aiEnabled = post.aiEnabled ?? post.ai_enabled ?? document.getElementById('aiToggle')?.classList.contains('on');
   const { error } = await sb.from('jsw_post_jobs').insert({
     user_id: user.id,
     message: post.text,
@@ -1064,10 +1063,14 @@ async function savePost() {
   if (!identity?.name) return toast('Sync and select a Facebook profile before posting');
   const identityName = identity.name;
   const imageUrl = document.getElementById('createImageUrl')?.value.trim() || '';
+  const maxRuns = parsePositiveInt(document.getElementById('scheduleMaxRuns')?.value);
+  const weeks = parsePositiveInt(document.getElementById('scheduleWeeks')?.value);
+  const endsAt = weeks ? new Date(Date.now() + weeks * 7 * 24 * 60 * 60 * 1000).toISOString() : null;
   const post = {
     id: Date.now().toString(), text, imageUrl, groups, identityName,
     firstComment: document.getElementById('createFirstComment')?.value.trim() || '',
-    schedule: { time, days: [...selDays] }, enabled: true,
+    aiEnabled: !!document.getElementById('aiToggle')?.classList.contains('on'),
+    schedule: { time, days: [...selDays], maxRuns, endsAt, firedCount: 0 }, enabled: true,
     createdAt: new Date().toISOString(),
     hasSpintax: hasSpintax(text), variations: countVariations(text),
   };
@@ -1229,10 +1232,12 @@ function renderGroupChips() {
 }
 
 function getSelectedGroups() {
-  return [...document.querySelectorAll('#createGroupSelect .group-chip.selected')].map(c => ({
-    url: c.dataset.url,
-    name: c.dataset.name,
-  }));
+  return [...document.querySelectorAll('#createGroupSelect .group-chip.selected')]
+    .filter(c => c.style.display !== 'none')
+    .map(c => ({
+      url: c.dataset.url,
+      name: c.dataset.name,
+    }));
 }
 
 function useTemplate(id) {
@@ -2229,9 +2234,15 @@ function startScheduleChecker() {
     const currentDay = now.getDay();
     const currentTime = now.toTimeString().substring(0, 5);
 
+    let changed = false;
     for (const post of posts) {
       if (!post.enabled) continue;
       if (!post.schedule || !post.schedule.days || !post.schedule.time) continue;
+      if (scheduleLimitReached(post, now)) {
+        post.enabled = false;
+        changed = true;
+        continue;
+      }
       if (post.schedule.days.includes(currentDay) && post.schedule.time === currentTime) {
         // Check we haven't already fired this in the last 2 minutes
         const logs = await sbGet('logs') || [];
@@ -2242,11 +2253,18 @@ function startScheduleChecker() {
         if (recent) continue;
         try {
           await createJob(post);
+          post.schedule.firedCount = (Number(post.schedule.firedCount) || 0) + 1;
+          if (scheduleLimitReached(post, now)) post.enabled = false;
+          changed = true;
           console.log('[Amplr] Fired scheduled post:', post.id);
         } catch (e) {
           console.warn('[Amplr] Schedule fire failed:', e.message);
         }
       }
+    }
+    if (changed) {
+      cachedData.posts = posts;
+      await sbSet('posts', posts);
     }
   }, 60000);
 }
@@ -2263,14 +2281,25 @@ function toast(msg) {
   setTimeout(() => t.remove(), 3000);
 }
 
+function parsePositiveInt(value) {
+  const n = parseInt(value, 10);
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
+
+function scheduleLimitReached(post, now = new Date()) {
+  const schedule = post.schedule || {};
+  const maxRuns = Number(schedule.maxRuns) || 0;
+  const firedCount = Number(schedule.firedCount) || 0;
+  if (maxRuns && firedCount >= maxRuns) return true;
+  if (schedule.endsAt && now > new Date(schedule.endsAt)) return true;
+  return false;
+}
+
 // ─── AI toggle (Create Post panel) ───
 function toggleAI() {
   const toggle = document.getElementById('aiToggle');
-  const status = document.getElementById('aiStatus');
   if (!toggle) return;
-  // Ollama runs locally — no API key needed
   toggle.classList.toggle('on');
-  if (status) status.style.display = toggle.classList.contains('on') ? 'flex' : 'none';
   updateCreateWizardSummary();
 }
 
@@ -2299,6 +2328,10 @@ function clearCreateForm() {
   if (imgInput) { imgInput.value = ''; imgInput.dispatchEvent(new Event('input')); }
   const fcInput = document.getElementById('createFirstComment');
   if (fcInput) fcInput.value = '';
+  const maxRuns = document.getElementById('scheduleMaxRuns');
+  if (maxRuns) maxRuns.value = '';
+  const weeks = document.getElementById('scheduleWeeks');
+  if (weeks) weeks.value = '';
   const spin = document.getElementById('spinInfo');
   if (spin) spin.style.display = 'none';
   document.querySelectorAll('#createGroupSelect .group-chip.selected').forEach(c => c.classList.remove('selected'));
@@ -2403,11 +2436,14 @@ function selectedProfileGroupTags() {
 }
 
 function groupBelongsToSelectedProfile(group) {
-  const tags = (group.tags || []).map(t => String(t).toLowerCase());
+  const identity = getSelectedPostingIdentity();
   const profileTags = selectedProfileGroupTags();
-  if (!profileTags.length) return true;
-  const hasAnyProfileTaggedGroups = (cachedData.groups || []).some(g => (g.tags || []).map(t => String(t).toLowerCase()).some(t => profileTags.includes(t)));
-  if (!hasAnyProfileTaggedGroups) return true;
+  if (!identity || !profileTags.length) return false;
+  const tags = (group.tags || []).map(t => String(t).toLowerCase());
+  const owner = String(group.identity_name || group.identityName || group.profile_name || group.profileName || group.page_name || group.pageName || '').toLowerCase().trim();
+  const groupProfileKey = String(group.identity_key || group.identityKey || group.profile_key || group.profileKey || '').trim();
+  if (groupProfileKey && groupProfileKey === identityKey(identity)) return true;
+  if (owner && profileTags.includes(owner)) return true;
   return tags.some(t => profileTags.includes(t));
 }
 
@@ -2419,11 +2455,16 @@ function filterGroupsForSelectedIdentity() {
     const g = groups.find(x => x.url === chip.dataset.url);
     chip.style.display = g && shown.some(x => x.url === g.url) ? '' : 'none';
   });
-  const hint = document.getElementById('createGroupScopeHint');
-  if (hint) {
+  const noGroups = document.getElementById('createNoGroups');
+  if (noGroups) {
     const identity = getSelectedPostingIdentity();
-    hint.textContent = identity ? `Showing ${shown.length} of ${groups.length} groups for ${identity.name}. Add matching group tags later for strict profile-specific sets.` : `Showing ${shown.length} groups.`;
+    noGroups.style.display = shown.length ? 'none' : 'block';
+    noGroups.innerHTML = identity
+      ? `No groups tied to ${esc(identity.name)} yet.`
+      : 'Choose a profile first.';
   }
+  const hint = document.getElementById('createGroupScopeHint');
+  if (hint) hint.textContent = '';
 }
 
 function selectAllGroups() {
@@ -2439,7 +2480,7 @@ function deselectAllGroups() {
 }
 
 function updateSelectedCount() {
-  const count = document.querySelectorAll('#createGroupSelect .group-chip.selected').length;
+  const count = [...document.querySelectorAll('#createGroupSelect .group-chip.selected')].filter(c => c.style.display !== 'none').length;
   const el = document.getElementById('selectedGroupCount');
   if (el) el.textContent = `${count} group${count === 1 ? '' : 's'} selected`;
   updateCreateWizardSummary();
@@ -2448,7 +2489,10 @@ function updateSelectedCount() {
 function updateCreateWizardSummary() {
   const identity = getSelectedPostingIdentity();
   const groupCount = document.querySelectorAll('#createGroupSelect .group-chip.selected').length;
-  const delivery = createDeliveryMode === 'schedule' ? `Schedule · ${document.getElementById('createTime')?.value || '09:00'}` : 'One-time post';
+  const maxRuns = parsePositiveInt(document.getElementById('scheduleMaxRuns')?.value);
+  const weeks = parsePositiveInt(document.getElementById('scheduleWeeks')?.value);
+  const limitText = [maxRuns ? `${maxRuns}x` : '', weeks ? `${weeks}w` : ''].filter(Boolean).join(' / ');
+  const delivery = createDeliveryMode === 'schedule' ? `Schedule · ${document.getElementById('createTime')?.value || '09:00'}${limitText ? ' · ' + limitText : ''}` : 'One-time post';
   const aiOn = document.getElementById('aiToggle')?.classList.contains('on');
   setText('createSummaryProfile', identity?.name || 'No profile selected');
   setText('createSummaryGroups', `${groupCount} selected`);

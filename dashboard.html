@@ -690,6 +690,9 @@
     #page-create .cp-nav { max-width:940px; margin:18px auto 0; border:0; background:transparent; padding:0; }
     #page-create .cp-content-grid { grid-template-columns:minmax(0,1fr) 260px; }
 
+    #page-create .cp-schedule-limits { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+    @media (max-width: 700px) { #page-create .cp-schedule-limits { grid-template-columns:1fr; } }
+
     /* Management pages: calmer density. */
     #page-groups .card, #page-settings .card, #page-logs .card, #page-scheduled .card, #page-templates .card { max-width: 1060px; }
     .group-entry, .log-row { padding-top: 14px; padding-bottom: 14px; }
@@ -981,14 +984,17 @@ Example: Quick reminder for clinic owners — if your fee schedule is outdated, 
                 </div>
                 <div class="cp-section">
                   <div style="display:flex;align-items:center;justify-content:space-between;gap:14px;padding:14px;border:1px solid var(--border);border-radius:14px;background:var(--bg);">
-                    <div><div style="font-size:14px;font-weight:800;">AI paraphrasing across groups</div><div style="font-size:12px;color:var(--text-3);margin-top:3px;">Local Ollama rewrites uniquely for each group.</div></div>
+                    <div style="font-size:14px;font-weight:800;">AI paraphrase</div>
                     <div class="toggle-switch" id="aiToggle" onclick="toggleAI(); updateCreateWizardSummary();" style="cursor:pointer;"></div>
                   </div>
-                  <div id="aiStatus" style="margin-top:10px;font-size:12px;color:var(--green);display:none;align-items:center;gap:5px;">Running on local Ollama</div>
                 </div>
                 <div id="schedulePanel" class="cp-delivery-panel">
                   <div class="cp-section"><div class="cp-section-hd"><span class="cp-label">Time</span></div><input type="time" id="createTime" class="cp-time" value="09:00" oninput="updateNextFire(); updateCreateWizardSummary();" /></div>
                   <div class="cp-section"><div class="cp-section-hd"><span class="cp-label">Repeat on</span></div><div class="days" id="createDays"></div><div id="nextFireIndicator" class="cp-next-fire" style="display:none;">Next: <strong id="nextFireText"></strong></div></div>
+                  <div class="cp-section cp-schedule-limits">
+                    <div><div class="cp-section-hd"><span class="cp-label">Stop after posts</span></div><input type="number" id="scheduleMaxRuns" class="cp-url-input" min="1" placeholder="No limit" oninput="updateCreateWizardSummary();" /></div>
+                    <div><div class="cp-section-hd"><span class="cp-label">Stop after weeks</span></div><input type="number" id="scheduleWeeks" class="cp-url-input" min="1" placeholder="No limit" oninput="updateCreateWizardSummary();" /></div>
+                  </div>
                 </div>
                 <div id="postWaiting" class="cp-waiting" style="display:none;"><div class="cp-spinner"></div><span>Sending to extension...</span></div>
               </div>
@@ -1401,6 +1407,6 @@ Example: Quick reminder for clinic owners — if your fee schedule is outdated, 
       }
     }, 1200);
   </script>
-  <script src="app.js?v=19"></script>
+  <script src="app.js?v=20"></script>
 </body>
 </html>
