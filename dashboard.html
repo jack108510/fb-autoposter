@@ -562,15 +562,15 @@
     body { background: radial-gradient(circle at top left, rgba(54,87,246,.06), transparent 28%), var(--bg); }
     .app { background: transparent; }
     .sidebar { width: 218px; background: rgba(255,255,255,.92); backdrop-filter: blur(18px); box-shadow: none; }
-    [data-theme="dark"] .sidebar { background: rgba(255,255,255,.92); color: #11111B; }
-    [data-theme="dark"] .sidebar .brand-text { color: #11111B; }
+    [data-theme="dark"] .sidebar { background: rgba(24,24,31,.94); color: var(--text); }
+    [data-theme="dark"] .sidebar .brand-text { color: var(--text); }
     [data-theme="dark"] .sidebar .brand-sub,
     [data-theme="dark"] .sidebar .nav-section,
     [data-theme="dark"] .sidebar .theme-toggle,
-    [data-theme="dark"] .sidebar .sidebar-signout { color: #8A8B98; }
-    [data-theme="dark"] .sidebar .nav-item { color: #55576A; }
+    [data-theme="dark"] .sidebar .sidebar-signout { color: var(--text-3); }
+    [data-theme="dark"] .sidebar .nav-item { color: var(--text-2); }
     [data-theme="dark"] .sidebar .nav-item:hover,
-    [data-theme="dark"] .sidebar .nav-item.active { background: #F3F4F8; color: #11111B; border-color: #E8E8F0; }
+    [data-theme="dark"] .sidebar .nav-item.active { background: var(--surface-2); color: var(--text); border-color: var(--border); }
     .main { margin-left: 218px; padding: 46px 56px 64px; max-width: 1420px; }
     .brand { padding: 26px 22px 22px; background: transparent; }
     .brand-icon { width: 34px; height: 34px; border-radius: 11px; box-shadow: none; }
@@ -785,12 +785,15 @@
             <span id="authBtnText">Sign In</span>
           </button>
         </form>
+        <div id="forgotPasswordRow" style="text-align:center;margin-top:14px;font-size:12px;font-family:'Inter',sans-serif;">
+          <a onclick="sendPasswordReset()" style="color:#4F46E5;font-weight:600;cursor:pointer;text-decoration:none;">Forgot password?</a>
+        </div>
         <div style="text-align:center;margin-top:20px;font-size:13px;color:#9898B4;font-family:'Inter',sans-serif;" id="authToggleText">
           Don't have an account? <a onclick="toggleAuthMode()" style="color:#4F46E5;font-weight:600;cursor:pointer;text-decoration:none;">Create one</a>
         </div>
       </div>
       <div style="text-align:center;margin-top:16px;font-size:12px;color:#B0B0C8;font-family:'Inter',sans-serif;">
-        <a href="index.html" style="color:#B0B0C8;text-decoration:none;">← Back to home</a>
+        <a href="index.html" style="color:#B0B0C8;text-decoration:none;">← Back to home</a> · <a href="terms.html" style="color:#B0B0C8;text-decoration:none;">Terms</a> · <a href="privacy.html" style="color:#B0B0C8;text-decoration:none;">Privacy</a>
       </div>
     </div>
   </div>
@@ -867,7 +870,7 @@
           <div class="overview-health-card">
             <div class="overview-card-top"><span>Post risk</span><button class="btn btn-secondary btn-sm" onclick="nav('logs')">History</button></div>
             <div class="overview-big" id="sBanRisk">—</div>
-            <div class="overview-muted">Based on recent volume and failures</div>
+            <div class="overview-muted" title="Looks at recent posting volume, group count, and failed/removed posts. Lower volume, more cooldown, and fewer failures reduce risk.">Based on volume, failures, and removals</div>
           </div>
         </div>
 
@@ -935,7 +938,7 @@
               <div class="cp-pane" data-pane="2">
                 <div class="cp-pane-kicker">Step 2</div>
                 <div class="cp-pane-title">Write the post once.</div>
-                <div class="cp-pane-copy">Keep the main message clean here. You can still use spintax, and AI paraphrasing can rewrite it per group at delivery.</div>
+                <div class="cp-pane-copy">Keep the main message clean here. AI paraphrasing can rewrite it per group at delivery.</div>
                 <div class="cp-content-type-grid">
                   <div class="cp-choice active" data-content-type="standard" onclick="setCreateContentType('standard')"><div class="cp-choice-title">Standard post</div><div class="cp-choice-sub">General content for any profile</div></div>
                   <div class="cp-choice" data-content-type="promo" onclick="setCreateContentType('promo')"><div class="cp-choice-title">Promotion</div><div class="cp-choice-sub">Offer, CTA, or launch push</div></div>
@@ -1113,13 +1116,8 @@ Example: Quick reminder for clinic owners — if your fee schedule is outdated, 
             Go to <code style="background:rgba(79,70,229,.15);padding:1px 5px;border-radius:3px;">chrome://settings/system</code> → enable <strong>"Continue running background apps when Google Chrome is closed"</strong>
           </div>
           <div id="installHint" style="display:none;margin-top:16px;padding-top:16px;border-top:1px solid var(--border);font-size:12px;color:var(--text-3);line-height:1.8;">
-            <strong style="color:var(--text-2);">Not connected? Here's how:</strong><br>
-            1. Download the extension from GitHub<br>
-            2. <code>chrome://extensions</code> → enable Developer mode → Load unpacked<br>
-            3. Click the Amplr extension icon → sign in with the same email and password<br><br>
-            <strong style="color:var(--text-2);">⚡ Keep scheduling running when Chrome is closed:</strong><br>
-            Go to <code>chrome://settings/system</code> → turn on <strong>"Continue running background apps when Google Chrome is closed"</strong><br>
-            This lets Amplr post on schedule even with no Chrome window open.
+            <strong style="color:var(--text-2);">Not connected?</strong><br>
+            Open the Amplr extension, sign in with the same email and password, then refresh this page.
           </div>
         </div>
 
@@ -1174,7 +1172,7 @@ Example: Quick reminder for clinic owners — if your fee schedule is outdated, 
         <!-- AI Paraphrasing -->
         <div class="card" style="margin-bottom:16px;">
           <div class="card-title" style="margin-bottom:4px;">AI Paraphrasing</div>
-          <p style="font-size:13px;color:var(--text-3);margin-bottom:18px;">Rewrites your post uniquely for each group — keeps content fresh and reduces ban risk.</p>
+          <p style="font-size:13px;color:var(--text-3);margin-bottom:18px;">Rewrites your post uniquely for each group so campaigns look less repetitive.</p>
 
           <!-- Enable toggle -->
           <div class="form-group" style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;">
@@ -1313,6 +1311,23 @@ Example: Quick reminder for clinic owners — if your fee schedule is outdated, 
       }
     }
 
+    async function sendPasswordReset() {
+      const email = document.getElementById('authEmail').value.trim();
+      if (!email) {
+        showAuthError('Enter your email first, then click Forgot password.');
+        return;
+      }
+      try {
+        const authClient = getAuthClient();
+        const redirectTo = window.location.origin + window.location.pathname;
+        const result = await withAuthTimeout(authClient.auth.resetPasswordForEmail(email, { redirectTo }));
+        if (result.error) throw result.error;
+        showAuthError('Password reset email sent. Check your inbox.');
+      } catch (err) {
+        showAuthError(err.message || 'Could not send password reset email.');
+      }
+    }
+
     function logout() {
       if (window.sb) window.sb.auth.signOut();
       window.location.reload();
@@ -1329,6 +1344,6 @@ Example: Quick reminder for clinic owners — if your fee schedule is outdated, 
       }
     }, 1200);
   </script>
-  <script src="app.js?v=21"></script>
+  <script src="app.js?v=22"></script>
 </body>
 </html>
