@@ -655,6 +655,21 @@
     .cp-profile-list-first .cp-profile-card { min-height:150px; display:flex; flex-direction:column; justify-content:space-between; }
     .cp-profile-list-first .cp-profile-avatar { width:58px; height:58px; font-size:18px; margin-bottom:16px; }
     .cp-profile-fallback-select { margin-top:16px; opacity:.78; }
+
+    /* Focus mode for Step 1: only the posting identity selector matters. */
+    .cp-profile-focus .cp-hero,
+    .cp-profile-focus .cp-stepper,
+    .cp-profile-focus .cp-summary,
+    .cp-profile-focus .cp-pane-kicker,
+    .cp-profile-focus .cp-pane-copy,
+    .cp-profile-focus .cp-profile-fallback-select,
+    .cp-profile-focus .cp-profile-sync-help { display:none!important; }
+    .cp-profile-focus .cp-layout { display:block; max-width:940px; margin:0 auto; }
+    .cp-profile-focus .cp-card { box-shadow:none; border:0; background:transparent; }
+    .cp-profile-focus .cp-pane { padding:8px 0 0; min-height:auto; }
+    .cp-profile-focus .cp-pane-title { font-size:24px; margin-bottom:18px; }
+    .cp-profile-focus .cp-nav { max-width:940px; margin:18px auto 0; border:0; background:transparent; padding:0; }
+    .cp-profile-focus .cp-profile-list-first { grid-template-columns:repeat(auto-fill,minmax(220px,1fr)); }
     .cp-groups-toolbar { gap: 12px; margin-bottom: 18px; }
     .cp-groups-wrap { grid-template-columns: repeat(auto-fill,minmax(250px,1fr)); gap: 12px; max-height: 470px; }
     .group-chip { padding: 14px!important; border-radius: 16px!important; }
@@ -932,7 +947,7 @@ Example: Quick reminder for clinic owners — if your fee schedule is outdated, 
                 <div class="cp-pane-copy">This is the first safety choice. Pick the exact Facebook profile or Page by its picture; Amplr will carry that identity into the job and the extension will verify it before posting.</div>
                 <div id="createProfileCards" class="cp-profile-list cp-profile-list-first"></div>
                 <select id="createIdentitySelect" class="cp-url-input cp-profile-fallback-select" onchange="setSelectedPostingIdentity(this.value); updateFacebookPreviewIdentity(); renderCreateProfileCards(); filterGroupsForSelectedIdentity(); updateCreateWizardSummary();"></select>
-                <div style="font-size:12px;color:var(--text-3);margin-top:14px;">Missing something? Sync profiles from Settings after reloading the extension.</div>
+                <div class="cp-profile-sync-help" style="font-size:12px;color:var(--text-3);margin-top:14px;">Missing something? Sync profiles from Settings after reloading the extension.</div>
               </div>
 
               <div class="cp-pane" data-pane="3">
@@ -1379,6 +1394,6 @@ Example: Quick reminder for clinic owners — if your fee schedule is outdated, 
       }
     }, 1200);
   </script>
-  <script src="app.js?v=16"></script>
+  <script src="app.js?v=17"></script>
 </body>
 </html>

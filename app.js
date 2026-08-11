@@ -2330,6 +2330,7 @@ function goCreateStep(step, validate=true) {
     el.classList.toggle('active', n === step);
     el.classList.toggle('done', n < step);
   });
+  document.querySelector('#page-create .cp-shell')?.classList.toggle('cp-profile-focus', step === 1);
   const back = document.getElementById('cpBackBtn');
   const next = document.getElementById('cpNextBtn');
   if (back) back.style.visibility = step === 1 ? 'hidden' : 'visible';
