@@ -19,7 +19,7 @@ try {
 }
 
 let connected = false;
-let cachedData = { posts: [], logs: [], templates: [], groups: [], settings: {}, postingIdentities: [] };
+let cachedData = { posts: [], logs: [], groups: [], settings: {}, postingIdentities: [] };
 let selDays = [1, 2, 3, 4, 5];
 let groupCount = 0;
 let calDate = new Date();
@@ -98,7 +98,7 @@ async function bootAuthenticatedApp(session) {
 
   // Render the shell immediately, then hydrate data in the background.
   loadSettings().catch(e => console.warn('[Amplr] settings load failed', e));
-  loadTemplates().catch(e => console.warn('[Amplr] post flow load failed', e));
+  loadCreate().catch(e => console.warn('[Amplr] post flow load failed', e));
   loadDashboard().catch(e => console.warn('[Amplr] overview load failed', e));
   checkConn().catch(e => console.warn('[Amplr] connection check failed', e));
   setInterval(() => checkConn().catch(e => console.warn('[Amplr] connection check failed', e)), 30000);
@@ -144,9 +144,8 @@ function nav(page) {
   switch (page) {
     case 'dashboard': loadDashboard(); break;
     case 'calendar': loadCalendar(); break;
-    case 'create': loadTemplates(); break;
+    case 'create': loadCreate(); break;
     case 'scheduled': loadScheduled(); break;
-    case 'templates': loadTemplatesPage(); break;
     case 'groups': loadGroups(); break;
     case 'logs': loadLogs(); break;
     case 'settings': loadSettings(); refreshIdentitySyncStatus(); break;
@@ -368,9 +367,8 @@ async function fetchAll() {
       }
       return res;
     };
-    const [postsRes, templatesRes, groupsRes, settings, logs, postingIdentitiesRes] = await Promise.all([
+    const [postsRes, groupsRes, settings, logs, postingIdentitiesRes] = await Promise.all([
       sbGet('posts'),
-      sbGet('templates'),
       // Groups always come from jsw_groups table (shared with extension)
       fetchGroups(),
       sbGet('settings'),
@@ -390,7 +388,6 @@ async function fetchAll() {
     return {
       posts: postsRes || [],
       logs: logs || [],
-      templates: templatesRes || [],
       groups,
       settings: settings || {},
       postingIdentities: sanitizePostingIdentities(Array.isArray(postingIdentitiesRes) ? postingIdentitiesRes : (postingIdentitiesRes?.identities || [])),
@@ -1120,39 +1117,17 @@ async function postNow() {
   }
 }
 
-async function saveTemplate() {
-  const text = document.getElementById('createText').value.trim();
-  if (!text) return toast('Nothing to save');
-  const name = prompt('Template name:');
-  if (!name) return;
-  const firstComment = document.getElementById('createFirstComment')?.value.trim() || '';
-  const template = { id: Date.now().toString(), name, text, firstComment, createdAt: new Date().toISOString() };
-  const templates = [...(cachedData.templates || []), template];
-  cachedData.templates = templates;
-  await sbSet('templates', templates);
-  toast('Template saved');
-}
-
-async function loadTemplates() {
+async function loadCreate() {
   cachedData = await fetchAll();
   renderGroupChips();
   renderPostingIdentitySelect();
   restoreDraft();
   updateNextFire();
   initCreateWizard();
-  const templates = cachedData.templates || [];
-  document.getElementById('quickTemplates').innerHTML = templates.length === 0
-    ? '<div style="font-size:12px;color:var(--text-3);">No saved templates yet</div>'
-    : templates.map(t => `
-      <div class="template-card" onclick="useTemplate('${t.id}')">
-        <div class="template-name">${esc(t.name)}</div>
-        <div class="template-preview">${esc(t.text.substring(0, 80))}...</div>
-      </div>`).join('');
 }
 
 // ─── Tag filter state for group chip selectors ───
 let createGroupTagFilter = null;
-let tplGroupTagFilter = null;
 let createWizardStep = 1;
 let createDeliveryMode = 'now';
 let createContentType = localStorage.getItem('amplr_create_content_type') || 'standard';
@@ -1189,12 +1164,6 @@ function setCreateGroupTagFilter(tag) {
   renderGroupChipsFiltered('createGroupSelect', groups, createGroupTagFilter);
 }
 
-function setTplGroupTagFilter(tag) {
-  tplGroupTagFilter = tag;
-  const groups = cachedData.groups || [];
-  renderTagFilterBar('tplGroupTagBar', groups, tplGroupTagFilter, 'setTplGroupTagFilter');
-  renderGroupChipsFiltered('tplGroupSelect', groups, tplGroupTagFilter);
-}
 
 function renderGroupChips() {
   const groups = cachedData.groups || [];
@@ -1238,215 +1207,6 @@ function getSelectedGroups() {
       url: c.dataset.url,
       name: c.dataset.name,
     }));
-}
-
-function useTemplate(id) {
-  const t = (cachedData.templates || []).find(x => x.id === id);
-  if (!t) return;
-  document.getElementById('createText').value = t.text;
-  document.getElementById('createText').dispatchEvent(new Event('input'));
-  const fcEl = document.getElementById('createFirstComment');
-  if (fcEl) fcEl.value = t.firstComment || '';
-  toast(`Loaded: ${t.name}`);
-}
-
-// ═══ TEMPLATES PAGE ═══
-let activeTplId = null;
-
-async function loadTemplatesPage() {
-  cachedData = await fetchAll();
-  const templates = cachedData.templates || [];
-  const el = document.getElementById('templatesList');
-  if (templates.length === 0) {
-    el.innerHTML = '<div class="empty"><p>No templates yet.</p><button class="btn btn-primary" style="margin-top:12px;" onclick="nav(\'create\')">Create your first</button></div>';
-    return;
-  }
-  el.innerHTML = templates.map(t => `
-    <div style="display:flex;align-items:center;gap:14px;padding:14px 0;border-bottom:1px solid var(--border);cursor:pointer;" onclick="openTplModal('${t.id}')" onmouseover="this.style.background='var(--surface-2)'" onmouseout="this.style.background=''">
-      <div style="flex:1;min-width:0;">
-        <div style="font-size:14px;font-weight:600;margin-bottom:2px;">${esc(t.name)} ${hasSpintax(t.text) ? '<span class="spin-badge">SPINTAX</span>' : ''}</div>
-        <div style="font-size:12px;color:var(--text-3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(t.text.substring(0, 100))}</div>
-      </div>
-      <button class="btn btn-primary btn-sm" onclick="event.stopPropagation();openTplModal('${t.id}')">Post</button>
-      <button class="btn btn-ghost btn-sm" style="color:var(--red);" onclick="event.stopPropagation();deleteTemplate('${t.id}')">
-        <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 4h10M5 4V2.5C5 2 5.5 1.5 6 1.5h4c0.5 0 1 0.5 1 1V4M6 7v6M10 7v6M4 4l1 10c0 0.5 0.5 1 1 1h4c0.5 0 1-0.5 1-1l1-10"/></svg>
-      </button>
-    </div>`).join('');
-}
-
-function openTplModal(id) {
-  const t = (cachedData.templates || []).find(x => x.id === id);
-  if (!t) return;
-  activeTplId = id;
-  document.getElementById('tplModalName').textContent = t.name;
-  document.getElementById('tplModalPreview').textContent = t.text;
-
-  // Render group chips
-  const groups = cachedData.groups || [];
-  const container = document.getElementById('tplGroupSelect');
-  if (groups.length === 0) {
-    container.innerHTML = '<div style="font-size:13px;color:var(--text-3);">No groups yet — <a href="#" onclick="nav(\'groups\');closeTplModal();return false;" style="color:var(--blue);">add groups first</a></div>';
-  } else {
-    container.innerHTML = groups.map((g, i) => {
-      return `<div class="group-chip" data-url="${esc(g.url)}" data-name="${esc(g.name)}" onclick="this.classList.toggle('selected')"
-        style="display:inline-flex;align-items:center;gap:8px;padding:7px 12px 7px 8px;border-radius:22px;font-size:12px;cursor:pointer;border:1px solid var(--border);background:var(--surface);transition:all .15s;">
-        ${groupAvatarHtml(g, 'group-avatar-chip')}<span>${esc(g.name)}</span></div>`;
-    }).join('');
-    // Render tag filter bar for modal
-    tplGroupTagFilter = null;
-    renderTagFilterBar('tplGroupTagBar', groups, tplGroupTagFilter, 'setTplGroupTagFilter');
-  }
-
-  // Reset state
-  document.getElementById('tplAiToggle').classList.remove('on');
-  document.getElementById('tplPosting').style.display = 'none';
-  const fcEl = document.getElementById('tplFirstComment');
-  if (fcEl) fcEl.value = t.firstComment || '';
-  const modal = document.getElementById('tplModal');
-  modal.style.display = 'flex';
-}
-
-function closeTplModal() {
-  document.getElementById('tplModal').style.display = 'none';
-  activeTplId = null;
-}
-
-function tplSelectAll() {
-  document.querySelectorAll('#tplGroupSelect .group-chip').forEach(c => c.classList.add('selected'));
-}
-
-function tplClearAll() {
-  document.querySelectorAll('#tplGroupSelect .group-chip').forEach(c => c.classList.remove('selected'));
-}
-
-function editTemplate() {
-  if (!activeTplId) return;
-  const id = activeTplId;
-  closeTplModal();
-  nav('create');
-  setTimeout(() => useTemplate(id), 100);
-}
-
-async function postTemplate() {
-  if (!activeTplId) return;
-  const t = (cachedData.templates || []).find(x => x.id === activeTplId);
-  if (!t) return;
-
-  const selected = [...document.querySelectorAll('#tplGroupSelect .group-chip.selected')].map(c => ({
-    url: c.dataset.url, name: c.dataset.name
-  }));
-  if (selected.length === 0) return toast('Select at least one group');
-
-  const aiEnabled = document.getElementById('tplAiToggle').classList.contains('on');
-  const postingEl = document.getElementById('tplPosting');
-  postingEl.style.display = 'flex';
-
-  try {
-    const settings = cachedData.settings || {};
-    const groups = selected.map(g => g.url);
-    const { error } = await sb.from('jsw_post_jobs').insert({
-      user_id: user.id,
-      message: t.text,
-      image_url: null,
-      groups,
-      delay: settings.delay || 30,
-      ai_enabled: aiEnabled,
-      ai_prompt: settings.ai_prompt || null,
-      status: 'pending',
-      first_comment: document.getElementById('tplFirstComment')?.value.trim() || null,
-    });
-    if (error) throw new Error(error.message);
-    closeTplModal();
-    toast(`Sent to ${selected.length} group${selected.length > 1 ? 's' : ''} — extension will post`);
-  } catch (e) {
-    toast('Error: ' + e.message);
-    postingEl.style.display = 'none';
-  }
-}
-
-
-async function deleteTemplate(id) {
-  if (!confirm('Delete this template?')) return;
-  const templates = (cachedData.templates || []).filter(t => t.id !== id);
-  cachedData.templates = templates;
-  await sbSet('templates', templates);
-  loadTemplatesPage();
-  toast('Deleted');
-}
-
-function toggleTplSchedule() {
-  const panel = document.getElementById('tplSchedulePanel');
-  const btn = document.getElementById('tplScheduleToggleBtn');
-  if (!panel) return;
-  const showing = panel.style.display !== 'none';
-  panel.style.display = showing ? 'none' : 'block';
-  if (btn) btn.style.background = showing ? '' : 'var(--blue-light)';
-  // Reset day chips
-  if (!showing) {
-    document.querySelectorAll('#tplDayPicker .day-chip').forEach(c => c.classList.remove('selected'));
-    document.querySelectorAll('#tplDayPicker .day-chip').forEach(c =>
-      c.onclick = () => c.classList.toggle('selected')
-    );
-  }
-}
-
-async function scheduleTemplate() {
-  if (!activeTplId) return;
-  const t = (cachedData.templates || []).find(x => x.id === activeTplId);
-  if (!t) return;
-
-  const identity = getSelectedPostingIdentity();
-  if (!identity?.name) return toast('Sync and select a Facebook profile before posting');
-  const identityName = identity.name;
-  const selected = [...document.querySelectorAll('#tplGroupSelect .group-chip.selected')].map(c => ({
-    url: c.dataset.url,
-    name: c.dataset.name || '',
-    group_name: c.dataset.name || '',
-    identity_name: identityName
-  }));
-  if (selected.length === 0) return toast('Select at least one group');
-
-  const days = [...document.querySelectorAll('#tplDayPicker .day-chip.selected')].map(c => parseInt(c.dataset.day));
-  if (days.length === 0) return toast('Select at least one day');
-
-  const time = document.getElementById('tplScheduleTime')?.value || '09:00';
-  const aiEnabled = document.getElementById('tplAiToggle').classList.contains('on');
-  const settings = cachedData.settings || {};
-
-  // Compute first scheduled_for
-  const [hours, minutes] = time.split(':').map(Number);
-  const now = new Date();
-  let next = new Date(now);
-  next.setHours(hours, minutes, 0, 0);
-  if (next <= now) next.setDate(next.getDate() + 1);
-  for (let i = 0; i < 8; i++) {
-    if (days.includes(next.getDay())) break;
-    next.setDate(next.getDate() + 1);
-  }
-
-  try {
-    const { error } = await sb.from('jsw_post_jobs').insert({
-      user_id: user.id,
-      message: t.text,
-      image_url: null,
-      groups: selected,
-      identity_name: identityName,
-      delay: settings.delay || 30,
-      ai_enabled: aiEnabled,
-      ai_prompt: settings.ai_prompt || null,
-      first_comment: document.getElementById('tplFirstComment')?.value.trim() || null,
-      status: 'pending',
-      scheduled_for: next.toISOString(),
-      repeat_days: days,
-      repeat_time: time,
-    });
-    if (error) throw new Error(error.message);
-    closeTplModal();
-    const dayNames = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
-    toast(`Scheduled — runs ${days.map(d => dayNames[d]).join(', ')} at ${time}`);
-  } catch (e) {
-    toast('Error: ' + e.message);
-  }
 }
 
 
@@ -1510,7 +1270,7 @@ async function loadScheduled() {
     </div>`;
   }).join('');
 
-  el.innerHTML = (scheduledJobs?.length ? `<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--text-3);padding:0 0 10px;">Template Schedules</div>${jobsHtml}` : '') +
+  el.innerHTML = (scheduledJobs?.length ? `<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--text-3);padding:0 0 10px;">Scheduled Jobs</div>${jobsHtml}` : '') +
     (legacyPosts.length ? `${scheduledJobs?.length ? '<div style="height:16px;"></div>' : ''}<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--text-3);padding:0 0 10px;">Recurring Posts</div>${legacyHtml}` : '');
 }
 
@@ -1555,7 +1315,7 @@ async function editPost(id) {
 
   // Pre-select the groups that were on this post
   nav('create');
-  await loadTemplates(); // renders group chips
+  await loadCreate(); // renders group chips
   if (p.groups) {
     p.groups.forEach(pg => {
       const chip = [...document.querySelectorAll('#createGroupSelect .group-chip')].find(c => c.dataset.url === pg.url);
@@ -2215,7 +1975,7 @@ async function deleteAllPosts() {
 }
 
 async function resetAll() {
-  const typed = prompt('This clears dashboard settings/templates/legacy schedules only. Type RESET to continue:');
+  const typed = prompt('This clears dashboard settings and legacy schedules only. Type RESET to continue:');
   if (typed !== 'RESET') return;
   await sb.from('amplr_data').delete().eq('user_id', user.id);
   toast('Dashboard data reset');
