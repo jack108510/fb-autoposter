@@ -633,6 +633,11 @@ function setSelectedPostingIdentity(key) {
   updateCreateWizardSummary();
 }
 
+function selectPostingIdentityAndContinue(key) {
+  setSelectedPostingIdentity(key);
+  if (createWizardStep === 1) goCreateStep(2, false);
+}
+
 function renderPostingIdentitySelect() {
   const select = document.getElementById('createIdentitySelect');
   if (!select) return;
@@ -2382,11 +2387,10 @@ function renderCreateProfileCards() {
     const key = esc(identityKey(identity));
     const active = selected && identityKey(selected) === identityKey(identity);
     const avatar = identityAvatarHtml(identity, 'cp-profile-avatar');
-    return `<div class="cp-profile-card ${active ? 'active' : ''}" data-identity-key="${key}" onclick="setSelectedPostingIdentity(this.dataset.identityKey)">
+    return `<div class="cp-profile-card ${active ? 'active' : ''}" data-identity-key="${key}" onclick="selectPostingIdentityAndContinue(this.dataset.identityKey)">
       ${avatar}
       <div style="font-size:14px;font-weight:800;margin-bottom:3px;">${esc(identity.name || 'Unnamed profile')}</div>
       <div style="font-size:12px;color:var(--text-3);">${esc(identity.type || 'Facebook profile')}${identity.is_active ? ' · active' : ''}</div>
-      <div style="font-size:11px;color:${active ? 'var(--blue)' : 'var(--text-3)'};font-weight:800;margin-top:14px;text-transform:uppercase;letter-spacing:.08em;">${active ? 'Selected to post' : 'Click to select'}</div>
     </div>`;
   }).join('');
 }
