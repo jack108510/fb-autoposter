@@ -1243,6 +1243,7 @@ function findPostingIdentityByName(name) {
 }
 
 let upcomingPostDetails = {};
+let queuedSubscriptionDetails = {};
 
 function scheduledEventIdentityName(item) {
   return item.identityName || item.identity_name || item.groups?.find?.(g => g?.identity_name)?.identity_name || item.profile_name || item.page_name || '';
@@ -1350,21 +1351,102 @@ function nextRunLabel(post, from = new Date()) {
   return 'Not in next 30 days';
 }
 
-function renderSubscriptionsTable(posts = []) {
-  const subscriptions = (posts || []).filter(p => p.schedule?.time && Array.isArray(p.schedule?.days));
+function jobGroupKey(job) {
+  const groups = scheduledEventGroups(job).map(g => g.url || g.group_url || groupDisplayName(g)).sort().join('|');
+  const when = job.scheduled_for ? new Date(job.scheduled_for) : null;
+  const time = when ? normalizeTimeValue(`${String(when.getHours()).padStart(2, '0')}:${String(when.getMinutes()).padStart(2, '0')}`) : '09:00';
+  return [scheduledEventIdentityName(job), scheduledEventText(job).replace(/\s+/g, ' ').trim(), scheduledEventImage(job), groups, time].join('||');
+}
+
+function simpleHash(value) {
+  let h = 0;
+  const s = String(value || '');
+  for (let i = 0; i < s.length; i++) h = Math.imul(31, h) + s.charCodeAt(i) | 0;
+  return Math.abs(h).toString(36);
+}
+
+function queuedJobSubscriptionRows(jobs = []) {
+  const grouped = new Map();
+  (jobs || []).filter(j => !isSystemJob(j) && j.status === 'pending' && j.scheduled_for).forEach(job => {
+    const key = jobGroupKey(job);
+    const when = new Date(job.scheduled_for);
+    if (!grouped.has(key)) {
+      grouped.set(key, {
+        id: `jobs-${simpleHash(key)}`,
+        kind: 'job_group',
+        jobIds: [],
+        text: scheduledEventText(job),
+        imageUrl: scheduledEventImage(job),
+        identityName: scheduledEventIdentityName(job),
+        groups: scheduledEventGroups(job),
+        enabled: true,
+        schedule: {
+          time: normalizeTimeValue(`${String(when.getHours()).padStart(2, '0')}:${String(when.getMinutes()).padStart(2, '0')}`),
+          days: []
+        },
+        nextDate: when
+      });
+    }
+    const row = grouped.get(key);
+    row.jobIds.push(job.id);
+    const day = when.getDay();
+    if (!row.schedule.days.includes(day)) row.schedule.days.push(day);
+    if (when < row.nextDate) row.nextDate = when;
+  });
+  return [...grouped.values()].map(row => {
+    row.schedule.days.sort((a, b) => a - b);
+    return row;
+  });
+}
+
+function subscriptionRowKey(row) {
+  const groups = scheduledEventGroups(row).map(g => g.url || g.group_url || groupDisplayName(g)).sort().join('|');
+  return [scheduledEventIdentityName(row), scheduledEventText(row).replace(/\s+/g, ' ').trim(), scheduledEventImage(row), groups, normalizeTimeValue(row.schedule?.time || '09:00')].join('||');
+}
+
+function mergedSubscriptionRows(posts = [], jobs = []) {
+  const saved = (posts || []).filter(p => p.schedule?.time && Array.isArray(p.schedule?.days)).map(p => ({ ...p, kind: 'post' }));
+  const savedKeys = new Set(saved.map(subscriptionRowKey));
+  const queued = queuedJobSubscriptionRows(jobs).filter(row => !savedKeys.has(subscriptionRowKey(row)));
+  return [...saved, ...queued].sort((a, b) => {
+    const an = nextRunDate(a)?.getTime?.() || a.nextDate?.getTime?.() || 0;
+    const bn = nextRunDate(b)?.getTime?.() || b.nextDate?.getTime?.() || 0;
+    return an - bn;
+  });
+}
+
+function nextRunDate(post, from = new Date()) {
+  const days = Array.isArray(post.schedule?.days) ? post.schedule.days : [];
+  const time = normalizeTimeValue(post.schedule?.time || '09:00');
+  if (!days.length || !time) return null;
+  const [hh, mm] = time.split(':').map(Number);
+  const endsAt = post.schedule?.endsAt ? new Date(post.schedule.endsAt) : null;
+  for (let i = 0; i < 30; i++) {
+    const day = addDays(startOfLocalDay(from), i);
+    if (!days.includes(day.getDay())) continue;
+    day.setHours(hh || 0, mm || 0, 0, 0);
+    if (day < from) continue;
+    if (endsAt && day > endsAt) return null;
+    return day;
+  }
+  return null;
+}
+
+function renderSubscriptionsTable(posts = [], jobs = []) {
+  const subscriptions = mergedSubscriptionRows(posts, jobs);
   if (!subscriptions.length) {
     return `<div class="subscription-card">
       <div class="subscription-top">
-        <div><div class="subscription-title">Subscriptions</div><div class="subscription-subtitle">Recurring posts you can edit, pause, or delete.</div></div>
+        <div><div class="subscription-title">Subscriptions</div><div class="subscription-subtitle">Recurring and queued scheduled posts.</div></div>
         <button class="btn btn-secondary btn-sm" onclick="nav('create')">Add subscription</button>
       </div>
-      <div class="subscription-empty">No recurring posts yet.</div>
+      <div class="subscription-empty">No recurring or queued scheduled posts yet.</div>
     </div>`;
   }
 
   return `<div class="subscription-card">
     <div class="subscription-top">
-      <div><div class="subscription-title">Subscriptions</div><div class="subscription-subtitle">Manage profile, groups, and frequency.</div></div>
+      <div><div class="subscription-title">Subscriptions</div><div class="subscription-subtitle">Manage recurring posts and queued daily schedules.</div></div>
       <button class="btn btn-secondary btn-sm" onclick="nav('create')">Add subscription</button>
     </div>
     <div class="subscription-table-wrap"><table class="table subscription-table">
@@ -1375,14 +1457,19 @@ function renderSubscriptionsTable(posts = []) {
         const groups = scheduledEventGroups(post);
         const groupCount = groups.length || 0;
         const preview = scheduledEventText(post).replace(/\s+/g, ' ').trim() || 'No post text saved';
+        const isQueued = post.kind === 'job_group';
+        const nextLabel = isQueued && post.nextDate ? `${post.nextDate.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })} · ${displayTime(post.schedule?.time || '09:00')}` : (post.enabled ? nextRunLabel(post) : 'Paused');
+        const actions = isQueued
+          ? `<button class="btn btn-secondary btn-sm" onclick="openQueuedJobDetail('${esc(post.id)}')">View</button><button class="btn btn-danger btn-sm" onclick="cancelScheduledJobs('${esc(post.jobIds.join(','))}')">Cancel</button>`
+          : `<button class="btn btn-secondary btn-sm" onclick="editPost('${esc(post.id)}')">Edit</button><button class="btn btn-secondary btn-sm" onclick="togglePost('${esc(post.id)}')">${post.enabled ? 'Pause' : 'Resume'}</button><button class="btn btn-danger btn-sm" onclick="delPost('${esc(post.id)}')">Delete</button>`;
         return `<tr>
-          <td><div class="subscription-profile">${identityAvatarHtml(identity, '')}<div><div style="font-weight:750;color:var(--text);">${esc(identityName || identity?.name || 'Facebook profile')}</div><div class="subscription-muted">${post.enabled ? 'Active profile' : 'Paused'}</div></div></div></td>
+          <td><div class="subscription-profile">${identityAvatarHtml(identity, '')}<div><div style="font-weight:750;color:var(--text);">${esc(identityName || identity?.name || 'Facebook profile')}</div><div class="subscription-muted">${isQueued ? 'Queued schedule' : (post.enabled ? 'Active profile' : 'Paused')}</div></div></div></td>
           <td><div class="subscription-post-preview" title="${esc(preview)}">${esc(preview)}</div>${scheduledEventImage(post) ? '<div class="subscription-muted">Includes image</div>' : ''}</td>
           <td><div style="font-weight:700;color:var(--text);">${groupCount} group${groupCount === 1 ? '' : 's'}</div><div class="subscription-muted">${groups.slice(0, 2).map(groupDisplayName).filter(Boolean).map(esc).join(', ')}${groups.length > 2 ? ` +${groups.length - 2}` : ''}</div></td>
           <td>${esc(frequencyLabel(post))}</td>
-          <td>${esc(post.enabled ? nextRunLabel(post) : 'Paused')}</td>
-          <td><span class="badge ${post.enabled ? 'badge-green' : 'badge-gray'}">${post.enabled ? 'Active' : 'Paused'}</span></td>
-          <td><div class="subscription-actions"><button class="btn btn-secondary btn-sm" onclick="editPost('${esc(post.id)}')">Edit</button><button class="btn btn-secondary btn-sm" onclick="togglePost('${esc(post.id)}')">${post.enabled ? 'Pause' : 'Resume'}</button><button class="btn btn-danger btn-sm" onclick="delPost('${esc(post.id)}')">Delete</button></div></td>
+          <td>${esc(nextLabel)}</td>
+          <td><span class="badge ${post.enabled ? 'badge-green' : 'badge-gray'}">${isQueued ? 'Queued' : (post.enabled ? 'Active' : 'Paused')}</span></td>
+          <td><div class="subscription-actions">${actions}</div></td>
         </tr>`;
       }).join('')}</tbody>
     </table></div>
@@ -1409,6 +1496,7 @@ async function loadScheduled() {
 
   const events = scheduledWeekEvents(cachedData.posts || [], scheduledJobs || [], weekDays);
   upcomingPostDetails = Object.fromEntries(events.map(e => [e.id, e]));
+  queuedSubscriptionDetails = Object.fromEntries(queuedJobSubscriptionRows(scheduledJobs || []).map(row => [row.id, row]));
 
   if (!events.length) {
     el.innerHTML = `<div class="upcoming-week-card">
@@ -1417,7 +1505,7 @@ async function loadScheduled() {
         <button class="btn btn-primary btn-sm" onclick="nav('create')">Schedule a post</button>
       </div>
       <div class="upcoming-empty"><h3>No posts this week</h3><p>Schedule a post and it will show up here by profile picture.</p></div>
-    </div>${renderSubscriptionsTable(cachedData.posts || [])}`;
+    </div>${renderSubscriptionsTable(cachedData.posts || [], scheduledJobs || [])}`;
     return;
   }
 
@@ -1448,12 +1536,16 @@ async function loadScheduled() {
       <button class="btn btn-primary btn-sm" onclick="nav('create')">Schedule a post</button>
     </div>
     <div class="week-scroll"><div class="week-calendar">${header}${rows}</div></div>
-  </div>${renderSubscriptionsTable(cachedData.posts || [])}`;
+  </div>${renderSubscriptionsTable(cachedData.posts || [], scheduledJobs || [])}`;
 }
 
 function openUpcomingPostDetail(id) {
   const item = upcomingPostDetails?.[id];
   if (!item) return;
+  openUpcomingPostDetailFromItem(item);
+}
+
+function openUpcomingPostDetailFromItem(item) {
   const modal = document.getElementById('postDetailModal');
   const avatar = document.getElementById('postDetailAvatar');
   const title = document.getElementById('postDetailTitle');
@@ -1462,10 +1554,12 @@ function openUpcomingPostDetail(id) {
   const image = document.getElementById('postDetailImage');
   const groups = document.getElementById('postDetailGroups');
   const groupList = scheduledEventGroups(item).map(groupDisplayName).filter(Boolean);
+  const identity = item.identity || findPostingIdentityByName(item.identityName || scheduledEventIdentityName(item));
+  const time = item.time || item.schedule?.time || '09:00';
 
-  if (avatar) avatar.innerHTML = identityAvatarHtml(item.identity, '');
-  if (title) title.textContent = item.identityName || item.identity?.name || 'Facebook profile';
-  if (meta) meta.textContent = `${item.dateLabel || ''} · ${displayTime(item.time)}${groupList.length ? ` · ${groupList.length} group${groupList.length === 1 ? '' : 's'}` : ''}`;
+  if (avatar) avatar.innerHTML = identityAvatarHtml(identity, '');
+  if (title) title.textContent = item.identityName || identity?.name || 'Facebook profile';
+  if (meta) meta.textContent = `${item.dateLabel || ''} · ${displayTime(time)}${groupList.length ? ` · ${groupList.length} group${groupList.length === 1 ? '' : 's'}` : ''}`;
   if (text) text.textContent = item.text || 'No post text saved.';
   if (image) {
     if (item.imageUrl) {
@@ -1494,6 +1588,28 @@ async function cancelScheduledJob(id) {
   loadScheduled();
 }
 
+function openQueuedJobDetail(id) {
+  const item = queuedSubscriptionDetails?.[id];
+  if (!item) return;
+  openUpcomingPostDetailFromItem({
+    ...item,
+    id,
+    dateLabel: item.nextDate ? item.nextDate.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }) : 'Queued',
+    title: `${scheduledEventIdentityName(item) || 'Facebook profile'} · ${(item.groups || []).length || 1} group${((item.groups || []).length || 1) === 1 ? '' : 's'}`
+  });
+}
+
+async function cancelScheduledJobs(idsCsv) {
+  const ids = String(idsCsv || '').split(',').map(s => s.trim()).filter(Boolean);
+  if (!ids.length) return;
+  if (!confirm(`Cancel ${ids.length} queued scheduled post${ids.length === 1 ? '' : 's'}?`)) return;
+  const { error } = await sb.from('jsw_post_jobs').update({ status: 'cancelled' }).eq('user_id', user.id).in('id', ids);
+  if (error) return toast('Error: ' + error.message);
+  toast('Cancelled');
+  loadScheduled();
+}
+
+// ═══ POSTS CRUD ═══
 async function firePost(id) {
   const p = (cachedData.posts || []).find(x => x.id === id);
   if (!p) return;
