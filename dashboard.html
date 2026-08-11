@@ -362,7 +362,31 @@
     .cal-event.blue { background: var(--blue-light); color: var(--blue); }
     .cal-event.green { background: var(--green-light); color: var(--green); }
     .cal-event.purple { background: var(--purple-light); color: var(--purple); }
-    
+
+    /* ─── Upcoming week ─── */
+    .upcoming-week-card { max-width: 1180px; background: var(--surface); border: 1px solid var(--border); border-radius: 22px; box-shadow: var(--shadow); overflow: hidden; }
+    .upcoming-week-top { display:flex; justify-content:space-between; align-items:center; gap:16px; padding:18px 20px; border-bottom:1px solid var(--border); }
+    .upcoming-week-title { font-size:14px; font-weight:800; color:var(--text); }
+    .upcoming-week-range { font-size:12px; color:var(--text-3); margin-top:3px; }
+    .week-calendar { min-width: 760px; }
+    .week-scroll { overflow-x:auto; }
+    .week-grid { display:grid; grid-template-columns: 72px repeat(7, minmax(92px, 1fr)); }
+    .week-head-cell { padding:14px 10px; border-right:1px solid var(--border); border-bottom:1px solid var(--border); background:var(--bg); min-height:64px; }
+    .week-head-cell:last-child { border-right:0; }
+    .week-day-name { font-size:11px; font-weight:800; color:var(--text-3); text-transform:uppercase; letter-spacing:.5px; }
+    .week-day-date { font-size:20px; font-weight:850; color:var(--text); margin-top:2px; }
+    .week-head-cell.today { background:var(--blue-light); }
+    .week-head-cell.today .week-day-name, .week-head-cell.today .week-day-date { color:var(--blue); }
+    .week-time-label { padding:16px 12px; font-size:12px; color:var(--text-3); border-right:1px solid var(--border); border-bottom:1px solid var(--border); background:var(--surface); }
+    .week-cell { min-height:72px; padding:14px 10px; border-right:1px solid var(--border); border-bottom:1px solid var(--border); background:var(--surface); }
+    .week-cell:nth-child(8n) { border-right:0; }
+    .week-cell.has-post { background:linear-gradient(180deg, var(--surface), var(--bg)); }
+    .week-avatar-stack { display:flex; flex-wrap:wrap; gap:7px; align-items:center; }
+    .profile-avatar.week-post-avatar { width:36px; height:36px; border-radius:999px; border:2px solid var(--surface); box-shadow:0 0 0 1px var(--border), 0 6px 14px rgba(0,0,0,.08); font-size:11px; cursor:pointer; }
+    .profile-avatar.week-post-avatar img { width:100%; height:100%; object-fit:cover; border-radius:inherit; display:block; }
+    .upcoming-empty { padding:72px 24px; text-align:center; color:var(--text-3); }
+    .upcoming-empty h3 { color:var(--text); margin-bottom:8px; font-size:18px; }
+
     /* ─── Toast ─── */
     .toast {
       position: fixed; bottom: 24px; right: 24px; z-index: 9999;
@@ -813,7 +837,7 @@
       <div class="nav">
         <div class="nav-section">Post</div>
         <div class="nav-item active" data-page="create"><span class="icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 2L14 4L6 12L2 13L3 9L12 2Z"/></svg></span> New Post</div>
-        <div class="nav-item" data-page="scheduled"><span class="icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="6"/><polyline points="8,4 8,8 11,9"/></svg></span> Scheduled <span class="nav-badge" id="navCount">0</span></div>
+        <div class="nav-item" data-page="scheduled"><span class="icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="6"/><polyline points="8,4 8,8 11,9"/></svg></span> Upcoming <span class="nav-badge" id="navCount">0</span></div>
 
         <div class="nav-section">Library</div>
         <div class="nav-item" data-page="groups"><span class="icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="5" cy="5" r="2.5"/><circle cx="11" cy="5" r="2.5"/><path d="M1 13C1 10.5 3 9 5 9C7 9 9 10.5 9 13"/><path d="M7 13C7 10.5 9 9 11 9C13 9 15 10.5 15 13"/></svg></span> Groups</div>
@@ -1031,8 +1055,8 @@ Example: Quick reminder for clinic owners — if your fee schedule is outdated, 
 
       <!-- ═══ SCHEDULED ═══ -->
       <div class="page" id="page-scheduled">
-        <div class="page-title">Scheduled Posts</div>
-        <div class="page-subtitle">Scheduled and recurring posts.</div>
+        <div class="page-title">Upcoming Posts</div>
+        <div class="page-subtitle">Next 7 days.</div>
         <div id="scheduledList"></div>
       </div>
 
@@ -1344,6 +1368,6 @@ Example: Quick reminder for clinic owners — if your fee schedule is outdated, 
       }
     }, 1200);
   </script>
-  <script src="app.js?v=27"></script>
+  <script src="app.js?v=29"></script>
 </body>
 </html>

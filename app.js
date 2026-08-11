@@ -1211,68 +1211,136 @@ function getSelectedGroups() {
 }
 
 
+function startOfLocalDay(date = new Date()) {
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate());
+}
+
+function localDateKey(date) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+}
+
+function addDays(date, days) {
+  const d = new Date(date);
+  d.setDate(d.getDate() + days);
+  return d;
+}
+
+function normalizeTimeValue(value) {
+  const m = String(value || '').match(/^(\d{1,2}):(\d{2})/);
+  if (!m) return '09:00';
+  return `${String(Math.min(23, Math.max(0, Number(m[1])))).padStart(2, '0')}:${m[2]}`;
+}
+
+function displayTime(value) {
+  const [h, m] = normalizeTimeValue(value).split(':').map(Number);
+  return new Date(2000, 0, 1, h, m).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+}
+
+function findPostingIdentityByName(name) {
+  const target = String(name || '').trim().toLowerCase();
+  const identities = sanitizePostingIdentities(cachedData.postingIdentities || []);
+  return identities.find(i => String(i.name || '').trim().toLowerCase() === target) || (name ? { name } : identities[0] || { name: 'Amplr' });
+}
+
+function scheduledEventIdentityName(item) {
+  return item.identityName || item.identity_name || item.groups?.find?.(g => g?.identity_name)?.identity_name || item.profile_name || item.page_name || '';
+}
+
+function scheduledWeekEvents(legacyPosts, scheduledJobs, weekDays) {
+  const windowStart = startOfLocalDay(weekDays[0]);
+  const windowEnd = addDays(windowStart, 7);
+  const events = [];
+
+  (scheduledJobs || []).filter(j => !isSystemJob(j)).forEach(j => {
+    const when = j.scheduled_for ? new Date(j.scheduled_for) : null;
+    if (!when || when < windowStart || when >= windowEnd) return;
+    events.push({
+      id: `job-${j.id}`,
+      dateKey: localDateKey(when),
+      time: normalizeTimeValue(`${String(when.getHours()).padStart(2, '0')}:${String(when.getMinutes()).padStart(2, '0')}`),
+      identity: findPostingIdentityByName(scheduledEventIdentityName(j)),
+      title: `${scheduledEventIdentityName(j) || 'Facebook profile'} · ${(j.groups || []).length || 1} group${((j.groups || []).length || 1) === 1 ? '' : 's'}`
+    });
+  });
+
+  (legacyPosts || []).filter(p => p.enabled && p.schedule?.time && Array.isArray(p.schedule?.days)).forEach(p => {
+    const endsAt = p.schedule?.endsAt ? new Date(p.schedule.endsAt) : null;
+    weekDays.forEach(day => {
+      if (!p.schedule.days.includes(day.getDay())) return;
+      if (endsAt && day > endsAt) return;
+      const name = scheduledEventIdentityName(p);
+      events.push({
+        id: `post-${p.id}-${localDateKey(day)}`,
+        dateKey: localDateKey(day),
+        time: normalizeTimeValue(p.schedule.time),
+        identity: findPostingIdentityByName(name),
+        title: `${name || 'Facebook profile'} · ${(p.groups || []).length || 1} group${((p.groups || []).length || 1) === 1 ? '' : 's'}`
+      });
+    });
+  });
+
+  return events.sort((a, b) => a.time.localeCompare(b.time));
+}
+
 async function loadScheduled() {
   cachedData = await fetchAll();
   const el = document.getElementById('scheduledList');
+  if (!el) return;
 
-  // Query jsw_post_jobs for repeating/scheduled pending jobs
+  const today = startOfLocalDay(new Date());
+  const weekDays = Array.from({ length: 7 }, (_, i) => addDays(today, i));
+  const weekEnd = addDays(today, 7);
+
   const { data: scheduledJobs } = await sb.from('jsw_post_jobs')
     .select('*')
     .eq('user_id', user.id)
     .eq('status', 'pending')
     .not('scheduled_for', 'is', null)
+    .gte('scheduled_for', today.toISOString())
+    .lt('scheduled_for', weekEnd.toISOString())
     .order('scheduled_for', { ascending: true });
 
-  const legacyPosts = cachedData.posts || [];
+  const events = scheduledWeekEvents(cachedData.posts || [], scheduledJobs || [], weekDays);
 
-  if (legacyPosts.length === 0 && (!scheduledJobs || scheduledJobs.length === 0)) {
-    el.innerHTML = '<div class="empty"><p>No scheduled posts yet</p><button class="btn btn-primary" style="margin-top:16px;" onclick="nav(\'create\')">Create Post</button></div>';
+  if (!events.length) {
+    el.innerHTML = `<div class="upcoming-week-card">
+      <div class="upcoming-week-top">
+        <div><div class="upcoming-week-title">This week</div><div class="upcoming-week-range">${weekDays[0].toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – ${weekDays[6].toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</div></div>
+        <button class="btn btn-primary btn-sm" onclick="nav('create')">Schedule a post</button>
+      </div>
+      <div class="upcoming-empty"><h3>No posts this week</h3><p>Schedule a post and it will show up here by profile picture.</p></div>
+    </div>`;
     return;
   }
 
-  const DAYS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  const times = [...new Set(events.map(e => e.time))].sort();
+  const eventMap = new Map();
+  events.forEach(e => {
+    const key = `${e.dateKey}|${e.time}`;
+    if (!eventMap.has(key)) eventMap.set(key, []);
+    eventMap.get(key).push(e);
+  });
 
-  // Render jsw_post_jobs scheduled entries
-  const jobsHtml = (scheduledJobs || []).map(j => {
-    const repeatDays = (j.repeat_days || []).map(d => DAYS[d]).join(', ');
-    const nextFire = j.scheduled_for ? new Date(j.scheduled_for).toLocaleString() : '—';
-    const groupCount = (j.groups || []).length;
-    const isRepeating = j.repeat_days?.length > 0;
-    return `<div class="post-card">
-      <div class="post-text">${esc((j.message || '').substring(0, 140))}</div>
-      <div class="post-meta">
-        <span>Next: ${nextFire}</span>
-        <span>${groupCount} group${groupCount !== 1 ? 's' : ''}</span>
-        ${isRepeating ? `<span class="badge badge-blue">${repeatDays} @ ${j.repeat_time}</span>` : '<span class="badge badge-yellow">One-time</span>'}
-        ${j.ai_enabled ? '<span class="badge badge-purple">AI</span>' : ''}
-      </div>
-      <div class="post-actions">
-        <button class="btn btn-danger btn-sm" onclick="cancelScheduledJob('${j.id}')">Cancel</button>
-      </div>
-    </div>`;
-  }).join('');
+  const header = `<div class="week-grid">
+    <div class="week-head-cell"></div>
+    ${weekDays.map((day, i) => `<div class="week-head-cell ${i === 0 ? 'today' : ''}"><div class="week-day-name">${day.toLocaleDateString('en-US', { weekday: 'short' })}</div><div class="week-day-date">${day.getDate()}</div></div>`).join('')}
+  </div>`;
 
-  // Render legacy amplr_data posts
-  const legacyHtml = legacyPosts.map(p => {
-    const days = (p.schedule?.days || []).map(d => DAYS[d]).join(', ');
-    const tags = (p.groups || []).map((g, i) => `<span class="group-tag"><div class="dot" style="background:${GCOLORS[i % GCOLORS.length]}"></div>${esc(g.name || '')}</span>`).join('');
-    return `<div class="post-card">
-      <div class="post-text">${esc(p.text)}</div>
-      <div class="post-meta">
-        <span>${p.schedule?.time || ''}</span><span>${days}</span>
-        <span class="badge ${p.enabled ? 'badge-on' : 'badge-off'}">${p.enabled ? 'Active' : 'Paused'}</span>
-      </div>
-      <div style="margin-bottom:10px;">${tags}</div>
-      <div class="post-actions">
-        <button class="btn btn-primary btn-sm" onclick="firePost('${p.id}')">Post Now</button>
-        <button class="btn btn-secondary btn-sm" onclick="togglePost('${p.id}')">${p.enabled ? 'Pause' : 'Resume'}</button>
-        <button class="btn btn-danger btn-sm" onclick="delPost('${p.id}')">Delete</button>
-      </div>
-    </div>`;
-  }).join('');
+  const rows = times.map(time => `<div class="week-grid">
+    <div class="week-time-label">${displayTime(time)}</div>
+    ${weekDays.map(day => {
+      const items = eventMap.get(`${localDateKey(day)}|${time}`) || [];
+      return `<div class="week-cell ${items.length ? 'has-post' : ''}">${items.length ? `<div class="week-avatar-stack">${items.map(item => identityAvatarHtml(item.identity, 'week-post-avatar').replace('<div ', `<div title="${esc(item.title)}" `)).join('')}</div>` : ''}</div>`;
+    }).join('')}
+  </div>`).join('');
 
-  el.innerHTML = (scheduledJobs?.length ? `<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--text-3);padding:0 0 10px;">Scheduled posts</div>${jobsHtml}` : '') +
-    (legacyPosts.length ? `${scheduledJobs?.length ? '<div style="height:16px;"></div>' : ''}<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--text-3);padding:0 0 10px;">Recurring posts</div>${legacyHtml}` : '');
+  el.innerHTML = `<div class="upcoming-week-card">
+    <div class="upcoming-week-top">
+      <div><div class="upcoming-week-title">This week</div><div class="upcoming-week-range">${weekDays[0].toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – ${weekDays[6].toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</div></div>
+      <button class="btn btn-primary btn-sm" onclick="nav('create')">Schedule a post</button>
+    </div>
+    <div class="week-scroll"><div class="week-calendar">${header}${rows}</div></div>
+  </div>`;
 }
 
 async function cancelScheduledJob(id) {
