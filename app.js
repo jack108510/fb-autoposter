@@ -1242,8 +1242,28 @@ function findPostingIdentityByName(name) {
   return identities.find(i => String(i.name || '').trim().toLowerCase() === target) || (name ? { name } : identities[0] || { name: 'Amplr' });
 }
 
+let upcomingPostDetails = {};
+
 function scheduledEventIdentityName(item) {
   return item.identityName || item.identity_name || item.groups?.find?.(g => g?.identity_name)?.identity_name || item.profile_name || item.page_name || '';
+}
+
+function scheduledEventGroups(item) {
+  return Array.isArray(item.groups) ? item.groups : [];
+}
+
+function scheduledEventText(item) {
+  return item.text || item.message || item.caption || '';
+}
+
+function scheduledEventImage(item) {
+  return item.imageUrl || item.image_url || item.photo_url || '';
+}
+
+function groupDisplayName(group) {
+  if (!group) return '';
+  if (typeof group === 'string') return group;
+  return group.name || group.group_name || group.title || group.url || group.group_url || 'Group';
 }
 
 function scheduledWeekEvents(legacyPosts, scheduledJobs, weekDays) {
@@ -1254,12 +1274,19 @@ function scheduledWeekEvents(legacyPosts, scheduledJobs, weekDays) {
   (scheduledJobs || []).filter(j => !isSystemJob(j)).forEach(j => {
     const when = j.scheduled_for ? new Date(j.scheduled_for) : null;
     if (!when || when < windowStart || when >= windowEnd) return;
+    const groupCount = scheduledEventGroups(j).length || 1;
+    const identityName = scheduledEventIdentityName(j);
     events.push({
       id: `job-${j.id}`,
       dateKey: localDateKey(when),
       time: normalizeTimeValue(`${String(when.getHours()).padStart(2, '0')}:${String(when.getMinutes()).padStart(2, '0')}`),
-      identity: findPostingIdentityByName(scheduledEventIdentityName(j)),
-      title: `${scheduledEventIdentityName(j) || 'Facebook profile'} · ${(j.groups || []).length || 1} group${((j.groups || []).length || 1) === 1 ? '' : 's'}`
+      dateLabel: when.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }),
+      identity: findPostingIdentityByName(identityName),
+      identityName,
+      text: scheduledEventText(j),
+      imageUrl: scheduledEventImage(j),
+      groups: scheduledEventGroups(j),
+      title: `${identityName || 'Facebook profile'} · ${groupCount} group${groupCount === 1 ? '' : 's'}`
     });
   });
 
@@ -1269,17 +1296,28 @@ function scheduledWeekEvents(legacyPosts, scheduledJobs, weekDays) {
       if (!p.schedule.days.includes(day.getDay())) return;
       if (endsAt && day > endsAt) return;
       const name = scheduledEventIdentityName(p);
+      const groupCount = scheduledEventGroups(p).length || 1;
       events.push({
         id: `post-${p.id}-${localDateKey(day)}`,
         dateKey: localDateKey(day),
         time: normalizeTimeValue(p.schedule.time),
+        dateLabel: day.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }),
         identity: findPostingIdentityByName(name),
-        title: `${name || 'Facebook profile'} · ${(p.groups || []).length || 1} group${((p.groups || []).length || 1) === 1 ? '' : 's'}`
+        identityName: name,
+        text: scheduledEventText(p),
+        imageUrl: scheduledEventImage(p),
+        groups: scheduledEventGroups(p),
+        title: `${name || 'Facebook profile'} · ${groupCount} group${groupCount === 1 ? '' : 's'}`
       });
     });
   });
 
   return events.sort((a, b) => a.time.localeCompare(b.time));
+}
+
+function upcomingAvatarHtml(item) {
+  return identityAvatarHtml(item.identity, 'week-post-avatar')
+    .replace('<div ', `<div role="button" tabindex="0" title="${esc(item.title)}" onclick="openUpcomingPostDetail('${esc(item.id)}')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openUpcomingPostDetail('${esc(item.id)}')}" `);
 }
 
 async function loadScheduled() {
@@ -1301,6 +1339,7 @@ async function loadScheduled() {
     .order('scheduled_for', { ascending: true });
 
   const events = scheduledWeekEvents(cachedData.posts || [], scheduledJobs || [], weekDays);
+  upcomingPostDetails = Object.fromEntries(events.map(e => [e.id, e]));
 
   if (!events.length) {
     el.innerHTML = `<div class="upcoming-week-card">
@@ -1330,7 +1369,7 @@ async function loadScheduled() {
     <div class="week-time-label">${displayTime(time)}</div>
     ${weekDays.map(day => {
       const items = eventMap.get(`${localDateKey(day)}|${time}`) || [];
-      return `<div class="week-cell ${items.length ? 'has-post' : ''}">${items.length ? `<div class="week-avatar-stack">${items.map(item => identityAvatarHtml(item.identity, 'week-post-avatar').replace('<div ', `<div title="${esc(item.title)}" `)).join('')}</div>` : ''}</div>`;
+      return `<div class="week-cell ${items.length ? 'has-post' : ''}">${items.length ? `<div class="week-avatar-stack">${items.map(upcomingAvatarHtml).join('')}</div>` : ''}</div>`;
     }).join('')}
   </div>`).join('');
 
@@ -1341,6 +1380,41 @@ async function loadScheduled() {
     </div>
     <div class="week-scroll"><div class="week-calendar">${header}${rows}</div></div>
   </div>`;
+}
+
+function openUpcomingPostDetail(id) {
+  const item = upcomingPostDetails?.[id];
+  if (!item) return;
+  const modal = document.getElementById('postDetailModal');
+  const avatar = document.getElementById('postDetailAvatar');
+  const title = document.getElementById('postDetailTitle');
+  const meta = document.getElementById('postDetailMeta');
+  const text = document.getElementById('postDetailText');
+  const image = document.getElementById('postDetailImage');
+  const groups = document.getElementById('postDetailGroups');
+  const groupList = scheduledEventGroups(item).map(groupDisplayName).filter(Boolean);
+
+  if (avatar) avatar.innerHTML = identityAvatarHtml(item.identity, '');
+  if (title) title.textContent = item.identityName || item.identity?.name || 'Facebook profile';
+  if (meta) meta.textContent = `${item.dateLabel || ''} · ${displayTime(item.time)}${groupList.length ? ` · ${groupList.length} group${groupList.length === 1 ? '' : 's'}` : ''}`;
+  if (text) text.textContent = item.text || 'No post text saved.';
+  if (image) {
+    if (item.imageUrl) {
+      image.src = item.imageUrl;
+      image.style.display = 'block';
+    } else {
+      image.removeAttribute('src');
+      image.style.display = 'none';
+    }
+  }
+  if (groups) {
+    groups.innerHTML = groupList.length ? groupList.slice(0, 12).map((name, i) => `<span class="group-tag"><div class="dot" style="background:${GCOLORS[i % GCOLORS.length]}"></div>${esc(name)}</span>`).join('') : '';
+  }
+  modal?.classList.add('show');
+}
+
+function closePostDetailModal() {
+  document.getElementById('postDetailModal')?.classList.remove('show');
 }
 
 async function cancelScheduledJob(id) {

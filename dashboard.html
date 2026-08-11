@@ -412,6 +412,13 @@
     .modal p { color: var(--text-2); font-size: 13px; margin-bottom: 16px; line-height: 1.6; }
     .modal-steps { background: var(--surface-2); border-radius: var(--radius-sm); padding: 14px; margin-bottom: 16px; font-size: 12px; line-height: 1.8; }
     .modal-steps code { background: var(--border); padding: 2px 6px; border-radius: 4px; font-size: 11px; }
+    .post-detail-head { display:flex; align-items:center; gap:12px; margin-bottom:14px; }
+    .post-detail-head .profile-avatar { width:44px; height:44px; flex:0 0 auto; }
+    .post-detail-meta { color:var(--text-3); font-size:12px; margin-top:2px; }
+    .post-detail-copy { white-space:pre-wrap; background:var(--bg); border:1px solid var(--border); border-radius:14px; padding:16px; color:var(--text); font-size:14px; line-height:1.6; margin:16px 0; }
+    .post-detail-image { width:100%; max-height:260px; object-fit:cover; border-radius:14px; border:1px solid var(--border); margin-top:10px; display:none; }
+    .post-detail-groups { display:flex; flex-wrap:wrap; gap:6px; margin-top:12px; }
+    .post-detail-groups .group-tag { margin:0; }
     
     /* ─── Chart ─── */
     .chart-bar {
@@ -1250,6 +1257,25 @@ Example: Quick reminder for clinic owners — if your fee schedule is outdated, 
 
     </div>
   </div>
+
+  <div class="modal-bg" id="postDetailModal" onclick="if(event.target===this) closePostDetailModal()">
+    <div class="modal">
+      <div class="post-detail-head">
+        <div id="postDetailAvatar"></div>
+        <div>
+          <h2 id="postDetailTitle">Post</h2>
+          <div class="post-detail-meta" id="postDetailMeta"></div>
+        </div>
+      </div>
+      <div class="post-detail-copy" id="postDetailText"></div>
+      <img class="post-detail-image" id="postDetailImage" alt="Post image">
+      <div class="post-detail-groups" id="postDetailGroups"></div>
+      <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:20px;">
+        <button class="btn btn-secondary" onclick="closePostDetailModal()">Close</button>
+      </div>
+    </div>
+  </div>
+
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script>
     // ─── Auth ───
@@ -1368,6 +1394,6 @@ Example: Quick reminder for clinic owners — if your fee schedule is outdated, 
       }
     }, 1200);
   </script>
-  <script src="app.js?v=29"></script>
+  <script src="app.js?v=30"></script>
 </body>
 </html>
