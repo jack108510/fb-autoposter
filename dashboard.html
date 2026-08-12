@@ -316,6 +316,52 @@
     }
     .group-tag-add:hover { color: #5B6FE8; border-color: #5B6FE8; }
 
+    /* ─── Groups library ─── */
+    .groups-command { max-width:1180px; display:grid; grid-template-columns:minmax(0,1.2fr) minmax(320px,.8fr); gap:16px; margin-bottom:18px; }
+    .groups-hero { background:linear-gradient(135deg, rgba(91,111,232,.10), rgba(16,185,129,.08)); border:1px solid var(--border); border-radius:24px; padding:22px; box-shadow:var(--shadow); }
+    .groups-kicker { font-size:11px; font-weight:900; color:var(--blue); text-transform:uppercase; letter-spacing:.10em; margin-bottom:8px; }
+    .groups-hero h2 { font-size:22px; letter-spacing:-.03em; margin-bottom:8px; }
+    .groups-hero p { color:var(--text-2); font-size:13px; line-height:1.6; max-width:620px; }
+    .groups-stat-grid { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:10px; margin-top:18px; }
+    .groups-stat { background:rgba(255,255,255,.74); border:1px solid var(--border); border-radius:16px; padding:12px; min-width:0; }
+    .groups-stat-num { font-size:22px; font-weight:900; color:var(--text); letter-spacing:-.03em; }
+    .groups-stat-label { color:var(--text-3); font-size:11px; font-weight:800; text-transform:uppercase; letter-spacing:.06em; margin-top:2px; }
+    .groups-import-card { background:var(--surface); border:1px solid var(--border); border-radius:24px; padding:20px; box-shadow:var(--shadow); display:flex; flex-direction:column; gap:16px; }
+    .groups-import-top { display:flex; justify-content:space-between; gap:12px; align-items:flex-start; }
+    .groups-import-title { font-size:14px; font-weight:900; color:var(--text); }
+    .groups-import-copy { font-size:12px; color:var(--text-3); line-height:1.55; margin-top:4px; }
+    .groups-add-row { display:flex; gap:8px; align-items:center; }
+    .groups-add-row input { min-width:0; }
+    .groups-toolbar { max-width:1180px; background:var(--surface); border:1px solid var(--border); border-radius:20px; box-shadow:var(--shadow); padding:14px; margin-bottom:14px; }
+    .groups-toolbar-main { display:flex; gap:10px; align-items:center; }
+    .groups-search-wrap { position:relative; flex:1; min-width:220px; }
+    .groups-search-wrap svg { position:absolute; left:13px; top:50%; transform:translateY(-50%); color:var(--text-3); pointer-events:none; }
+    .groups-search-wrap input { width:100%; padding-left:38px; }
+    .groups-filter-bar { display:none; flex-wrap:wrap; gap:7px; padding-top:12px; margin-top:12px; border-top:1px solid var(--border); }
+    .groups-library-card { max-width:1180px; background:var(--surface); border:1px solid var(--border); border-radius:24px; box-shadow:var(--shadow); overflow:hidden; }
+    .groups-library-head { padding:18px 20px; border-bottom:1px solid var(--border); display:flex; justify-content:space-between; gap:12px; align-items:center; }
+    .groups-library-title { font-size:15px; font-weight:900; color:var(--text); }
+    .groups-library-sub { color:var(--text-3); font-size:12px; margin-top:3px; }
+    .groups-card-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(280px,1fr)); gap:12px; padding:14px; }
+    .group-card { min-width:0; border:1px solid var(--border); border-radius:18px; background:linear-gradient(180deg,var(--surface),var(--bg)); padding:15px; display:flex; flex-direction:column; gap:12px; transition:transform .15s, box-shadow .15s, border-color .15s; }
+    .group-card:hover { transform:translateY(-1px); box-shadow:var(--shadow); border-color:rgba(91,111,232,.28); }
+    .group-card-top { display:flex; gap:11px; align-items:flex-start; }
+    .group-card-avatar { width:42px; height:42px; border-radius:14px; flex:0 0 auto; display:flex; align-items:center; justify-content:center; color:#fff; font-weight:900; font-size:16px; box-shadow:inset 0 0 0 1px rgba(255,255,255,.18); }
+    .group-card-main { min-width:0; flex:1; }
+    .group-card-title { color:var(--text); font-size:14px; font-weight:900; line-height:1.25; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .group-card-url { color:var(--text-3); font-size:11px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; display:block; margin-top:4px; text-decoration:none; }
+    .group-card-url:hover { color:var(--blue); }
+    .group-card-badges { display:flex; gap:6px; flex-wrap:wrap; min-height:20px; }
+    .group-status-pill { font-size:10px; padding:3px 8px; border-radius:999px; font-weight:900; text-transform:uppercase; letter-spacing:.05em; }
+    .group-status-warn { background:var(--yellow-light); color:var(--yellow); }
+    .group-status-risk { background:var(--red-light); color:var(--red); }
+    .group-card-tags { display:flex; align-items:center; flex-wrap:wrap; gap:5px; min-height:25px; }
+    .group-card-footer { display:flex; justify-content:space-between; align-items:center; gap:10px; padding-top:4px; }
+    .group-card-meta { color:var(--text-3); font-size:12px; font-weight:700; }
+    .group-card-remove { color:var(--text-3)!important; border-color:transparent!important; padding:6px!important; }
+    .group-card-remove:hover { color:var(--red)!important; background:var(--red-light)!important; }
+    @media (max-width: 980px) { .groups-command { grid-template-columns:1fr; } .groups-stat-grid { grid-template-columns:repeat(2,1fr); } .groups-toolbar-main { flex-direction:column; align-items:stretch; } }
+
     /* ─── Tag filter pills (shared: groups page + modals) ─── */
     .tag-filter-pill {
       display: inline-flex; align-items: center;
@@ -1126,44 +1172,65 @@ Example: Quick reminder for clinic owners — if your fee schedule is outdated, 
       <!-- ═══ GROUPS ═══ -->
       <div class="page" id="page-groups">
         <div class="page-title">Groups</div>
-        <div class="page-subtitle">Groups available to the selected Facebook profiles.</div>
+        <div class="page-subtitle">Import, search, tag, and clean up the Facebook groups Amplr can post to.</div>
 
-        <!-- Sync groups automatically -->
-        <div class="card" style="margin-bottom:16px;">
-          <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:14px;flex-wrap:wrap;">
-            <div style="flex:1;min-width:220px;">
-              <div style="font-size:12px;font-weight:600;color:var(--text-3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px;">Group import</div>
-              <div style="font-size:13px;color:var(--text-2);line-height:1.55;">Pull the groups available through the connected Facebook profiles.</div>
-              <div id="groupSyncStatus" class="group-sync-status" style="font-size:12px;color:var(--text-3);margin-top:8px;">Checking groups...</div>
+        <div class="groups-command">
+          <div class="groups-hero">
+            <div class="groups-kicker">Group library</div>
+            <h2>Keep the list clean before you post.</h2>
+            <p>Use this page to import groups from Chrome, add one manually, and tag groups by niche, city, client, or campaign. Tags make the New Post step faster.</p>
+            <div class="groups-stat-grid">
+              <div class="groups-stat"><div class="groups-stat-num" id="groupsTotalStat">0</div><div class="groups-stat-label">Groups</div></div>
+              <div class="groups-stat"><div class="groups-stat-num" id="groupsTaggedStat">0</div><div class="groups-stat-label">Tagged</div></div>
+              <div class="groups-stat"><div class="groups-stat-num" id="groupsCooldownStat">0</div><div class="groups-stat-label">Resting</div></div>
+              <div class="groups-stat"><div class="groups-stat-num" id="groupsRiskStat">0</div><div class="groups-stat-label">Risk</div></div>
             </div>
-            <button id="groupSyncBtn" class="btn btn-primary group-sync-btn" style="flex:0;" onclick="syncFacebookGroups(false)">Import groups</button>
+          </div>
+          <div class="groups-import-card">
+            <div class="groups-import-top">
+              <div>
+                <div class="groups-import-title">Import from Chrome</div>
+                <div class="groups-import-copy">Pull the groups available through the connected Facebook profiles.</div>
+                <div id="groupSyncStatus" class="group-sync-status groups-import-copy">Checking groups...</div>
+              </div>
+              <button id="groupSyncBtn" class="btn btn-primary group-sync-btn" onclick="syncFacebookGroups(false)">Import groups</button>
+            </div>
+            <div>
+              <div class="groups-import-title">Add one group</div>
+              <div class="groups-add-row" style="margin-top:10px;">
+                <input type="text" id="groupUrlInput" placeholder="facebook.com/groups/...">
+                <button class="btn btn-secondary" onclick="addGroupFromInput()">Add</button>
+              </div>
+              <div id="groupAutoName" style="display:none;font-size:12px;color:var(--green);margin-top:8px;align-items:center;gap:6px;">
+                <span style="width:6px;height:6px;border-radius:50%;background:var(--green);"></span>
+                Auto-detected: <strong style="color:var(--text);"></strong>
+              </div>
+            </div>
           </div>
         </div>
 
-        <!-- Add group manually -->
-        <div class="card" style="margin-bottom:16px;">
-          <div style="font-size:12px;font-weight:600;color:var(--text-3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px;">Add group</div>
-          <div style="display:flex;gap:10px;align-items:center;">
-            <input type="text" id="groupUrlInput" placeholder="Paste Facebook group URL..." style="flex:1;">
-            <button class="btn btn-primary" style="flex:0;" onclick="addGroupFromInput()">Add</button>
+        <div class="groups-toolbar">
+          <div class="groups-toolbar-main">
+            <div class="groups-search-wrap">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="7" cy="7" r="4.5"/><path d="M10.5 10.5 14 14"/></svg>
+              <input type="search" id="groupSearchInput" placeholder="Search groups or tags...">
+            </div>
+            <button class="btn btn-secondary btn-sm" onclick="clearGroupFilters()">Clear filters</button>
           </div>
-          <div id="groupAutoName" style="display:none;font-size:12px;color:var(--green);margin-top:8px;align-items:center;gap:6px;">
-            <span style="width:6px;height:6px;border-radius:50%;background:var(--green);"></span>
-            Auto-detected: <strong style="color:var(--text);"></strong>
-          </div>
+          <div id="groupTagFilterBar" class="groups-filter-bar"></div>
         </div>
 
-        <!-- Groups list -->
-        <div class="card">
-          <div class="card-header" style="margin-bottom:4px;">
-            <div class="card-title">Your Groups <span id="groupCount" style="color:var(--text-3);font-weight:400;font-size:14px;">(0)</span></div>
+        <div class="groups-library-card">
+          <div class="groups-library-head">
+            <div>
+              <div class="groups-library-title">Your groups <span id="groupCount" style="color:var(--text-3);font-weight:500;">(0)</span></div>
+              <div class="groups-library-sub" id="groupsLibrarySub">No groups loaded yet.</div>
+            </div>
+            <button class="btn btn-secondary btn-sm" onclick="nav('create')">Use in a post</button>
           </div>
-          <!-- Tag filter bar -->
-          <div id="groupTagFilterBar" style="display:none;flex-wrap:wrap;gap:6px;padding:10px 0 4px;border-bottom:1px solid var(--border);margin-bottom:8px;"></div>
-          <div id="groupsList"></div>
-          <div id="groupsEmpty" class="empty" style="padding:40px 20px;text-align:center;">
-            <div style="font-size:32px;margin-bottom:8px;">👥</div>
-            <p style="color:var(--text-3);font-size:13px;">No groups yet. Import groups above or paste a Facebook group URL.</p>
+          <div id="groupsList" class="groups-card-grid"></div>
+          <div id="groupsEmpty" class="empty" style="padding:56px 20px;text-align:center;">
+            <p style="color:var(--text-3);font-size:13px;">No groups yet. Import groups from Chrome or paste a Facebook group URL.</p>
           </div>
         </div>
       </div>
@@ -1464,6 +1531,6 @@ Example: Quick reminder for clinic owners — if your fee schedule is outdated, 
       }
     }, 1200);
   </script>
-  <script src="app.js?v=38"></script>
+  <script src="app.js?v=39"></script>
 </body>
 </html>

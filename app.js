@@ -1913,6 +1913,7 @@ async function editPost(id) {
 // ═══ GROUPS ═══
 // ─── Group tag state ───
 let groupTagFilter = null; // null = all
+let groupSearchQuery = '';
 let groupSyncPollTimer = null;
 
 async function getLatestGroupSyncJob() {
@@ -2149,6 +2150,40 @@ function setGroupTagFilter(tag) {
   renderGroupsList(groups);
 }
 
+function clearGroupFilters() {
+  groupTagFilter = null;
+  groupSearchQuery = '';
+  const input = document.getElementById('groupSearchInput');
+  if (input) input.value = '';
+  renderGroupTagBar(cachedData.groups || []);
+  renderGroupsList(cachedData.groups || []);
+}
+
+function groupCooldownInfo(g) {
+  const cooldownDays = cachedData?.settings?.cooldown_days ?? 2;
+  if (!g.last_posted_at || cooldownDays <= 0) return null;
+  const daysSince = (Date.now() - new Date(g.last_posted_at).getTime()) / (1000 * 60 * 60 * 24);
+  if (!Number.isFinite(daysSince) || daysSince >= cooldownDays) return null;
+  return { daysSince, daysLeft: Math.max(0, cooldownDays - daysSince) };
+}
+
+function groupRiskLevel(g) {
+  return ['high', 'medium'].includes(g.ban_risk) ? g.ban_risk : '';
+}
+
+function updateGroupsStats(groups = [], filtered = groups) {
+  const set = (id, value) => { const el = document.getElementById(id); if (el) el.textContent = value; };
+  set('groupsTotalStat', groups.length);
+  set('groupsTaggedStat', groups.filter(g => (g.tags || []).length).length);
+  set('groupsCooldownStat', groups.filter(g => groupCooldownInfo(g)).length);
+  set('groupsRiskStat', groups.filter(g => groupRiskLevel(g)).length);
+  const sub = document.getElementById('groupsLibrarySub');
+  if (sub) {
+    const activeFilters = [groupTagFilter ? `tagged ${groupTagFilter}` : '', groupSearchQuery ? `matching “${groupSearchQuery}”` : ''].filter(Boolean).join(' and ');
+    sub.textContent = activeFilters ? `${filtered.length} of ${groups.length} groups ${activeFilters}.` : `${groups.length} group${groups.length === 1 ? '' : 's'} ready for posting.`;
+  }
+}
+
 function safeExternalHref(value) {
   try {
     const u = new URL(value || '');
@@ -2163,7 +2198,14 @@ function renderGroupsList(groups) {
   const empty = document.getElementById('groupsEmpty');
   if (!list) return;
 
-  const filtered = groupTagFilter ? groups.filter(g => (g.tags || []).includes(groupTagFilter)) : groups;
+  const query = groupSearchQuery.trim().toLowerCase();
+  const filtered = groups.filter(g => {
+    const tags = g.tags || [];
+    const tagOk = groupTagFilter ? tags.includes(groupTagFilter) : true;
+    const haystack = [g.name, g.url, ...tags].join(' ').toLowerCase();
+    const searchOk = query ? haystack.includes(query) : true;
+    return tagOk && searchOk;
+  });
 
   const postCounts = {};
   (cachedData.posts || []).forEach(p => {
@@ -2173,9 +2215,11 @@ function renderGroupsList(groups) {
     });
   });
 
+  updateGroupsStats(groups, filtered);
+
   if (filtered.length === 0) {
-    list.innerHTML = groupTagFilter
-      ? `<div style="padding:24px;text-align:center;color:var(--text-3);font-size:13px;">No groups tagged <strong>${esc(groupTagFilter)}</strong></div>`
+    list.innerHTML = groups.length
+      ? `<div style="grid-column:1/-1;padding:34px;text-align:center;color:var(--text-3);font-size:13px;">No groups match the current filters.</div>`
       : '';
     if (empty) empty.style.display = groups.length === 0 ? 'block' : 'none';
     return;
@@ -2189,47 +2233,37 @@ function renderGroupsList(groups) {
     const isPending = g.namePending;
     const groupUrl = g.url || '';
     const safeHref = safeExternalHref(groupUrl);
+    const cooldown = groupCooldownInfo(g);
+    const risk = groupRiskLevel(g);
     const tagPills = (g.tags || []).map(t =>
-      `<span class="group-tag-pill" data-group-url="${esc(groupUrl)}" data-group-tag="${esc(t)}" title="Click to remove">${esc(t)} ✕</span>`
+      `<span class="group-tag-pill" data-group-url="${esc(groupUrl)}" data-group-tag="${esc(t)}" title="Click to remove">${esc(t)} ×</span>`
     ).join('');
+    const badges = [
+      isPending ? '<span class="group-status-pill group-status-warn">Fetching name</span>' : '',
+      cooldown ? `<span class="group-status-pill group-status-warn" title="Posted ${cooldown.daysSince.toFixed(1)}d ago — rest period active">${cooldown.daysLeft.toFixed(1)}d rest</span>` : '',
+      risk ? `<span class="group-status-pill group-status-risk" title="${g.removal_count || 0} post(s) removed">${risk === 'high' ? 'High risk' : 'Med risk'}</span>` : ''
+    ].filter(Boolean).join('');
 
-    // Cooldown badge
-    const cooldownDays = cachedData?.settings?.cooldown_days ?? 2;
-    let cooldownBadge = '';
-    if (g.last_posted_at && cooldownDays > 0) {
-      const daysSince = (Date.now() - new Date(g.last_posted_at).getTime()) / (1000 * 60 * 60 * 24);
-      if (daysSince < cooldownDays) {
-        const daysLeft = (cooldownDays - daysSince).toFixed(1);
-        cooldownBadge = `<span style="font-size:10px;padding:2px 8px;border-radius:10px;background:var(--yellow-light);color:var(--yellow);font-weight:600;text-transform:uppercase;letter-spacing:0.5px;" title="Posted ${daysSince.toFixed(1)}d ago — cooldown active">⏱ ${daysLeft}d left</span>`;
-      }
-    }
-    // Ban risk badge
-    let banBadge = '';
-    if (g.ban_risk === 'high') {
-      banBadge = `<span style="font-size:10px;padding:2px 8px;border-radius:10px;background:var(--red-light);color:var(--red);font-weight:600;text-transform:uppercase;letter-spacing:0.5px;" title="${g.removal_count} post(s) removed — high risk">⚠ High Risk</span>`;
-    } else if (g.ban_risk === 'medium') {
-      banBadge = `<span style="font-size:10px;padding:2px 8px;border-radius:10px;background:var(--yellow-light);color:var(--yellow);font-weight:600;text-transform:uppercase;letter-spacing:0.5px;" title="${g.removal_count} post(s) removed">⚠ Med Risk</span>`;
-    }
-    return `<div style="display:flex;align-items:center;gap:14px;padding:14px 0;border-bottom:1px solid var(--border);transition:background .15s;" onmouseover="this.style.background='var(--surface-2)'" onmouseout="this.style.background=''">
-      <div style="width:40px;height:40px;border-radius:10px;background:${color};flex-shrink:0;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800;font-size:16px;">${esc((g.name || '?')[0].toUpperCase())}</div>
-      <div style="flex:1;min-width:0;">
-        <div style="font-weight:600;font-size:14px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
-          <span>${esc(g.name)}</span>
-          ${isPending ? '<span style="font-size:10px;padding:2px 8px;border-radius:10px;background:var(--yellow-light);color:var(--yellow);font-weight:600;text-transform:uppercase;letter-spacing:0.5px;">Fetching name...</span>' : ''}
-          ${cooldownBadge}
-          ${banBadge}
-        </div>
-        <a href="${esc(safeHref)}" target="_blank" rel="noopener noreferrer" style="font-size:11px;color:var(--text-3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block;max-width:100%;">${esc(groupUrl)}</a>
-        <div style="display:flex;align-items:center;flex-wrap:wrap;gap:4px;margin-top:5px;">
-          ${tagPills}
-          <span class="group-tag-add" data-group-url="${esc(groupUrl)}" title="Add tag">+ tag</span>
-          <input type="text" class="group-tag-input" data-group-url="${esc(groupUrl)}" style="display:none;width:100px;font-size:11px;padding:2px 6px;border:1px solid var(--border);border-radius:12px;outline:none;background:var(--surface);" />
+    return `<div class="group-card">
+      <div class="group-card-top">
+        <div class="group-card-avatar" style="background:${color};">${esc((g.name || '?')[0].toUpperCase())}</div>
+        <div class="group-card-main">
+          <div class="group-card-title" title="${esc(g.name || 'Facebook group')}">${esc(g.name || 'Facebook group')}</div>
+          <a class="group-card-url" href="${esc(safeHref)}" target="_blank" rel="noopener noreferrer" title="${esc(groupUrl)}">${esc(groupUrl || 'No URL saved')}</a>
         </div>
       </div>
-      ${posts > 0 ? `<span class="badge badge-blue" style="flex-shrink:0;">${posts} ${posts === 1 ? 'post' : 'posts'}</span>` : ''}
-      <button class="btn btn-ghost btn-sm group-remove-btn" data-group-url="${esc(groupUrl)}" style="flex-shrink:0;color:var(--red);border-color:transparent;padding:6px 10px;" title="Remove group">
-        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 4h10M5 4V2.5C5 2 5.5 1.5 6 1.5h4c0.5 0 1 0.5 1 1V4M6 7v6M10 7v6M4 4l1 10c0 0.5 0.5 1 1 1h4c0.5 0 1-0.5 1-1l1-10"/></svg>
-      </button>
+      <div class="group-card-badges">${badges}</div>
+      <div class="group-card-tags">
+        ${tagPills || '<span class="group-card-meta">No tags yet</span>'}
+        <span class="group-tag-add" data-group-url="${esc(groupUrl)}" title="Add tag">+ tag</span>
+        <input type="text" class="group-tag-input" data-group-url="${esc(groupUrl)}" style="display:none;width:104px;font-size:11px;padding:3px 8px;border:1px solid var(--border);border-radius:12px;outline:none;background:var(--surface);" />
+      </div>
+      <div class="group-card-footer">
+        <div class="group-card-meta">${posts > 0 ? `${posts} saved post${posts === 1 ? '' : 's'}` : 'No saved posts'}</div>
+        <button class="btn btn-ghost btn-sm group-remove-btn group-card-remove" data-group-url="${esc(groupUrl)}" title="Remove group" aria-label="Remove group">
+          <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 4h10M6 4V2.5h4V4M5 6l.5 7h5L11 6"/></svg>
+        </button>
+      </div>
     </div>`;
   }).join('');
 }
@@ -2320,6 +2354,11 @@ async function loadGroups() {
 
 // Auto-detect group name from URL as user types/pastes
 document.addEventListener('input', (e) => {
+  if (e.target.id === 'groupSearchInput') {
+    groupSearchQuery = e.target.value || '';
+    renderGroupsList(cachedData.groups || []);
+    return;
+  }
   if (e.target.id === 'groupUrlInput') {
     const url = e.target.value.trim();
     const hint = document.getElementById('groupAutoName');
