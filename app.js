@@ -1992,13 +1992,32 @@ async function cancelStaleGroupSyncJob(job) {
   return true;
 }
 
+function groupScanDetailHtml(result = {}) {
+  const identities = Array.isArray(result.identities) ? result.identities : [];
+  if (!identities.length) return '';
+  return `<div class="group-scan-detail" style="margin-top:8px;display:grid;gap:4px;">
+    ${identities.map(item => {
+      const name = item.identity_name || item.identity_key || 'Profile/page';
+      const missed = item.status === 'not_scanned' || !!item.error;
+      const detail = missed
+        ? `${esc(item.reason || 'No group list was available during this pass.')}`
+        : `${item.count || 0} group${(item.count || 0) === 1 ? '' : 's'} · ${item.new_count || 0} new`;
+      return `<div style="display:flex;justify-content:space-between;gap:12px;border-top:1px solid var(--border);padding-top:4px;">
+        <span>${esc(name)}</span>
+        <span style="color:${missed ? 'var(--yellow)' : 'var(--text-3)'};text-align:right;">${detail}</span>
+      </div>`;
+    }).join('')}
+  </div>`;
+}
+
 function renderGroupSyncStatus(job, groups = cachedData.groups || [], heartbeat = null) {
   const statusEls = [...document.querySelectorAll('.group-sync-status')];
   const btns = [...document.querySelectorAll('.group-sync-btn')];
   if (statusEls.length === 0 && btns.length === 0) return;
 
-  const setStatus = (text, color) => statusEls.forEach(el => {
-    el.textContent = text;
+  const setStatus = (content, color, html = false) => statusEls.forEach(el => {
+    if (html) el.innerHTML = content;
+    else el.textContent = content;
     el.style.color = color;
   });
   const setButtons = (text, disabled) => btns.forEach(btn => {
@@ -2032,8 +2051,11 @@ function renderGroupSyncStatus(job, groups = cachedData.groups || [], heartbeat 
       setStatus(result.text || (job.status === 'pending' ? 'Waiting. Open Amplr in Chrome to continue.' : 'Importing groups...'), 'var(--yellow)');
     }
   } else if (job.status === 'done') {
-    const count = result.count ?? groups.length;
-    setStatus(`Last sync imported ${count} group${count === 1 ? '' : 's'}${rel ? ' · ' + rel : ''}.`, 'var(--green)');
+    const count = result.total_groups ?? result.count ?? groups.length;
+    const baseText = result.text || `Last sync imported ${count} group${count === 1 ? '' : 's'}${rel ? ' · ' + rel : ''}.`;
+    const suffix = rel ? ` · ${esc(rel)}` : '';
+    const detail = groupScanDetailHtml(result);
+    setStatus(`<div>${esc(baseText)}${suffix}</div>${detail}`, 'var(--green)', true);
   } else if (job.status === 'failed') {
     setStatus(`Last import failed${rel ? ' · ' + rel : ''}: ${result.error || job.error || 'unknown error'}`, 'var(--red)');
   } else if (job.status === 'cancelled') {
@@ -2648,7 +2670,26 @@ async function loadLogs() {
   const logs = cachedData.logs || [];
   const allEntries = [];
 
-  (jobs || []).filter(j => !isSystemJob(j)).forEach(j => {
+  (jobs || []).forEach(j => {
+    const result = j.result || {};
+    if (j.message === '__import_groups__') {
+      const identities = Array.isArray(result.identities) ? result.identities : [];
+      allEntries.push({
+        timestamp: j.completed_at || j.updated_at || j.created_at,
+        postPreview: result.text || 'Facebook group scan',
+        results: identities.map(item => ({
+          group: item.identity_name || item.identity_key || 'Profile/page',
+          success: item.status !== 'not_scanned' && !item.error && j.status === 'done',
+          failed: item.status === 'not_scanned' || !!item.error || j.status === 'failed',
+          error: item.reason || (item.error ? 'No group list was available during this pass.' : ''),
+        })),
+        status: j.status || 'unknown',
+        error: j.status === 'failed' ? (j.error || result.error) : '',
+        isScan: true,
+      });
+      return;
+    }
+    if (isSystemJob(j)) return;
     const groups = Array.isArray(j.groups) ? j.groups : [];
     const status = j.status || 'unknown';
     const success = status === 'done';
@@ -2678,17 +2719,20 @@ async function loadLogs() {
     const ok = results.filter(r => r.success).length;
     const fail = results.filter(r => r.failed || (!r.success && l.status === 'failed')).length;
     const status = l.status || (ok > 0 ? 'done' : 'failed');
-    const iconClass = status === 'cancelled' ? 'fail' : ok > 0 && fail > 0 ? 'mix' : ok > 0 ? 'ok' : status === 'processing' ? 'mix' : 'fail';
-    const icon = status === 'processing' ? '...' : status === 'cancelled' ? 'CANCEL' : ok > 0 && fail > 0 ? 'MIX' : ok > 0 ? 'OK' : 'FAIL';
+    const iconClass = status === 'cancelled' ? 'fail' : l.isScan && status === 'done' ? 'ok' : ok > 0 && fail > 0 ? 'mix' : ok > 0 ? 'ok' : status === 'processing' ? 'mix' : 'fail';
+    const icon = l.isScan && status === 'done' ? 'SCAN' : status === 'processing' ? '...' : status === 'cancelled' ? 'CANCEL' : ok > 0 && fail > 0 ? 'MIX' : ok > 0 ? 'OK' : 'FAIL';
     const total = results.length;
     const resultDetails = status === 'cancelled'
       ? '<span style="color:var(--text-3);">Cancelled before posting</span>'
       : status === 'processing'
         ? '<span style="color:var(--yellow);">Processing in extension</span>'
-        : results.map(r =>
-            r.success
+        : results.map(r => l.isScan
+            ? (r.success
+              ? `<span style="color:var(--green);">Scanned ${esc(r.group)}</span>`
+              : `<span style="color:var(--yellow);">Not scanned ${esc(r.group)}${r.error ? ': ' + esc(String(r.error)) : ''}</span>`)
+            : (r.success
               ? `<span style="color:var(--green);">OK ${esc(r.group)}</span>`
-              : `<span style="color:var(--red);">FAIL ${esc(r.group)}${r.error ? ': ' + esc(String(r.error)) : ''}</span>`
+              : `<span style="color:var(--red);">FAIL ${esc(r.group)}${r.error ? ': ' + esc(String(r.error)) : ''}</span>`)
           ).join('<br>');
     return `<div class="log-row">
       <div class="log-icon ${iconClass}">${icon}</div>
