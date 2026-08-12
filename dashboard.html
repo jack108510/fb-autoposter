@@ -102,16 +102,16 @@
     @keyframes spin { to { transform: rotate(360deg); } }
     
     /* ─── Layout ─── */
-    .app { display: flex; min-height: 100vh; }
+    .app { display: flex; min-height: 100vh; --sidebar-width: 232px; }
     .sidebar {
-      width: 232px;
+      width: var(--sidebar-width);
       background: var(--surface);
       border-right: 1px solid var(--border);
       padding: 0; position: fixed; height: 100vh; overflow-y: auto; z-index: 100;
       transition: transform .3s, background .2s, border-color .2s;
       box-shadow: 1px 0 0 rgba(12,12,22,.02);
     }
-    .main { margin-left: 232px; flex: 1; padding: 36px 44px; max-width: 1300px; }
+    .main { margin-left: var(--sidebar-width); flex: 1; padding: 36px 44px; max-width: 1300px; }
     
     /* ─── Sidebar ─── */
     .brand {
@@ -808,7 +808,7 @@
     }
 
     @media (max-width: 900px) {
-      .sidebar { width: 232px; }
+      .sidebar { width: var(--sidebar-width); }
       .main { margin-left: 0; padding: 26px 18px 48px; }
       .cp-pane { padding: 28px 22px; min-height: auto; }
       .cp-layout, .cp-content-grid, .cp-delivery-grid { grid-template-columns: 1fr; }
@@ -1444,8 +1444,10 @@ Example: Quick reminder for clinic owners — if your fee schedule is outdated, 
       }
     }
 
-    function logout() {
-      if (window.sb) window.sb.auth.signOut();
+    async function logout() {
+      ['amplr_draft', 'amplr_create_content_type'].forEach(k => localStorage.removeItem(k));
+      Object.keys(localStorage).filter(k => k.startsWith('amplr_last_group_auto_sync_')).forEach(k => localStorage.removeItem(k));
+      if (window.sb) await window.sb.auth.signOut();
       window.location.reload();
     }
 
@@ -1460,6 +1462,6 @@ Example: Quick reminder for clinic owners — if your fee schedule is outdated, 
       }
     }, 1200);
   </script>
-  <script src="app.js?v=36"></script>
+  <script src="app.js?v=37"></script>
 </body>
 </html>

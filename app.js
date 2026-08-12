@@ -25,6 +25,10 @@ let editingPostId = null;
 let groupCount = 0;
 let calDate = new Date();
 let schedChecker = null;
+let checkConnRunning = false;
+let schedulerBusy = false;
+const HEARTBEAT_STALE_MS = 90000;
+const SCHEDULE_FIRE_WINDOW_MS = 2 * 60 * 1000;
 
 // ─── Init ───
 document.addEventListener('DOMContentLoaded', () => {
@@ -148,6 +152,10 @@ function closeMobileNav() {
 
 function nav(page) {
   closeMobileNav();
+  if (page !== 'groups' && groupSyncPollTimer) {
+    clearInterval(groupSyncPollTimer);
+    groupSyncPollTimer = null;
+  }
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
   document.getElementById(`page-${page}`)?.classList.add('active');
@@ -205,11 +213,13 @@ function timeAgo(ts) {
 }
 
 async function checkConn() {
+  if (checkConnRunning) return;
   const bar = document.getElementById('connBar');
   const dot = document.getElementById('connDot');
   const label = document.getElementById('connLabel');
 
   if (!user || !bar || !dot || !label) return;
+  checkConnRunning = true;
 
   try {
     const [settingsRes, status, recentRes] = await Promise.all([
@@ -225,7 +235,7 @@ async function checkConn() {
 
     const hb = settingsRes.data?.ext_heartbeat || status?.last_seen || status?.row_updated_at;
     const hbAge = hb ? Date.now() - new Date(hb).getTime() : Infinity;
-    const isOnline = hbAge < 90000; // heartbeat within 90s
+    const isOnline = hbAge < HEARTBEAT_STALE_MS;
     const activeJob = recentRes.data?.[0] || null;
     const extVersion = status?.version && status.version !== 'unknown' ? ` v${status.version}` : '';
     const lastSeen = hb ? ` · ${timeAgo(hb)}` : '';
@@ -250,23 +260,21 @@ async function checkConn() {
       label.textContent = hb ? `Chrome helper offline · last seen ${timeAgo(hb)}${extVersion}` : 'Chrome helper offline';
       label.title = `Open Amplr in Chrome and sign in with this dashboard account.${staleVersionHint}`;
     }
+
+    // Keep this lightweight. Heavy page data is loaded by the active page renderer,
+    // not by the heartbeat poll. Re-fetching everything here made startup and
+    // periodic checks feel slow.
+    await pollGroupNames();
+    await pollExtLogs();
   } catch (e) {
     connected = false;
     bar.className = 'conn-bar disconnected';
     dot.className = 'conn-dot off';
     label.textContent = 'Could not check connection';
     label.title = 'Open Amplr in Chrome and refresh this page.';
+  } finally {
+    checkConnRunning = false;
   }
-
-  // Keep this lightweight. Heavy page data is loaded by the active page renderer,
-  // not by the 30s heartbeat poll. Re-fetching everything here made startup and
-  // periodic checks feel slow.
-
-  // Check for resolved group names from extension
-  await pollGroupNames();
-
-  // Fetch extension logs
-  await pollExtLogs();
 }
 
 // ─── Extension logs ───
@@ -452,7 +460,7 @@ function normalizeGroupRef(g) {
   if (typeof g === 'string') return g;
   return g.url || g.group_url || g.name || g.group_name || '';
 }
-function groupDisplayName(ref) {
+function resolveGroupRefName(ref) {
   const raw = normalizeGroupRef(ref);
   if (!raw) return 'Unknown group';
   const saved = (cachedData.groups || []).find(g => g.url === raw || g.name === raw);
@@ -919,12 +927,12 @@ async function loadDashboard() {
   setHtml('dashUpcoming', upcoming.length === 0
     ? '<div class="empty"><p>No scheduled posts</p></div>'
     : upcoming.map(p => {
-        const days = p.schedule.days.map(d => DAYS[d]).join(', ');
+        const days = (Array.isArray(p.schedule?.days) ? p.schedule.days : []).map(d => DAYS[d]).filter(Boolean).join(', ') || 'Not set';
         const spin = hasSpintax(p.text) ? ' <span class="spin-badge">SPIN</span>' : '';
         return `<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--border);">
           <div style="flex:1;">
             <div style="font-weight:600;font-size:13px;">${esc(p.text.substring(0, 50))}${p.text.length > 50 ? '...' : ''}${spin}</div>
-            <div style="font-size:11px;color:var(--text-3);margin-top:2px;">${p.schedule.time} • ${days} • ${p.groups.length} groups</div>
+            <div style="font-size:11px;color:var(--text-3);margin-top:2px;">${esc(p.schedule?.time || 'Not set')} • ${days} • ${scheduledEventGroups(p).length} groups</div>
           </div>
           <button class="btn btn-primary btn-xs" onclick="firePost('${p.id}')">Post</button>
         </div>`;
@@ -938,7 +946,7 @@ async function loadDashboard() {
     refs.forEach(ref => {
       const key = normalizeGroupRef(ref);
       if (!key) return;
-      if (!groupStats[key]) groupStats[key] = { ok: 0, fail: 0, name: groupDisplayName(key) };
+      if (!groupStats[key]) groupStats[key] = { ok: 0, fail: 0, name: resolveGroupRefName(key) };
       if (j.status === 'done') groupStats[key].ok += 1;
       else if (j.status === 'failed') groupStats[key].fail += 1;
     });
@@ -953,7 +961,7 @@ async function loadDashboard() {
     (l.results || []).forEach(r => {
       const key = normalizeGroupRef(r.group);
       if (!key) return;
-      if (!groupStats[key]) groupStats[key] = { ok: 0, fail: 0, name: groupDisplayName(key) };
+      if (!groupStats[key]) groupStats[key] = { ok: 0, fail: 0, name: resolveGroupRefName(key) };
       if (r.success) groupStats[key].ok++; else groupStats[key].fail++;
     });
   });
@@ -998,10 +1006,10 @@ function renderCalendar() {
   for (let d = 1; d <= daysInMonth; d++) {
     const date = new Date(year, month, d), dayOfWeek = date.getDay();
     const isToday = date.toDateString() === today.toDateString();
-    const dayPosts = posts.filter(p => p.enabled && p.schedule.days.includes(dayOfWeek));
+    const dayPosts = posts.filter(p => p.enabled && Array.isArray(p.schedule?.days) && p.schedule.days.includes(dayOfWeek));
     const events = dayPosts.map(p => {
       const colors = ['blue','green','purple']; const c = colors[p.id.charCodeAt(0) % 3];
-      return `<div class="cal-event ${c}" onclick="nav('scheduled')" title="${esc(p.text.substring(0, 40))}...">${p.schedule.time} ${esc(p.text.substring(0, 20))}...</div>`;
+      return `<div class="cal-event ${c}" onclick="nav('scheduled')" title="${esc((p.text || '').substring(0, 40))}...">${esc(p.schedule?.time || '')} ${esc((p.text || '').substring(0, 20))}...</div>`;
     }).join('');
     html += `<div class="cal-day ${isToday ? 'today' : ''}"><div class="cal-day-num">${d}</div>${events}</div>`;
   }
@@ -1183,7 +1191,7 @@ async function savePost() {
   const imageUrl = getCreateImageUrl();
   const maxRuns = parsePositiveInt(document.getElementById('scheduleMaxRuns')?.value);
   const weeks = parsePositiveInt(document.getElementById('scheduleWeeks')?.value);
-  const endsAt = weeks ? new Date(Date.now() + weeks * 7 * 24 * 60 * 60 * 1000).toISOString() : null;
+  const endsAt = weeks ? new Date(Date.now() + weeks * 7 * 24 * 60 * 60 * 1000).toISOString() : (existing?.schedule?.endsAt || null);
   const post = {
     ...(existing || {}),
     id: existing?.id || Date.now().toString(), text, imageUrl, groups, identityName,
@@ -1211,6 +1219,7 @@ async function savePost() {
   const wasEdit = !!editingPostId;
   editingPostId = null;
   toast(wasEdit ? 'Schedule updated' : 'Scheduled!');
+  localStorage.removeItem('amplr_draft');
   clearCreateForm();
   nav('scheduled');
 }
@@ -1245,6 +1254,7 @@ async function postNow() {
 
     if (waiting) waiting.style.display = 'none';
     toast('Sent — Amplr will post it');
+    localStorage.removeItem('amplr_draft');
     clearCreateForm();
   } catch (e) {
     if (waiting) waiting.style.display = 'none';
@@ -1397,8 +1407,8 @@ function scheduledEventImage(item) {
 
 function groupDisplayName(group) {
   if (!group) return '';
-  if (typeof group === 'string') return group;
-  return group.name || group.group_name || group.title || group.url || group.group_url || 'Group';
+  if (typeof group === 'string') return resolveGroupRefName(group);
+  return group.name || group.group_name || group.title || resolveGroupRefName(group.url || group.group_url) || 'Group';
 }
 
 function scheduledWeekEvents(legacyPosts, scheduledJobs, weekDays) {
@@ -1791,7 +1801,20 @@ async function cancelScheduledJobs(idsCsv) {
 async function firePost(id) {
   const p = (cachedData.posts || []).find(x => x.id === id);
   if (!p) return;
-  try { await createJob(p); toast('Post sent — Amplr will handle it'); }
+  if (scheduleLimitReached(p, new Date())) {
+    p.enabled = false;
+    await sbSet('posts', cachedData.posts || []);
+    loadScheduled();
+    return toast('This schedule has reached its run limit');
+  }
+  try {
+    await createJob(p);
+    p.schedule = p.schedule || {};
+    p.schedule.firedCount = (Number(p.schedule.firedCount) || 0) + 1;
+    p.schedule.lastManualFiredAt = new Date().toISOString();
+    await sbSet('posts', cachedData.posts || []);
+    toast('Post sent — Amplr will handle it');
+  }
   catch (e) { toast(e.message); }
 }
 
@@ -1890,7 +1913,7 @@ async function getExtensionHeartbeat() {
 function isHeartbeatFresh(heartbeat) {
   if (!heartbeat) return false;
   const ts = Date.parse(heartbeat);
-  return Number.isFinite(ts) && Date.now() - ts < 2 * 60 * 1000;
+  return Number.isFinite(ts) && Date.now() - ts < HEARTBEAT_STALE_MS;
 }
 
 function isStaleGroupSyncJob(job) {
@@ -1986,6 +2009,10 @@ async function refreshGroupSyncStatus() {
           }
         }, 4000);
       }
+    }
+    if (groupSyncPollTimer && (!job || !['pending', 'processing'].includes(job.status))) {
+      clearInterval(groupSyncPollTimer);
+      groupSyncPollTimer = null;
     }
     return job;
   } catch (e) {
@@ -2084,8 +2111,8 @@ function renderGroupTagBar(groups) {
   }
   bar.style.display = 'flex';
   bar.innerHTML = [
-    `<span class="tag-filter-pill ${groupTagFilter === null ? 'active' : ''}" onclick="setGroupTagFilter(null)">All</span>`,
-    ...allTags.map(t => `<span class="tag-filter-pill ${groupTagFilter === t ? 'active' : ''}" onclick="setGroupTagFilter(${JSON.stringify(t)})">${esc(t)}</span>`)
+    `<span class="tag-filter-pill ${groupTagFilter === null ? 'active' : ''}" data-tag-filter="">All</span>`,
+    ...allTags.map(t => `<span class="tag-filter-pill ${groupTagFilter === t ? 'active' : ''}" data-tag-filter="${esc(t)}">${esc(t)}</span>`)
   ].join('');
 }
 
@@ -2094,6 +2121,15 @@ function setGroupTagFilter(tag) {
   const groups = cachedData.groups || [];
   renderGroupTagBar(groups);
   renderGroupsList(groups);
+}
+
+function safeExternalHref(value) {
+  try {
+    const u = new URL(value || '');
+    return /^https?:$/i.test(u.protocol) ? u.href : '#';
+  } catch (_) {
+    return '#';
+  }
 }
 
 function renderGroupsList(groups) {
@@ -2125,8 +2161,10 @@ function renderGroupsList(groups) {
     const posts = postCounts[g.url] || 0;
     const color = colors[i % colors.length];
     const isPending = g.namePending;
+    const groupUrl = g.url || '';
+    const safeHref = safeExternalHref(groupUrl);
     const tagPills = (g.tags || []).map(t =>
-      `<span class="group-tag-pill" onclick="event.stopPropagation();removeGroupTag('${esc(g.url)}', '${esc(t)}')" title="Click to remove">${esc(t)} ✕</span>`
+      `<span class="group-tag-pill" data-group-url="${esc(groupUrl)}" data-group-tag="${esc(t)}" title="Click to remove">${esc(t)} ✕</span>`
     ).join('');
 
     // Cooldown badge
@@ -2155,23 +2193,22 @@ function renderGroupsList(groups) {
           ${cooldownBadge}
           ${banBadge}
         </div>
-        <a href="${esc(g.url)}" target="_blank" style="font-size:11px;color:var(--text-3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block;max-width:100%;">${esc(g.url)}</a>
+        <a href="${esc(safeHref)}" target="_blank" rel="noopener noreferrer" style="font-size:11px;color:var(--text-3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block;max-width:100%;">${esc(groupUrl)}</a>
         <div style="display:flex;align-items:center;flex-wrap:wrap;gap:4px;margin-top:5px;">
           ${tagPills}
-          <span class="group-tag-add" onclick="event.stopPropagation();showTagInput(this, '${esc(g.url)}')" title="Add tag">+ tag</span>
-          <input type="text" class="group-tag-input" style="display:none;width:100px;font-size:11px;padding:2px 6px;border:1px solid var(--border);border-radius:12px;outline:none;background:var(--surface);"
-            onkeydown="handleTagInput(event, '${esc(g.url)}')" onblur="this.style.display='none';this.previousElementSibling.style.display=''"/>
+          <span class="group-tag-add" data-group-url="${esc(groupUrl)}" title="Add tag">+ tag</span>
+          <input type="text" class="group-tag-input" data-group-url="${esc(groupUrl)}" style="display:none;width:100px;font-size:11px;padding:2px 6px;border:1px solid var(--border);border-radius:12px;outline:none;background:var(--surface);" />
         </div>
       </div>
       ${posts > 0 ? `<span class="badge badge-blue" style="flex-shrink:0;">${posts} ${posts === 1 ? 'post' : 'posts'}</span>` : ''}
-      <button class="btn btn-ghost btn-sm" style="flex-shrink:0;color:var(--red);border-color:transparent;padding:6px 10px;" onclick="removeGroup('${esc(g.url)}')" title="Remove group">
+      <button class="btn btn-ghost btn-sm group-remove-btn" data-group-url="${esc(groupUrl)}" style="flex-shrink:0;color:var(--red);border-color:transparent;padding:6px 10px;" title="Remove group">
         <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 4h10M5 4V2.5C5 2 5.5 1.5 6 1.5h4c0.5 0 1 0.5 1 1V4M6 7v6M10 7v6M4 4l1 10c0 0.5 0.5 1 1 1h4c0.5 0 1-0.5 1-1l1-10"/></svg>
       </button>
     </div>`;
   }).join('');
 }
 
-function showTagInput(addBtn, url) {
+function showTagInput(addBtn) {
   const input = addBtn.nextElementSibling;
   addBtn.style.display = 'none';
   input.style.display = '';
@@ -2179,10 +2216,16 @@ function showTagInput(addBtn, url) {
   input.focus();
 }
 
-function handleTagInput(event, url) {
+function hideTagInput(input) {
+  input.style.display = 'none';
+  if (input.previousElementSibling) input.previousElementSibling.style.display = '';
+}
+
+function handleTagInput(event) {
   if (event.key === 'Enter') {
-    const tag = event.target.value.trim().toLowerCase();
-    if (!tag) { event.target.style.display = 'none'; event.target.previousElementSibling.style.display = ''; return; }
+    const tag = event.target.value.trim().toLowerCase().replace(/[^a-z0-9 _-]/g, '').slice(0, 32);
+    if (!tag) { hideTagInput(event.target); return; }
+    const url = event.target.dataset.groupUrl;
     const g = (cachedData.groups || []).find(x => x.url === url);
     if (!g) return;
     const newTags = [...new Set([...(g.tags || []), tag])];
@@ -2190,10 +2233,43 @@ function handleTagInput(event, url) {
       loadGroups();
     });
   } else if (event.key === 'Escape') {
-    event.target.style.display = 'none';
-    event.target.previousElementSibling.style.display = '';
+    hideTagInput(event.target);
   }
 }
+
+document.addEventListener('click', (event) => {
+  const tagFilter = event.target.closest?.('[data-tag-filter]');
+  if (tagFilter) {
+    event.stopPropagation();
+    setGroupTagFilter(tagFilter.dataset.tagFilter || null);
+    return;
+  }
+  const tagPill = event.target.closest?.('.group-tag-pill[data-group-url][data-group-tag]');
+  if (tagPill) {
+    event.stopPropagation();
+    removeGroupTag(tagPill.dataset.groupUrl, tagPill.dataset.groupTag);
+    return;
+  }
+  const addBtn = event.target.closest?.('.group-tag-add[data-group-url]');
+  if (addBtn) {
+    event.stopPropagation();
+    showTagInput(addBtn);
+    return;
+  }
+  const removeBtn = event.target.closest?.('.group-remove-btn[data-group-url]');
+  if (removeBtn) {
+    event.stopPropagation();
+    removeGroup(removeBtn.dataset.groupUrl);
+  }
+});
+
+document.addEventListener('keydown', (event) => {
+  if (event.target.matches?.('.group-tag-input[data-group-url]')) handleTagInput(event);
+});
+
+document.addEventListener('blur', (event) => {
+  if (event.target.matches?.('.group-tag-input[data-group-url]')) hideTagInput(event.target);
+}, true);
 
 function removeGroupTag(url, tag) {
   const g = (cachedData.groups || []).find(x => x.url === url);
@@ -2413,14 +2489,33 @@ async function clearLogs() {
 
 async function exportLogs() {
   const logs = cachedData.logs || [];
-  if (logs.length === 0) return toast('No activity to export');
 
-  // Also include recent post history
-  const { data: jobs } = await sb.from('jsw_post_jobs').select('*').eq('user_id', user.id).order('created_at', { ascending: false }).limit(50);
-  const rows = [['Timestamp', 'Preview', 'Group', 'Success', 'Error']];
+  // Include both legacy dashboard logs and recent extension job history.
+  const { data: jobs } = await sb.from('jsw_post_jobs')
+    .select('*')
+    .eq('user_id', user.id)
+    .order('created_at', { ascending: false })
+    .limit(50);
+
+  if (logs.length === 0 && (!jobs || jobs.length === 0)) return toast('No activity to export');
+
+  const rows = [['Timestamp', 'Source', 'Preview', 'Group', 'Success', 'Error']];
   logs.forEach(l => {
     (l.results || []).forEach(r => {
-      rows.push([l.timestamp, l.postPreview || '', r.group || '', r.success ? 'YES' : 'NO', r.error || '']);
+      rows.push([l.timestamp, 'legacy', l.postPreview || '', r.group || '', r.success ? 'YES' : 'NO', r.error || '']);
+    });
+  });
+  (jobs || []).filter(j => !isSystemJob(j)).forEach(j => {
+    const refs = Array.isArray(j.groups) && j.groups.length ? j.groups : [''];
+    refs.forEach(ref => {
+      rows.push([
+        j.completed_at || j.started_at || j.created_at || '',
+        'extension',
+        j.message || '',
+        groupDisplayName(ref),
+        j.status === 'done' ? 'YES' : (j.status === 'failed' ? 'NO' : j.status || ''),
+        j.error || ''
+      ]);
     });
   });
 
@@ -2534,30 +2629,51 @@ async function resetAll() {
 // ═══ SCHEDULE CHECKER ═══
 // Checks every 60s if any scheduled post should fire.
 // Creates a job in jsw_post_jobs when it's time.
+function localScheduleFireKey(post, scheduledAt) {
+  const yyyy = scheduledAt.getFullYear();
+  const mm = String(scheduledAt.getMonth() + 1).padStart(2, '0');
+  const dd = String(scheduledAt.getDate()).padStart(2, '0');
+  const hh = String(scheduledAt.getHours()).padStart(2, '0');
+  const mi = String(scheduledAt.getMinutes()).padStart(2, '0');
+  return `${post.id}:${yyyy}-${mm}-${dd}T${hh}:${mi}`;
+}
+
+function scheduledFireDue(post, now = new Date()) {
+  const days = Array.isArray(post.schedule?.days) ? post.schedule.days : [];
+  const time = normalizeTimeValue(post.schedule?.time || '');
+  if (!days.length || !time || !days.includes(now.getDay())) return null;
+  const [hh, mm] = time.split(':').map(Number);
+  const scheduledAt = new Date(now);
+  scheduledAt.setHours(hh, mm, 0, 0);
+  const delta = now.getTime() - scheduledAt.getTime();
+  if (delta < 0 || delta > SCHEDULE_FIRE_WINDOW_MS) return null;
+  const fireKey = localScheduleFireKey(post, scheduledAt);
+  if (post.schedule.lastFiredKey === fireKey) return null;
+  return { scheduledAt, fireKey };
+}
+
 function startScheduleChecker() {
   if (schedChecker) clearInterval(schedChecker);
   schedChecker = setInterval(async () => {
-    if (!user) return;
-    const posts = await sbGet('posts') || [];
-    const now = new Date();
-    const currentDay = now.getDay();
-    const currentTime = now.toTimeString().substring(0, 5);
-
-    let changed = false;
-    for (const post of posts) {
-      if (!post.enabled) continue;
-      if (!post.schedule || !post.schedule.days || !post.schedule.time) continue;
-      if (scheduleLimitReached(post, now)) {
-        post.enabled = false;
-        changed = true;
-        continue;
-      }
-      if (post.schedule.days.includes(currentDay) && post.schedule.time === currentTime) {
-        const fireKey = `${post.id}:${now.toISOString().slice(0, 16)}`;
-        if (post.schedule.lastFiredKey === fireKey) continue;
+    if (!user || schedulerBusy) return;
+    schedulerBusy = true;
+    try {
+      const posts = await sbGet('posts') || [];
+      const now = new Date();
+      let changed = false;
+      for (const post of posts) {
+        if (!post.enabled) continue;
+        if (!post.schedule || !Array.isArray(post.schedule.days) || !post.schedule.time) continue;
+        if (scheduleLimitReached(post, now)) {
+          post.enabled = false;
+          changed = true;
+          continue;
+        }
+        const due = scheduledFireDue(post, now);
+        if (!due) continue;
         try {
           await createJob(post);
-          post.schedule.lastFiredKey = fireKey;
+          post.schedule.lastFiredKey = due.fireKey;
           post.schedule.lastFiredAt = now.toISOString();
           post.schedule.firedCount = (Number(post.schedule.firedCount) || 0) + 1;
           if (scheduleLimitReached(post, now)) post.enabled = false;
@@ -2567,10 +2683,12 @@ function startScheduleChecker() {
           console.warn('[Amplr] Schedule fire failed:', e.message);
         }
       }
-    }
-    if (changed) {
-      cachedData.posts = posts;
-      await sbSet('posts', posts);
+      if (changed) {
+        cachedData.posts = posts;
+        await sbSet('posts', posts);
+      }
+    } finally {
+      schedulerBusy = false;
     }
   }, 60000);
 }
