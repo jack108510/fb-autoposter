@@ -24,6 +24,7 @@ let selDays = [1, 2, 3, 4, 5];
 let editingPostId = null;
 let groupCount = 0;
 let calDate = new Date();
+let historyFilter = 'posts';
 let schedChecker = null;
 let checkConnRunning = false;
 let schedulerBusy = false;
@@ -1033,37 +1034,120 @@ async function loadDashboard() {
 
 // ═══ CALENDAR ═══
 function renderCalNames() {
-  document.getElementById('calDayNames').innerHTML = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat']
-    .map(d => `<div class="cal-day-name">${d}</div>`).join('');
+  const el = document.getElementById('calDayNames');
+  if (!el) return;
+  el.innerHTML = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat']
+    .map(d => `<div class="calendar-day-name">${d}</div>`).join('');
 }
-async function loadCalendar() { cachedData = await fetchAll(); renderCalendar(); }
-function renderCalendar() {
+
+async function loadCalendar() {
+  cachedData = await fetchAll();
+  const start = new Date(calDate.getFullYear(), calDate.getMonth(), 1);
+  const end = new Date(calDate.getFullYear(), calDate.getMonth() + 1, 1);
+  const { data: scheduledJobs } = await sb.from('jsw_post_jobs')
+    .select('*')
+    .eq('user_id', user.id)
+    .eq('status', 'pending')
+    .not('scheduled_for', 'is', null)
+    .gte('scheduled_for', start.toISOString())
+    .lt('scheduled_for', end.toISOString())
+    .order('scheduled_for', { ascending: true });
+  renderCalendar(scheduledJobs || []);
+}
+
+function monthScheduledEvents(legacyPosts = [], scheduledJobs = []) {
+  const year = calDate.getFullYear();
+  const month = calDate.getMonth();
+  const start = new Date(year, month, 1);
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const monthDays = Array.from({ length: daysInMonth }, (_, i) => addDays(start, i));
+  return scheduledWeekEvents(legacyPosts, scheduledJobs, monthDays)
+    .sort((a, b) => a.dateKey.localeCompare(b.dateKey) || a.time.localeCompare(b.time));
+}
+
+function calendarEventRowHtml(event) {
+  const identity = event.identity || findPostingIdentityByName(event.identityName);
+  const groupCount = scheduledEventGroups(event).length || 1;
+  return `<div class="calendar-profile-row" title="${esc(event.title || '')}" onclick="openUpcomingPostDetail('${esc(event.id)}')">
+    ${identityAvatarHtml(identity, '')}
+    <div class="calendar-event-copy">
+      <div class="calendar-event-main">${esc(event.identityName || identity?.name || 'Facebook profile')}</div>
+      <div class="calendar-event-meta">${displayTime(event.time)} · ${groupCount} group${groupCount === 1 ? '' : 's'}</div>
+    </div>
+  </div>`;
+}
+
+function renderCalendar(scheduledJobs = []) {
+  const el = document.getElementById('calendarPlanner');
+  if (!el) return;
   const year = calDate.getFullYear(), month = calDate.getMonth();
-  document.getElementById('calMonth').textContent = `${MONTHS[month]} ${year}`;
   const firstDay = new Date(year, month, 1).getDay();
   const daysInMonth = new Date(year, month + 1, 0).getDate();
   const prevDays = new Date(year, month, 0).getDate();
-  const today = new Date();
-  let html = '';
-  for (let i = firstDay - 1; i >= 0; i--) html += `<div class="cal-day other"><div class="cal-day-num">${prevDays - i}</div></div>`;
-  const posts = cachedData.posts || [];
+  const today = startOfLocalDay(new Date());
+  const events = monthScheduledEvents(cachedData.posts || [], scheduledJobs || []);
+  upcomingPostDetails = Object.fromEntries(events.map(e => [e.id, e]));
+
+  const byDay = new Map();
+  const byProfile = new Map();
+  events.forEach(e => {
+    if (!byDay.has(e.dateKey)) byDay.set(e.dateKey, []);
+    byDay.get(e.dateKey).push(e);
+    const profile = e.identityName || e.identity?.name || 'Unknown profile';
+    byProfile.set(profile, (byProfile.get(profile) || 0) + 1);
+  });
+
+  const activeDays = byDay.size;
+  const profileCount = byProfile.size;
+  const busiest = [...byDay.entries()].sort((a, b) => b[1].length - a[1].length)[0];
+  const busiestLabel = busiest ? new Date(`${busiest[0]}T12:00:00`).toLocaleDateString('en-US', { month:'short', day:'numeric' }) : '—';
+  const quietDays = Array.from({ length: daysInMonth }, (_, i) => new Date(year, month, i + 1))
+    .filter(d => d >= today && !byDay.has(localDateKey(d)))
+    .slice(0, 5);
+  const topProfiles = [...byProfile.entries()].sort((a, b) => b[1] - a[1]).slice(0, 6);
+  const busyDays = [...byDay.entries()].sort((a, b) => b[1].length - a[1].length).slice(0, 5);
+
+  let cells = '';
+  for (let i = firstDay - 1; i >= 0; i--) cells += `<div class="calendar-day other"><div class="calendar-day-head"><div class="calendar-day-num">${prevDays - i}</div></div></div>`;
   for (let d = 1; d <= daysInMonth; d++) {
-    const date = new Date(year, month, d), dayOfWeek = date.getDay();
-    const isToday = date.toDateString() === today.toDateString();
-    const dayPosts = posts.filter(p => p.enabled && Array.isArray(p.schedule?.days) && p.schedule.days.includes(dayOfWeek));
-    const events = dayPosts.map(p => {
-      const colors = ['blue','green','purple']; const c = colors[p.id.charCodeAt(0) % 3];
-      return `<div class="cal-event ${c}" onclick="nav('scheduled')" title="${esc((p.text || '').substring(0, 40))}...">${esc(p.schedule?.time || '')} ${esc((p.text || '').substring(0, 20))}...</div>`;
-    }).join('');
-    html += `<div class="cal-day ${isToday ? 'today' : ''}"><div class="cal-day-num">${d}</div>${events}</div>`;
+    const date = new Date(year, month, d);
+    const key = localDateKey(date);
+    const dayEvents = (byDay.get(key) || []).sort((a, b) => a.time.localeCompare(b.time));
+    const visible = dayEvents.slice(0, 3);
+    cells += `<div class="calendar-day ${date.toDateString() === today.toDateString() ? 'today' : ''} ${dayEvents.length ? 'busy' : ''}">
+      <div class="calendar-day-head"><div class="calendar-day-num">${d}</div>${dayEvents.length ? `<div class="calendar-count-pill">${dayEvents.length}</div>` : ''}</div>
+      ${visible.map(calendarEventRowHtml).join('')}
+      ${dayEvents.length > visible.length ? `<div class="calendar-more">+${dayEvents.length - visible.length} more</div>` : ''}
+    </div>`;
   }
-  const totalCells = firstDay + daysInMonth;
-  const remaining = (7 - (totalCells % 7)) % 7;
-  for (let i = 1; i <= remaining; i++) html += `<div class="cal-day other"><div class="cal-day-num">${i}</div></div>`;
-  document.getElementById('calGrid').innerHTML = html;
+  const remaining = (7 - ((firstDay + daysInMonth) % 7)) % 7;
+  for (let i = 1; i <= remaining; i++) cells += `<div class="calendar-day other"><div class="calendar-day-head"><div class="calendar-day-num">${i}</div></div></div>`;
+
+  const emptyState = !events.length ? `<div class="calendar-empty"><h3>No scheduled posts this month</h3><p>Create a recurring post or queue scheduled posts to start planning coverage.</p><button class="btn btn-primary" onclick="nav('create')">Schedule a post</button></div>` : '';
+  el.innerHTML = `<div class="calendar-shell">
+    <div class="calendar-board">
+      <div class="calendar-top">
+        <div><div class="calendar-eyebrow">Monthly planner</div><div class="calendar-title">${MONTHS[month]} ${year}</div><div class="calendar-sub">Use this to balance posting across profiles and spot days with no coverage.</div></div>
+        <div class="calendar-actions"><div class="calendar-month-nav"><button class="btn btn-secondary btn-sm" onclick="prevMonth()">‹</button><button class="btn btn-secondary btn-sm" onclick="goThisMonth()">This month</button><button class="btn btn-secondary btn-sm" onclick="nextMonth()">›</button></div><button class="btn btn-primary btn-sm" onclick="nav('create')">Schedule</button></div>
+      </div>
+      <div class="calendar-stat-strip">
+        <div class="calendar-stat"><strong>${events.length}</strong><span>scheduled posts</span></div>
+        <div class="calendar-stat"><strong>${activeDays}</strong><span>active days</span></div>
+        <div class="calendar-stat"><strong>${profileCount}</strong><span>profiles used</span></div>
+        <div class="calendar-stat"><strong>${busiestLabel}</strong><span>busiest day</span></div>
+      </div>
+      ${events.length ? `<div class="calendar-grid">${['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map(d => `<div class="calendar-day-name">${d}</div>`).join('')}${cells}</div>` : emptyState}
+    </div>
+    <div class="calendar-side">
+      <div class="calendar-panel"><div class="calendar-panel-title">Profile coverage</div>${topProfiles.length ? `<div class="calendar-list">${topProfiles.map(([name, count]) => `<div class="calendar-list-item"><div class="calendar-list-main"><strong>${esc(name)}</strong><span>${Math.round(count / Math.max(events.length, 1) * 100)}% of this month</span></div><div class="calendar-list-num">${count}</div></div>`).join('')}</div>` : `<div class="calendar-gap">No profiles scheduled this month.</div>`}</div>
+      <div class="calendar-panel"><div class="calendar-panel-title">Busiest days</div>${busyDays.length ? `<div class="calendar-list">${busyDays.map(([key, items]) => `<div class="calendar-list-item"><div class="calendar-list-main"><strong>${new Date(`${key}T12:00:00`).toLocaleDateString('en-US', { weekday:'short', month:'short', day:'numeric' })}</strong><span>${[...new Set(items.map(i => i.identityName || 'Profile'))].slice(0, 2).join(', ')}</span></div><div class="calendar-list-num">${items.length}</div></div>`).join('')}</div>` : `<div class="calendar-gap">No busy days yet.</div>`}</div>
+      <div class="calendar-panel"><div class="calendar-panel-title">Open days</div>${quietDays.length ? `<div class="calendar-list">${quietDays.map(d => `<div class="calendar-list-item"><div class="calendar-list-main"><strong>${d.toLocaleDateString('en-US', { weekday:'short', month:'short', day:'numeric' })}</strong><span>No posts currently scheduled</span></div><button class="btn btn-secondary btn-sm" onclick="nav('create')">Fill</button></div>`).join('')}</div>` : `<div class="calendar-gap">No obvious gaps left in the rest of this month.</div>`}</div>
+    </div>
+  </div>`;
 }
-function prevMonth() { calDate.setMonth(calDate.getMonth() - 1); renderCalendar(); }
-function nextMonth() { calDate.setMonth(calDate.getMonth() + 1); renderCalendar(); }
+function prevMonth() { calDate.setMonth(calDate.getMonth() - 1); loadCalendar(); }
+function nextMonth() { calDate.setMonth(calDate.getMonth() + 1); loadCalendar(); }
+function goThisMonth() { calDate = new Date(); loadCalendar(); }
 
 // ═══ CREATE ═══
 function renderDays() {
@@ -2784,82 +2868,142 @@ async function loadLogs() {
     .order('created_at', { ascending: false }).limit(75);
 
   const el = document.getElementById('logsList');
-  const logs = cachedData.logs || [];
-  const allEntries = [];
+  if (!el) return;
+  const entries = normalizeHistoryEntries(cachedData.logs || [], jobs || []);
+  renderHistory(entries);
+}
 
+function normalizeHistoryEntries(logs = [], jobs = []) {
+  const entries = [];
   (jobs || []).forEach(j => {
     const result = j.result || {};
     if (j.message === '__import_groups__') {
       const identities = Array.isArray(result.identities) ? result.identities : [];
-      allEntries.push({
+      entries.push({
+        type: 'system',
         timestamp: j.completed_at || j.updated_at || j.created_at,
-        postPreview: result.text || 'Facebook group scan',
+        title: 'Facebook group scan',
+        preview: identities.length ? `${identities.length} profile/page${identities.length === 1 ? '' : 's'} checked` : (j.error || result.error || 'Group import job'),
+        status: j.status || 'unknown',
+        error: j.status === 'failed' ? (j.error || result.error) : '',
         results: identities.map(item => ({
           group: item.identity_name || item.identity_key || 'Profile/page',
           success: item.status !== 'not_scanned' && !item.error && j.status === 'done',
           failed: item.status === 'not_scanned' || !!item.error || j.status === 'failed',
           error: item.reason || (item.error ? 'No group list was available during this pass.' : ''),
         })),
-        status: j.status || 'unknown',
-        error: j.status === 'failed' ? (j.error || result.error) : '',
-        isScan: true,
       });
       return;
     }
     if (isSystemJob(j)) return;
-    const groups = Array.isArray(j.groups) ? j.groups : [];
     const status = j.status || 'unknown';
+    const groups = Array.isArray(j.groups) ? j.groups : [];
     const success = status === 'done';
     const failed = status === 'failed';
-    allEntries.push({
-      timestamp: j.completed_at || j.updated_at || j.created_at,
-      postPreview: (j.message || '').substring(0, 100),
-      results: groups.map(g => ({
-        group: groupDisplayName(g),
-        rawGroup: normalizeGroupRef(g),
-        success,
-        failed,
-        error: j.error,
-      })),
+    entries.push({
+      type: 'post',
+      timestamp: j.completed_at || j.updated_at || j.started_at || j.created_at,
+      title: status === 'pending' ? 'Queued post' : status === 'processing' ? 'Posting in progress' : 'Post run',
+      preview: scheduledEventText(j).replace(/\s+/g, ' ').trim() || 'No message text saved',
       status,
-      error: j.error,
+      error: j.error || '',
+      results: groups.map(g => ({ group: groupDisplayName(g), success, failed, error: j.error })),
     });
   });
-  logs.forEach(l => allEntries.push(l));
 
-  if (allEntries.length === 0) {
-    el.innerHTML = '<div class="empty"><p>No activity yet</p></div>';
-    return;
-  }
-  el.innerHTML = allEntries.map(l => {
-    const results = l.results || [];
+  (logs || []).forEach(l => entries.push({
+    type: 'post',
+    timestamp: l.timestamp || l.createdAt || new Date().toISOString(),
+    title: l.title || 'Legacy post run',
+    preview: l.postPreview || l.text || '',
+    status: l.status || '',
+    error: l.error || '',
+    results: Array.isArray(l.results) ? l.results : [],
+  }));
+
+  return entries.sort((a, b) => new Date(b.timestamp || 0) - new Date(a.timestamp || 0));
+}
+
+function historyCounts(entries) {
+  return entries.reduce((acc, entry) => {
+    const results = entry.results || [];
     const ok = results.filter(r => r.success).length;
-    const fail = results.filter(r => r.failed || (!r.success && l.status === 'failed')).length;
-    const status = l.status || (ok > 0 ? 'done' : 'failed');
-    const iconClass = status === 'cancelled' ? 'fail' : l.isScan && status === 'done' ? 'ok' : ok > 0 && fail > 0 ? 'mix' : ok > 0 ? 'ok' : status === 'processing' ? 'mix' : 'fail';
-    const icon = l.isScan && status === 'done' ? 'SCAN' : status === 'processing' ? '...' : status === 'cancelled' ? 'CANCEL' : ok > 0 && fail > 0 ? 'MIX' : ok > 0 ? 'OK' : 'FAIL';
-    const total = results.length;
-    const resultDetails = status === 'cancelled'
-      ? '<span style="color:var(--text-3);">Cancelled before posting</span>'
-      : status === 'processing'
-        ? '<span style="color:var(--yellow);">Processing in extension</span>'
-        : results.map(r => l.isScan
-            ? (r.success
-              ? `<span style="color:var(--green);">Scanned ${esc(r.group)}</span>`
-              : `<span style="color:var(--yellow);">Not scanned ${esc(r.group)}${r.error ? ': ' + esc(String(r.error)) : ''}</span>`)
-            : (r.success
-              ? `<span style="color:var(--green);">OK ${esc(r.group)}</span>`
-              : `<span style="color:var(--red);">FAIL ${esc(r.group)}${r.error ? ': ' + esc(String(r.error)) : ''}</span>`)
-          ).join('<br>');
-    return `<div class="log-row">
-      <div class="log-icon ${iconClass}">${icon}</div>
-      <div class="log-body">
-        <div class="log-time">${new Date(l.timestamp).toLocaleString()} • ${ok}/${total} succeeded • ${esc(status)}</div>
-        <div class="log-preview">${esc(l.postPreview || l.text || '')}</div>
-        <div class="log-results" style="margin-top:4px;">${resultDetails || '<span style="color:var(--text-3);">No group-level results yet</span>'}</div>
-      </div>
-    </div>`;
-  }).join('');
+    const fail = results.filter(r => r.failed || (!r.success && entry.status === 'failed')).length;
+    if (entry.type === 'post') acc.posts += 1;
+    if (entry.type === 'system') acc.system += 1;
+    if (fail > 0 || entry.status === 'failed') acc.failed += 1;
+    if (ok > 0 && fail === 0) acc.success += 1;
+    return acc;
+  }, { posts: 0, system: 0, failed: 0, success: 0 });
+}
+
+function setHistoryFilter(filter) {
+  historyFilter = filter;
+  loadLogs();
+}
+
+function historyEntryState(entry) {
+  const results = entry.results || [];
+  const ok = results.filter(r => r.success).length;
+  const fail = results.filter(r => r.failed || (!r.success && entry.status === 'failed')).length;
+  const total = results.length;
+  const status = entry.status || (ok > 0 ? 'done' : 'unknown');
+  const pending = ['pending', 'queued', 'processing'].includes(status);
+  const iconClass = pending ? 'pending' : fail && ok ? 'mix' : fail || status === 'failed' || status === 'cancelled' ? 'fail' : ok || status === 'done' ? 'ok' : 'mix';
+  const icon = entry.type === 'system' ? 'SYS' : pending ? '...' : fail && ok ? 'MIX' : fail || status === 'failed' ? 'FAIL' : 'OK';
+  return { ok, fail, total, status, iconClass, icon };
+}
+
+function renderHistory(entries) {
+  const el = document.getElementById('logsList');
+  const counts = historyCounts(entries);
+  const filtered = entries.filter(e => {
+    if (historyFilter === 'posts') return e.type === 'post';
+    if (historyFilter === 'failed') return historyEntryState(e).fail > 0 || e.status === 'failed';
+    if (historyFilter === 'system') return e.type === 'system';
+    return true;
+  });
+  const tabs = [
+    ['posts', `Posts (${counts.posts})`],
+    ['failed', `Failures (${counts.failed})`],
+    ['system', `System (${counts.system})`],
+    ['all', `All (${entries.length})`],
+  ];
+  const listHtml = filtered.length ? `<div class="history-list">${filtered.map(historyItemHtml).join('')}</div>` : `<div class="history-empty"><h3>No matching history</h3><p>Try another filter or post something new.</p></div>`;
+  el.innerHTML = `<div class="history-shell">
+    <div class="history-summary">
+      <div class="history-stat"><strong>${counts.posts}</strong><span>post runs</span></div>
+      <div class="history-stat"><strong>${counts.success}</strong><span>clean runs</span></div>
+      <div class="history-stat"><strong>${counts.failed}</strong><span>needs attention</span></div>
+      <div class="history-stat"><strong>${counts.system}</strong><span>helper jobs</span></div>
+    </div>
+    <div class="history-toolbar">
+      <div class="history-tabs">${tabs.map(([key, label]) => `<button class="history-tab ${historyFilter === key ? 'active' : ''}" onclick="setHistoryFilter('${key}')">${esc(label)}</button>`).join('')}</div>
+      <div class="history-actions"><button class="btn btn-secondary btn-sm" onclick="exportLogs()">Export CSV</button><button class="btn btn-danger btn-sm" onclick="clearLogs()">Clear local logs</button></div>
+    </div>
+    ${listHtml}
+  </div>`;
+}
+
+function historyItemHtml(entry) {
+  const state = historyEntryState(entry);
+  const results = entry.results || [];
+  const visibleResults = results.slice(0, 8);
+  const statusLabel = entry.status === 'done' ? 'complete' : entry.status || 'unknown';
+  const groupHtml = visibleResults.length ? visibleResults.map(r => {
+    const cls = r.success ? 'ok' : r.failed ? 'fail' : 'warn';
+    const label = `${r.success ? 'OK' : r.failed ? 'FAIL' : 'WAIT'} ${r.group || 'Group'}${r.error ? ` — ${String(r.error).slice(0, 90)}` : ''}`;
+    return `<span class="history-group-pill ${cls}" title="${esc(label)}">${esc(label)}</span>`;
+  }).join('') + (results.length > visibleResults.length ? `<span class="history-group-pill">+${results.length - visibleResults.length} more</span>` : '') : `<span class="history-group-pill warn">No group-level result yet</span>`;
+  return `<div class="history-item">
+    <div class="history-icon ${state.iconClass}">${state.icon}</div>
+    <div class="history-main">
+      <div class="history-title-row"><div class="history-title">${esc(entry.title || (entry.type === 'system' ? 'Helper activity' : 'Post run'))}</div><span class="badge ${state.iconClass === 'fail' ? 'badge-off' : state.iconClass === 'ok' ? 'badge-green' : 'badge-yellow'}">${esc(statusLabel)}</span><span class="history-time">${entry.timestamp ? new Date(entry.timestamp).toLocaleString() : 'No time'}</span></div>
+      <div class="history-preview">${esc(entry.error || entry.preview || 'No details saved')}</div>
+      <div class="history-groups">${groupHtml}</div>
+    </div>
+    <div class="history-side"><div class="history-score">${state.total ? `${state.ok}/${state.total}` : '—'}</div><div class="history-score-label">succeeded</div></div>
+  </div>`;
 }
 
 async function clearLogs() {
