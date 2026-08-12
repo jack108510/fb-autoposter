@@ -2251,7 +2251,8 @@ function groupRiskLevel(g) {
 function updateGroupsStats(groups = [], filtered = groups) {
   const set = (id, value) => { const el = document.getElementById(id); if (el) el.textContent = value; };
   const identities = sanitizePostingIdentities(cachedData.postingIdentities || []);
-  const unassignedCount = groups.filter(g => !groupAssignmentProfileForGroup(g, identities)).length;
+  const legacyCount = groups.filter(g => isLegacyGroupAssignment(g)).length;
+  const unassignedCount = groups.filter(g => !isLegacyGroupAssignment(g) && !groupAssignmentProfileForGroup(g, identities)).length;
   set('groupsTotalStat', groups.length);
   set('groupsTaggedStat', identities.length);
   set('groupsCooldownStat', unassignedCount);
@@ -2260,7 +2261,7 @@ function updateGroupsStats(groups = [], filtered = groups) {
   if (sub) {
     const activeFilters = [groupTagFilter ? `tagged ${groupTagFilter}` : '', groupSearchQuery ? `matching “${groupSearchQuery}”` : ''].filter(Boolean).join(' and ');
     const base = `${filtered.length} of ${groups.length} group${groups.length === 1 ? '' : 's'}`;
-    sub.textContent = activeFilters ? `${base} ${activeFilters}.` : `${base} organized by ${identities.length || 0} Facebook profile${identities.length === 1 ? '' : 's'}/Pages. ${unassignedCount ? `${unassignedCount} need profile assignment.` : 'Everything has a profile.'}`;
+    sub.textContent = activeFilters ? `${base} ${activeFilters}.` : `${base} organized by ${identities.length || 0} Facebook profile${identities.length === 1 ? '' : 's'}/Pages. ${unassignedCount ? `${unassignedCount} need profile assignment.` : 'Everything has a profile.'}${legacyCount ? ` ${legacyCount} legacy groups need a successful profile resync.` : ''}`;
   }
 }
 
@@ -2284,6 +2285,10 @@ function groupOwnerName(group = {}) {
 
 function groupOwnerKey(group = {}) {
   return String(group.identity_key || group.identityKey || group.profile_key || group.profileKey || group.page_key || group.pageKey || group.joined_as_key || group.joinedAsKey || group.member_profile_key || group.memberProfileKey || group.collected_by_key || group.collectedByKey || group.imported_by_key || group.importedByKey || '').trim();
+}
+
+function isLegacyGroupAssignment(group = {}) {
+  return groupOwnerKey(group) === '__legacy__';
 }
 
 function groupMatchesIdentity(group = {}, identity = {}) {
@@ -2324,6 +2329,7 @@ function profileBucketKeyForName(name) {
 }
 
 function groupAssignmentProfileForGroup(group = {}, identities = sanitizePostingIdentities(cachedData.postingIdentities || [])) {
+  if (isLegacyGroupAssignment(group)) return null;
   const ownerKey = groupOwnerKey(group);
   const ownerName = groupOwnerName(group).toLowerCase();
   const byKey = ownerKey ? identities.find(identity => identityKey(identity) === ownerKey) : null;
@@ -2353,10 +2359,15 @@ function buildGroupProfileBuckets(groups = []) {
   };
   const all = ensure('__all__', { name: 'All profiles', type: 'Everything Amplr knows about' }, 'Every group across every profile/page.');
   identities.forEach(identity => ensure(identityKey(identity), identity));
+  const legacy = ensure('__legacy__', { name: 'Legacy / needs resync', type: 'Imported before profile tracking' }, 'Older imports that need a successful profile/page resync.');
   const unassigned = ensure('__unassigned__', { name: 'Unassigned', type: 'Needs profile cleanup' }, 'Groups with no profile/page ownership yet.');
 
   groups.forEach(group => {
     all.groups.push(group);
+    if (isLegacyGroupAssignment(group)) {
+      legacy.groups.push(group);
+      return;
+    }
     const attached = new Set();
     identities.forEach(identity => {
       if (groupMatchesIdentity(group, identity)) attached.add(identityKey(identity));
@@ -2380,6 +2391,8 @@ function buildGroupProfileBuckets(groups = []) {
   return [...buckets.values()].sort((a, b) => {
     if (a.key === '__all__') return -1;
     if (b.key === '__all__') return 1;
+    if (a.key === '__legacy__') return 1;
+    if (b.key === '__legacy__') return -1;
     if (a.key === '__unassigned__') return 1;
     if (b.key === '__unassigned__') return -1;
     return (a.profile?.name || '').localeCompare(b.profile?.name || '');
@@ -2504,9 +2517,11 @@ function renderGroupsList(groups) {
       const profile = bucket.profile || { name: 'Facebook profile' };
       const avatar = bucket.key === '__all__'
         ? '<div class="profile-avatar profile-avatar-sm avatar-fallback">All</div>'
-        : bucket.key === '__unassigned__'
-          ? '<div class="profile-avatar profile-avatar-sm avatar-fallback">?</div>'
-          : identityAvatarHtml(profile, 'profile-avatar-sm');
+        : bucket.key === '__legacy__'
+          ? '<div class="profile-avatar profile-avatar-sm avatar-fallback">Old</div>'
+          : bucket.key === '__unassigned__'
+            ? '<div class="profile-avatar profile-avatar-sm avatar-fallback">?</div>'
+            : identityAvatarHtml(profile, 'profile-avatar-sm');
       return `<button type="button" class="groups-profile-tab ${bucket.key === selectedGroupProfileKey ? 'active' : ''}" data-group-profile-key="${esc(bucket.key)}">
         ${avatar}
         <div class="groups-profile-tab-main">
