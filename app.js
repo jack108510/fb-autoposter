@@ -375,30 +375,15 @@ async function pollGroupNames() {
 async function fetchAll() {
   try {
     const fetchGroups = async () => {
-      const baseFields = 'group_url, group_name, group_avatar_url, last_posted_at, ban_risk, removal_count, tags, identity_name, identity_key, profile_name, profile_key, page_name, page_key, joined_as, joined_as_key, member_profile_name, member_profile_key, collected_by, collected_by_key, imported_by, imported_by_key';
-      let res = await sb.from('jsw_groups')
-        .select(baseFields)
+      // Use select('*') so the dashboard stays compatible with whichever jsw_groups
+      // schema is currently deployed. Optional columns such as group_avatar_url,
+      // profile_key, page_key, joined_as, etc. may not exist in Supabase's live
+      // schema/cache; requesting them explicitly makes PostgREST reject the whole
+      // query and the Groups page renders 0 even though imports succeeded.
+      return sb.from('jsw_groups')
+        .select('*')
         .eq('user_id', user.id)
         .order('created_at', { ascending: false });
-      if (res.error && /page_key|joined_as|member_profile|collected_by|imported_by|schema cache|column/i.test(res.error.message || '')) {
-        res = await sb.from('jsw_groups')
-          .select('group_url, group_name, group_avatar_url, last_posted_at, ban_risk, removal_count, tags, identity_name, identity_key, profile_name, profile_key, page_name')
-          .eq('user_id', user.id)
-          .order('created_at', { ascending: false });
-      }
-      if (res.error && /identity_name|identity_key|profile_name|profile_key|page_name|schema cache|column/i.test(res.error.message || '')) {
-        res = await sb.from('jsw_groups')
-          .select('group_url, group_name, group_avatar_url, last_posted_at, ban_risk, removal_count, tags')
-          .eq('user_id', user.id)
-          .order('created_at', { ascending: false });
-      }
-      if (res.error && /group_avatar_url|schema cache|column/i.test(res.error.message || '')) {
-        res = await sb.from('jsw_groups')
-          .select('group_url, group_name, last_posted_at, ban_risk, removal_count, tags')
-          .eq('user_id', user.id)
-          .order('created_at', { ascending: false });
-      }
-      return res;
     };
     const [postsRes, groupsRes, settings, logs, postingIdentitiesRes] = await Promise.all([
       sbGet('posts'),
