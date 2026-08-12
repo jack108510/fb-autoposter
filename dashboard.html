@@ -342,6 +342,13 @@
     .groups-library-head { padding:18px 20px; border-bottom:1px solid var(--border); display:flex; justify-content:space-between; gap:12px; align-items:center; }
     .groups-library-title { font-size:15px; font-weight:900; color:var(--text); }
     .groups-library-sub { color:var(--text-3); font-size:12px; margin-top:3px; }
+    .groups-profile-list { display:flex; flex-direction:column; gap:14px; padding:14px; }
+    .groups-profile-section { border:1px solid var(--border); border-radius:20px; background:var(--bg); overflow:hidden; }
+    .groups-profile-head { display:flex; justify-content:space-between; gap:14px; align-items:center; padding:14px 16px; background:var(--surface); border-bottom:1px solid var(--border); }
+    .groups-profile-title { display:flex; align-items:center; gap:10px; min-width:0; }
+    .groups-profile-name { font-size:14px; font-weight:900; color:var(--text); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .groups-profile-type { color:var(--text-3); font-size:12px; margin-top:2px; }
+    .groups-profile-count { color:var(--text-3); font-size:12px; font-weight:800; white-space:nowrap; }
     .groups-card-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(280px,1fr)); gap:12px; padding:14px; }
     .group-card { min-width:0; border:1px solid var(--border); border-radius:18px; background:linear-gradient(180deg,var(--surface),var(--bg)); padding:15px; display:flex; flex-direction:column; gap:12px; transition:transform .15s, box-shadow .15s, border-color .15s; }
     .group-card:hover { transform:translateY(-1px); box-shadow:var(--shadow); border-color:rgba(91,111,232,.28); }
@@ -360,7 +367,7 @@
     .group-card-meta { color:var(--text-3); font-size:12px; font-weight:700; }
     .group-card-remove { color:var(--text-3)!important; border-color:transparent!important; padding:6px!important; }
     .group-card-remove:hover { color:var(--red)!important; background:var(--red-light)!important; }
-    @media (max-width: 980px) { .groups-command { grid-template-columns:1fr; } .groups-stat-grid { grid-template-columns:repeat(2,1fr); } .groups-toolbar-main { flex-direction:column; align-items:stretch; } }
+    @media (max-width: 980px) { .groups-command { grid-template-columns:1fr; } .groups-stat-grid { grid-template-columns:repeat(2,1fr); } .groups-toolbar-main { flex-direction:column; align-items:stretch; } .groups-profile-head { align-items:flex-start; flex-direction:column; } }
 
     /* ─── Tag filter pills (shared: groups page + modals) ─── */
     .tag-filter-pill {
@@ -1228,7 +1235,7 @@ Example: Quick reminder for clinic owners — if your fee schedule is outdated, 
             </div>
             <button class="btn btn-secondary btn-sm" onclick="nav('create')">Use in a post</button>
           </div>
-          <div id="groupsList" class="groups-card-grid"></div>
+          <div id="groupsList" class="groups-profile-list"></div>
           <div id="groupsEmpty" class="empty" style="padding:56px 20px;text-align:center;">
             <p style="color:var(--text-3);font-size:13px;">No groups yet. Import groups from Chrome or paste a Facebook group URL.</p>
           </div>
@@ -1531,6 +1538,6 @@ Example: Quick reminder for clinic owners — if your fee schedule is outdated, 
       }
     }, 1200);
   </script>
-  <script src="app.js?v=39"></script>
+  <script src="app.js?v=40"></script>
 </body>
 </html>

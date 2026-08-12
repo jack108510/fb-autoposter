@@ -375,10 +375,17 @@ async function pollGroupNames() {
 async function fetchAll() {
   try {
     const fetchGroups = async () => {
+      const baseFields = 'group_url, group_name, group_avatar_url, last_posted_at, ban_risk, removal_count, tags, identity_name, identity_key, profile_name, profile_key, page_name';
       let res = await sb.from('jsw_groups')
-        .select('group_url, group_name, group_avatar_url, last_posted_at, ban_risk, removal_count, tags')
+        .select(baseFields)
         .eq('user_id', user.id)
         .order('created_at', { ascending: false });
+      if (res.error && /identity_name|identity_key|profile_name|profile_key|page_name|schema cache|column/i.test(res.error.message || '')) {
+        res = await sb.from('jsw_groups')
+          .select('group_url, group_name, group_avatar_url, last_posted_at, ban_risk, removal_count, tags')
+          .eq('user_id', user.id)
+          .order('created_at', { ascending: false });
+      }
       if (res.error && /group_avatar_url|schema cache|column/i.test(res.error.message || '')) {
         res = await sb.from('jsw_groups')
           .select('group_url, group_name, last_posted_at, ban_risk, removal_count, tags')
@@ -404,6 +411,11 @@ async function fetchAll() {
       ban_risk: r.ban_risk || 'low',
       removal_count: r.removal_count || 0,
       tags: Array.isArray(r.tags) ? r.tags : [],
+      identity_name: r.identity_name || null,
+      identity_key: r.identity_key || null,
+      profile_name: r.profile_name || null,
+      profile_key: r.profile_key || null,
+      page_name: r.page_name || null,
     }));
     return {
       posts: postsRes || [],
@@ -2193,6 +2205,125 @@ function safeExternalHref(value) {
   }
 }
 
+function identityProfileTerms(identity = {}) {
+  const name = String(identity.name || '').trim().toLowerCase();
+  return [name, name.replace(/\s+/g, '-'), name.replace(/\s+/g, '_')].filter(Boolean);
+}
+
+function groupMatchesIdentity(group = {}, identity = {}) {
+  if (!identity?.name) return false;
+  const identityName = String(identity.name || '').trim().toLowerCase();
+  const key = identityKey(identity);
+  const owner = String(group.identity_name || group.identityName || group.profile_name || group.profileName || group.page_name || group.pageName || '').trim().toLowerCase();
+  const groupProfileKey = String(group.identity_key || group.identityKey || group.profile_key || group.profileKey || '').trim();
+  const tags = (group.tags || []).map(t => String(t).toLowerCase());
+  if (groupProfileKey && key && groupProfileKey === key) return true;
+  if (owner && owner === identityName) return true;
+  return identityProfileTerms(identity).some(term => tags.includes(term));
+}
+
+function postGroupUrlMatches(ref, groupUrl) {
+  const raw = typeof ref === 'string' ? ref : (ref?.url || ref?.group_url || '');
+  return raw && groupUrl && raw === groupUrl;
+}
+
+function postIdentityNamesForGroup(group = {}) {
+  const names = new Set();
+  const groupUrl = group.url || group.group_url || '';
+  (cachedData.posts || []).forEach(post => {
+    if (!(post.groups || []).some(ref => postGroupUrlMatches(ref, groupUrl))) return;
+    const name = scheduledEventIdentityName(post);
+    if (name) names.add(name);
+    (post.groups || []).forEach(ref => {
+      if (!postGroupUrlMatches(ref, groupUrl)) return;
+      const targetName = typeof ref === 'object' ? (ref.identity_name || ref.identityName || ref.profile_name || ref.page_name || '') : '';
+      if (targetName) names.add(targetName);
+    });
+  });
+  return [...names];
+}
+
+function profileBucketKeyForName(name) {
+  return String(name || '').trim().toLowerCase();
+}
+
+function buildGroupProfileBuckets(groups = []) {
+  const identities = sanitizePostingIdentities(cachedData.postingIdentities || []);
+  const buckets = new Map();
+  const ensure = (key, profile, label = '') => {
+    if (!buckets.has(key)) buckets.set(key, { key, profile, label, groups: [] });
+    return buckets.get(key);
+  };
+  identities.forEach(identity => ensure(identityKey(identity), identity));
+  const unassigned = { key: '__unassigned__', profile: { name: 'Unassigned groups', type: 'No profile attachment yet' }, label: 'Tag or schedule these under a profile to attach them.', groups: [] };
+
+  groups.forEach(group => {
+    const attached = new Set();
+    identities.forEach(identity => {
+      if (groupMatchesIdentity(group, identity)) attached.add(identityKey(identity));
+    });
+    postIdentityNamesForGroup(group).forEach(name => {
+      const matched = identities.find(identity => profileBucketKeyForName(identity.name) === profileBucketKeyForName(name));
+      if (matched) attached.add(identityKey(matched));
+      else if (name) {
+        const key = `name:${profileBucketKeyForName(name)}`;
+        ensure(key, { name, type: 'Saved schedule profile' });
+        attached.add(key);
+      }
+    });
+    if (!attached.size) {
+      unassigned.groups.push(group);
+      return;
+    }
+    attached.forEach(key => ensure(key, buckets.get(key)?.profile || { name: key }).groups.push(group));
+  });
+
+  const profileBuckets = [...buckets.values()]
+    .filter(bucket => bucket.groups.length)
+    .sort((a, b) => (a.profile?.name || '').localeCompare(b.profile?.name || ''));
+  if (unassigned.groups.length) profileBuckets.push(unassigned);
+  return profileBuckets;
+}
+
+function renderGroupCard(g, postCounts, color) {
+  const posts = postCounts[g.url] || 0;
+  const isPending = g.namePending;
+  const groupUrl = g.url || '';
+  const safeHref = safeExternalHref(groupUrl);
+  const cooldown = groupCooldownInfo(g);
+  const risk = groupRiskLevel(g);
+  const tagPills = (g.tags || []).map(t =>
+    `<span class="group-tag-pill" data-group-url="${esc(groupUrl)}" data-group-tag="${esc(t)}" title="Click to remove">${esc(t)} ×</span>`
+  ).join('');
+  const badges = [
+    isPending ? '<span class="group-status-pill group-status-warn">Fetching name</span>' : '',
+    cooldown ? `<span class="group-status-pill group-status-warn" title="Posted ${cooldown.daysSince.toFixed(1)}d ago — rest period active">${cooldown.daysLeft.toFixed(1)}d rest</span>` : '',
+    risk ? `<span class="group-status-pill group-status-risk" title="${g.removal_count || 0} post(s) removed">${risk === 'high' ? 'High risk' : 'Med risk'}</span>` : ''
+  ].filter(Boolean).join('');
+
+  return `<div class="group-card">
+    <div class="group-card-top">
+      <div class="group-card-avatar" style="background:${color};">${esc((g.name || '?')[0].toUpperCase())}</div>
+      <div class="group-card-main">
+        <div class="group-card-title" title="${esc(g.name || 'Facebook group')}">${esc(g.name || 'Facebook group')}</div>
+        <a class="group-card-url" href="${esc(safeHref)}" target="_blank" rel="noopener noreferrer" title="${esc(groupUrl)}">${esc(groupUrl || 'No URL saved')}</a>
+      </div>
+    </div>
+    <div class="group-card-badges">${badges}</div>
+    <div class="group-card-tags">
+      ${tagPills || '<span class="group-card-meta">No tags yet</span>'}
+      <span class="group-tag-add" data-group-url="${esc(groupUrl)}" title="Add tag">+ tag</span>
+      <input type="text" class="group-tag-input" data-group-url="${esc(groupUrl)}" style="display:none;width:104px;font-size:11px;padding:3px 8px;border:1px solid var(--border);border-radius:12px;outline:none;background:var(--surface);" />
+    </div>
+    <div class="group-card-footer">
+      <div class="group-card-meta">${posts > 0 ? `${posts} saved post${posts === 1 ? '' : 's'}` : 'No saved posts'}</div>
+      <button class="btn btn-ghost btn-sm group-remove-btn group-card-remove" data-group-url="${esc(groupUrl)}" title="Remove group" aria-label="Remove group">
+        <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 4h10M6 4V2.5h4V4M5 6l.5 7h5L11 6"/></svg>
+      </button>
+    </div>
+  </div>`;
+}
+
 function renderGroupsList(groups) {
   const list = document.getElementById('groupsList');
   const empty = document.getElementById('groupsEmpty');
@@ -2202,7 +2333,9 @@ function renderGroupsList(groups) {
   const filtered = groups.filter(g => {
     const tags = g.tags || [];
     const tagOk = groupTagFilter ? tags.includes(groupTagFilter) : true;
-    const haystack = [g.name, g.url, ...tags].join(' ').toLowerCase();
+    const attachmentNames = postIdentityNamesForGroup(g);
+    const owner = g.identity_name || g.identityName || g.profile_name || g.profileName || g.page_name || g.pageName || '';
+    const haystack = [g.name, g.url, owner, ...attachmentNames, ...tags].join(' ').toLowerCase();
     const searchOk = query ? haystack.includes(query) : true;
     return tagOk && searchOk;
   });
@@ -2219,7 +2352,7 @@ function renderGroupsList(groups) {
 
   if (filtered.length === 0) {
     list.innerHTML = groups.length
-      ? `<div style="grid-column:1/-1;padding:34px;text-align:center;color:var(--text-3);font-size:13px;">No groups match the current filters.</div>`
+      ? `<div style="padding:34px;text-align:center;color:var(--text-3);font-size:13px;">No groups match the current filters.</div>`
       : '';
     if (empty) empty.style.display = groups.length === 0 ? 'block' : 'none';
     return;
@@ -2227,44 +2360,28 @@ function renderGroupsList(groups) {
   if (empty) empty.style.display = 'none';
 
   const colors = ['#5B6FE8','#9B5DE5','#F368A8','#10b981','#f59e0b','#06b6d4'];
-  list.innerHTML = filtered.map((g, i) => {
-    const posts = postCounts[g.url] || 0;
-    const color = colors[i % colors.length];
-    const isPending = g.namePending;
-    const groupUrl = g.url || '';
-    const safeHref = safeExternalHref(groupUrl);
-    const cooldown = groupCooldownInfo(g);
-    const risk = groupRiskLevel(g);
-    const tagPills = (g.tags || []).map(t =>
-      `<span class="group-tag-pill" data-group-url="${esc(groupUrl)}" data-group-tag="${esc(t)}" title="Click to remove">${esc(t)} ×</span>`
-    ).join('');
-    const badges = [
-      isPending ? '<span class="group-status-pill group-status-warn">Fetching name</span>' : '',
-      cooldown ? `<span class="group-status-pill group-status-warn" title="Posted ${cooldown.daysSince.toFixed(1)}d ago — rest period active">${cooldown.daysLeft.toFixed(1)}d rest</span>` : '',
-      risk ? `<span class="group-status-pill group-status-risk" title="${g.removal_count || 0} post(s) removed">${risk === 'high' ? 'High risk' : 'Med risk'}</span>` : ''
-    ].filter(Boolean).join('');
-
-    return `<div class="group-card">
-      <div class="group-card-top">
-        <div class="group-card-avatar" style="background:${color};">${esc((g.name || '?')[0].toUpperCase())}</div>
-        <div class="group-card-main">
-          <div class="group-card-title" title="${esc(g.name || 'Facebook group')}">${esc(g.name || 'Facebook group')}</div>
-          <a class="group-card-url" href="${esc(safeHref)}" target="_blank" rel="noopener noreferrer" title="${esc(groupUrl)}">${esc(groupUrl || 'No URL saved')}</a>
+  let cardIndex = 0;
+  const buckets = buildGroupProfileBuckets(filtered);
+  list.innerHTML = buckets.map(bucket => {
+    const profile = bucket.profile || { name: 'Facebook profile' };
+    const avatar = bucket.key === '__unassigned__'
+      ? '<div class="profile-avatar profile-avatar-sm avatar-fallback">?</div>'
+      : identityAvatarHtml(profile, 'profile-avatar-sm');
+    const cards = bucket.groups.map(g => renderGroupCard(g, postCounts, colors[(cardIndex++) % colors.length])).join('');
+    const subtitle = bucket.label || `${esc(profile.type || 'Facebook profile')}${profile.is_active ? ' · active' : ''}`;
+    return `<section class="groups-profile-section" data-profile-section="${esc(bucket.key)}">
+      <div class="groups-profile-head">
+        <div class="groups-profile-title">
+          ${avatar}
+          <div style="min-width:0;">
+            <div class="groups-profile-name">${esc(profile.name || 'Facebook profile')}</div>
+            <div class="groups-profile-type">${subtitle}</div>
+          </div>
         </div>
+        <div class="groups-profile-count">${bucket.groups.length} group${bucket.groups.length === 1 ? '' : 's'}</div>
       </div>
-      <div class="group-card-badges">${badges}</div>
-      <div class="group-card-tags">
-        ${tagPills || '<span class="group-card-meta">No tags yet</span>'}
-        <span class="group-tag-add" data-group-url="${esc(groupUrl)}" title="Add tag">+ tag</span>
-        <input type="text" class="group-tag-input" data-group-url="${esc(groupUrl)}" style="display:none;width:104px;font-size:11px;padding:3px 8px;border:1px solid var(--border);border-radius:12px;outline:none;background:var(--surface);" />
-      </div>
-      <div class="group-card-footer">
-        <div class="group-card-meta">${posts > 0 ? `${posts} saved post${posts === 1 ? '' : 's'}` : 'No saved posts'}</div>
-        <button class="btn btn-ghost btn-sm group-remove-btn group-card-remove" data-group-url="${esc(groupUrl)}" title="Remove group" aria-label="Remove group">
-          <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 4h10M6 4V2.5h4V4M5 6l.5 7h5L11 6"/></svg>
-        </button>
-      </div>
-    </div>`;
+      <div class="groups-card-grid">${cards}</div>
+    </section>`;
   }).join('');
 }
 
