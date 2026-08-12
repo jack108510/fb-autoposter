@@ -705,6 +705,31 @@ function selectedGroupTargets() {
   }));
 }
 
+function groupRefUrl(group) {
+  return typeof group === 'string' ? group : (group?.url || group?.group_url || '');
+}
+
+function selectCreateGroupsByUrl(groups = []) {
+  const wantedUrls = new Set(groups.map(groupRefUrl).filter(Boolean));
+  document.querySelectorAll('#createGroupSelect .group-chip').forEach(chip => {
+    chip.classList.toggle('selected', wantedUrls.has(chip.dataset.url));
+  });
+  updateSelectedCount();
+  updateCreateWizardSummary();
+}
+
+function findIdentityForGroups(groups = []) {
+  const identities = sanitizePostingIdentities(cachedData.postingIdentities || []);
+  const refs = groups.filter(g => g && typeof g === 'object');
+  const identityKeyFromGroups = refs.map(g => g.identity_key || g.identityKey || g.profile_key || g.profileKey).find(Boolean);
+  if (identityKeyFromGroups) {
+    const byKey = identities.find(i => identityKey(i) === identityKeyFromGroups);
+    if (byKey) return byKey;
+  }
+  const identityNameFromGroups = refs.map(g => g.identity_name || g.identityName || g.profile_name || g.profileName || g.page_name || g.pageName).find(Boolean);
+  return identityNameFromGroups ? findPostingIdentityByName(identityNameFromGroups) : null;
+}
+
 function updateFacebookPreviewIdentity() {
   const identity = getSelectedPostingIdentity();
   const nameEl = document.querySelector('.cp-fb-name');
@@ -1888,8 +1913,9 @@ async function editPost(id) {
     cachedData.posts = [...(cachedData.posts || []), p];
   }
 
+  const savedGroups = scheduledEventGroups(p);
   const identityName = scheduledEventIdentityName(p);
-  const identity = findPostingIdentityByName(identityName);
+  const identity = findIdentityForGroups(savedGroups) || findPostingIdentityByName(identityName);
   if (identity) setSelectedPostingIdentity(identityKey(identity));
 
   const textEl = document.getElementById('createText');
@@ -1916,17 +1942,17 @@ async function editPost(id) {
   const aiToggle = document.getElementById('aiToggle');
   if (aiToggle) aiToggle.classList.toggle('on', !!(p.aiEnabled ?? p.ai_enabled));
 
+  const groupSearch = document.getElementById('createGroupSearch');
+  if (groupSearch) groupSearch.value = '';
   filterGroupsForSelectedIdentity();
-  const wantedUrls = new Set(scheduledEventGroups(p).map(g => typeof g === 'string' ? g : (g.url || g.group_url)).filter(Boolean));
-  document.querySelectorAll('#createGroupSelect .group-chip').forEach(chip => chip.classList.toggle('selected', wantedUrls.has(chip.dataset.url)));
+  selectCreateGroupsByUrl(savedGroups);
 
-  updateSelectedCount();
   updateNextFire();
   updateCreateWizardSummary();
-  goCreateStep(4, false);
+  goCreateStep(3, false);
 
   editingPostId = id;
-  toast('Editing subscription — save to update');
+  toast('Editing subscription — update profile/groups, then save');
 }
 
 // ═══ GROUPS ═══
@@ -3267,9 +3293,12 @@ function deselectAllGroups() {
 }
 
 function updateSelectedCount() {
-  const count = [...document.querySelectorAll('#createGroupSelect .group-chip.selected')].filter(c => c.style.display !== 'none').length;
+  const selected = document.querySelectorAll('#createGroupSelect .group-chip.selected').length;
+  const visibleSelected = [...document.querySelectorAll('#createGroupSelect .group-chip.selected')].filter(c => c.style.display !== 'none').length;
   const el = document.getElementById('selectedGroupCount');
-  if (el) el.textContent = `${count} group${count === 1 ? '' : 's'} selected`;
+  if (el) el.textContent = selected === visibleSelected
+    ? `${selected} group${selected === 1 ? '' : 's'} selected`
+    : `${selected} group${selected === 1 ? '' : 's'} selected (${visibleSelected} visible)`;
   updateCreateWizardSummary();
 }
 
