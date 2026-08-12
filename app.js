@@ -375,11 +375,17 @@ async function pollGroupNames() {
 async function fetchAll() {
   try {
     const fetchGroups = async () => {
-      const baseFields = 'group_url, group_name, group_avatar_url, last_posted_at, ban_risk, removal_count, tags, identity_name, identity_key, profile_name, profile_key, page_name';
+      const baseFields = 'group_url, group_name, group_avatar_url, last_posted_at, ban_risk, removal_count, tags, identity_name, identity_key, profile_name, profile_key, page_name, page_key, joined_as, joined_as_key, member_profile_name, member_profile_key, collected_by, collected_by_key, imported_by, imported_by_key';
       let res = await sb.from('jsw_groups')
         .select(baseFields)
         .eq('user_id', user.id)
         .order('created_at', { ascending: false });
+      if (res.error && /page_key|joined_as|member_profile|collected_by|imported_by|schema cache|column/i.test(res.error.message || '')) {
+        res = await sb.from('jsw_groups')
+          .select('group_url, group_name, group_avatar_url, last_posted_at, ban_risk, removal_count, tags, identity_name, identity_key, profile_name, profile_key, page_name')
+          .eq('user_id', user.id)
+          .order('created_at', { ascending: false });
+      }
       if (res.error && /identity_name|identity_key|profile_name|profile_key|page_name|schema cache|column/i.test(res.error.message || '')) {
         res = await sb.from('jsw_groups')
           .select('group_url, group_name, group_avatar_url, last_posted_at, ban_risk, removal_count, tags')
@@ -416,6 +422,15 @@ async function fetchAll() {
       profile_name: r.profile_name || null,
       profile_key: r.profile_key || null,
       page_name: r.page_name || null,
+      page_key: r.page_key || null,
+      joined_as: r.joined_as || null,
+      joined_as_key: r.joined_as_key || null,
+      member_profile_name: r.member_profile_name || null,
+      member_profile_key: r.member_profile_key || null,
+      collected_by: r.collected_by || null,
+      collected_by_key: r.collected_by_key || null,
+      imported_by: r.imported_by || null,
+      imported_by_key: r.imported_by_key || null,
     }));
     return {
       posts: postsRes || [],
@@ -2064,6 +2079,20 @@ async function refreshGroupSyncStatus() {
   }
 }
 
+function groupImportTargets() {
+  return sanitizePostingIdentities(cachedData.postingIdentities || []).map(identity => ({
+    identity_name: identity.name || null,
+    identity_key: identityKey(identity) || null,
+    profile_name: identity.name || null,
+    profile_key: identityKey(identity) || null,
+    page_name: identity.type && /page/i.test(identity.type) ? identity.name : null,
+    type: identity.type || 'Facebook profile',
+    url: identity.url || null,
+    avatar_url: identity.avatar_url || null,
+    import_groups: true,
+  })).filter(t => t.identity_name || t.url);
+}
+
 async function syncFacebookGroups(automatic = false) {
   try {
     const existing = await getLatestGroupSyncJob();
@@ -2085,12 +2114,17 @@ async function syncFacebookGroups(automatic = false) {
       return null;
     }
 
+    const importTargets = groupImportTargets();
+    if (!importTargets.length) {
+      await refreshIdentitySyncStatus();
+    }
+    const refreshedTargets = importTargets.length ? importTargets : groupImportTargets();
     const { error, data } = await sb.from('jsw_post_jobs').insert({
       user_id: user.id,
       message: '__import_groups__',
-      groups: [],
+      groups: refreshedTargets,
       status: 'pending',
-      result: { text: online ? 'Group import waiting. Amplr will open Facebook to collect your groups.' : 'Group import waiting. Open Amplr in Chrome and sign in to continue.' },
+      result: { text: online ? `Group import waiting. Amplr will collect joined groups for ${refreshedTargets.length || 'each'} synced profile/page.` : 'Group import waiting. Open Amplr in Chrome and sign in to continue.' },
       delay: 0,
       ai_enabled: false,
       scheduled_for: null,
@@ -2137,42 +2171,6 @@ async function saveGroupTags(url, tags) {
   } catch (e) {
     toast('Error saving tag');
   }
-}
-
-async function saveGroupProfile(url, identityKeyValue) {
-  const group = (cachedData.groups || []).find(x => x.url === url);
-  if (!group) return;
-  const identity = identityByKey(identityKeyValue);
-  const oldTags = (group.tags || []).filter(tag => !String(tag).toLowerCase().startsWith('profile:'));
-  const nextTags = identity ? [...new Set([...oldTags, identityAssignmentTag(identity)])] : oldTags;
-  const profilePatch = identity
-    ? { tags: nextTags, identity_name: identity.name || null, identity_key: identityKey(identity) || null, profile_name: identity.name || null, profile_key: identityKey(identity) || null, page_name: identity.name || null }
-    : { tags: nextTags, identity_name: null, identity_key: null, profile_name: null, profile_key: null, page_name: null };
-  try {
-    let { error } = await sb.from('jsw_groups').update(profilePatch).eq('user_id', user.id).eq('group_url', url);
-    if (error && /identity_name|identity_key|profile_name|profile_key|page_name|schema cache|column/i.test(error.message || '')) {
-      ({ error } = await sb.from('jsw_groups').update({ tags: nextTags }).eq('user_id', user.id).eq('group_url', url));
-    }
-    if (error) throw error;
-    Object.assign(group, {
-      tags: nextTags,
-      identity_name: identity?.name || null,
-      identity_key: identity ? identityKey(identity) : null,
-      profile_name: identity?.name || null,
-      profile_key: identity ? identityKey(identity) : null,
-      page_name: identity?.name || null,
-    });
-    renderGroupTagBar(cachedData.groups || []);
-    renderGroupsList(cachedData.groups || []);
-    toast(identity ? `Assigned to ${identity.name}` : 'Moved to Unassigned');
-  } catch (e) {
-    console.error('saveGroupProfile failed', e);
-    toast('Error assigning profile');
-  }
-}
-
-async function bulkAssignGroups(urls, identityKeyValue) {
-  for (const url of urls) await saveGroupProfile(url, identityKeyValue);
 }
 
 function renderGroupTagBar(groups) {
@@ -2246,57 +2244,24 @@ function identityProfileTerms(identity = {}) {
   return [name, name.replace(/\s+/g, '-'), name.replace(/\s+/g, '_')].filter(Boolean);
 }
 
-function identityAssignmentTag(identity = {}) {
-  const name = String(identity.name || '').trim().toLowerCase();
-  return name ? `profile:${name}` : '';
+function groupOwnerName(group = {}) {
+  return String(group.identity_name || group.identityName || group.profile_name || group.profileName || group.page_name || group.pageName || group.joined_as || group.joinedAs || group.member_profile_name || group.memberProfileName || group.collected_by || group.collectedBy || group.imported_by || group.importedBy || '').trim();
 }
 
-function identityByKey(key) {
-  const identities = sanitizePostingIdentities(cachedData.postingIdentities || []);
-  return identities.find(identity => identityKey(identity) === key) || null;
-}
-
-function groupCurrentIdentityKey(group = {}) {
-  const identities = sanitizePostingIdentities(cachedData.postingIdentities || []);
-  const direct = identities.find(identity => groupMatchesIdentity(group, identity));
-  if (direct) return identityKey(direct);
-  const names = postIdentityNamesForGroup(group);
-  for (const name of names) {
-    const matched = identities.find(identity => profileBucketKeyForName(identity.name) === profileBucketKeyForName(name));
-    if (matched) return identityKey(matched);
-  }
-  return '';
-}
-
-function assignmentSelectHtml(group = {}, extraClass = '') {
-  const identities = sanitizePostingIdentities(cachedData.postingIdentities || []);
-  if (!identities.length) return '<span class="group-card-meta">No profiles synced</span>';
-  const current = group?.url ? groupCurrentIdentityKey(group) : '';
-  return `<select class="groups-assign-select ${extraClass}" data-group-url="${esc(group.url || '')}">
-    <option value="">Unassigned</option>
-    ${identities.map(identity => `<option value="${esc(identityKey(identity))}" ${identityKey(identity) === current ? 'selected' : ''}>${esc(identity.name || 'Unnamed profile')}</option>`).join('')}
-  </select>`;
-}
-
-function bulkAssignmentSelectHtml(bucketKey, groups = []) {
-  const identities = sanitizePostingIdentities(cachedData.postingIdentities || []);
-  if (!identities.length || !groups.length) return '';
-  return `<select class="groups-assign-select groups-bulk-assign" data-bucket-key="${esc(bucketKey)}">
-    <option value="">Move all to profile…</option>
-    ${identities.map(identity => `<option value="${esc(identityKey(identity))}">${esc(identity.name || 'Unnamed profile')}</option>`).join('')}
-  </select>`;
+function groupOwnerKey(group = {}) {
+  return String(group.identity_key || group.identityKey || group.profile_key || group.profileKey || group.page_key || group.pageKey || group.joined_as_key || group.joinedAsKey || group.member_profile_key || group.memberProfileKey || group.collected_by_key || group.collectedByKey || group.imported_by_key || group.importedByKey || '').trim();
 }
 
 function groupMatchesIdentity(group = {}, identity = {}) {
   if (!identity?.name) return false;
   const identityName = String(identity.name || '').trim().toLowerCase();
   const key = identityKey(identity);
-  const owner = String(group.identity_name || group.identityName || group.profile_name || group.profileName || group.page_name || group.pageName || '').trim().toLowerCase();
-  const groupProfileKey = String(group.identity_key || group.identityKey || group.profile_key || group.profileKey || '').trim();
+  const owner = groupOwnerName(group).toLowerCase();
+  const groupProfileKey = groupOwnerKey(group);
   const tags = (group.tags || []).map(t => String(t).toLowerCase());
   if (groupProfileKey && key && groupProfileKey === key) return true;
   if (owner && owner === identityName) return true;
-  return [...identityProfileTerms(identity), identityAssignmentTag(identity)].some(term => tags.includes(term));
+  return [...identityProfileTerms(identity), `profile:${identityName}`].some(term => tags.includes(term));
 }
 
 function postGroupUrlMatches(ref, groupUrl) {
@@ -2392,10 +2357,6 @@ function renderGroupCard(g, postCounts, color) {
       <span class="group-tag-add" data-group-url="${esc(groupUrl)}" title="Add tag">+ tag</span>
       <input type="text" class="group-tag-input" data-group-url="${esc(groupUrl)}" style="display:none;width:104px;font-size:11px;padding:3px 8px;border:1px solid var(--border);border-radius:12px;outline:none;background:var(--surface);" />
     </div>
-    <div class="group-profile-row">
-      <span class="group-profile-label">Profile</span>
-      ${assignmentSelectHtml(g)}
-    </div>
     <div class="group-card-footer">
       <div class="group-card-meta">${posts > 0 ? `${posts} saved post${posts === 1 ? '' : 's'}` : 'No saved posts'}</div>
       <button class="btn btn-ghost btn-sm group-remove-btn group-card-remove" data-group-url="${esc(groupUrl)}" title="Remove group" aria-label="Remove group">
@@ -2452,7 +2413,6 @@ function renderGroupsList(groups) {
       ? bucket.groups.map(g => renderGroupCard(g, postCounts, colors[(cardIndex++) % colors.length])).join('')
       : '<div class="groups-empty-profile">No groups assigned to this profile yet.</div>';
     const subtitle = bucket.label || `${esc(profile.type || 'Facebook profile')}${profile.is_active ? ' · active' : ''}`;
-    const bulk = bucket.key === '__unassigned__' ? bulkAssignmentSelectHtml(bucket.key, bucket.groups) : '';
     return `<section class="groups-profile-section" data-profile-section="${esc(bucket.key)}">
       <div class="groups-profile-head">
         <div class="groups-profile-title">
@@ -2462,10 +2422,7 @@ function renderGroupsList(groups) {
             <div class="groups-profile-type">${subtitle}</div>
           </div>
         </div>
-        <div class="groups-profile-actions">
-          ${bulk}
-          <div class="groups-profile-count">${bucket.groups.length} group${bucket.groups.length === 1 ? '' : 's'}</div>
-        </div>
+        <div class="groups-profile-count">${bucket.groups.length} group${bucket.groups.length === 1 ? '' : 's'}</div>
       </div>
       <div class="groups-card-grid">${cards}</div>
     </section>`;
@@ -2524,22 +2481,6 @@ document.addEventListener('click', (event) => {
   if (removeBtn) {
     event.stopPropagation();
     removeGroup(removeBtn.dataset.groupUrl);
-  }
-});
-
-document.addEventListener('change', async (event) => {
-  const single = event.target.closest?.('.groups-assign-select[data-group-url]:not(.groups-bulk-assign)');
-  if (single) {
-    await saveGroupProfile(single.dataset.groupUrl, single.value);
-    return;
-  }
-  const bulk = event.target.closest?.('.groups-bulk-assign[data-bucket-key]');
-  if (bulk && bulk.value) {
-    const urls = [...document.querySelectorAll(`[data-profile-section="${CSS.escape(bulk.dataset.bucketKey)}"] .group-card .groups-assign-select[data-group-url]`)]
-      .map(select => select.dataset.groupUrl)
-      .filter(Boolean);
-    bulk.disabled = true;
-    await bulkAssignGroups(urls, bulk.value);
   }
 });
 
