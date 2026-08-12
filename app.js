@@ -347,14 +347,21 @@ async function pollGroupNames() {
 
     let changed = false;
     const groups = cachedData.groups || [];
-    resolved.forEach(r => {
+    for (const r of resolved) {
       const g = groups.find(g => g.url === r.group_url);
       if (g && g.name !== r.group_name) {
         g.name = r.group_name;
         g.namePending = false;
         changed = true;
       }
-    });
+      // Persist the resolved Facebook title back to the canonical table. The
+      // dashboard renders jsw_groups, not the old JSON cache, so updating only
+      // cachedData/sbSet leaves numeric or placeholder names visible forever.
+      await sb.from('jsw_groups')
+        .update({ group_name: r.group_name })
+        .eq('user_id', user.id)
+        .eq('group_url', r.group_url);
+    }
 
     if (changed) {
       cachedData.groups = groups;
