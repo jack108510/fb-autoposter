@@ -1,4 +1,4 @@
-// ═══ Amplr — Dashboard v3 (Supabase) ═══
+// ═══ reachr — Dashboard v3 (Supabase) ═══
 
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
@@ -14,7 +14,7 @@ try {
   sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
   window.sb = sb;
 } catch(e) {
-  console.error('[Amplr] Supabase client failed', e);
+  console.error('[reachr] Supabase client failed', e);
   showAuthFallback?.('Could not load sign-in. Check your connection and try again.');
 }
 
@@ -34,7 +34,7 @@ const SCHEDULE_FIRE_WINDOW_MS = 2 * 60 * 1000;
 // ─── Init ───
 document.addEventListener('DOMContentLoaded', () => {
   bootApp().catch(err => {
-    console.error('[Amplr] startup failed', err);
+    console.error('[reachr] startup failed', err);
     showAuthFallback(err?.message || 'Startup failed. Please refresh and sign in again.');
   });
 });
@@ -55,7 +55,7 @@ function showAuthFallback(message) {
 
 function safeStartupStep(name, fn) {
   try { return fn(); }
-  catch (e) { console.warn(`[Amplr] ${name} skipped`, e); }
+  catch (e) { console.warn(`[reachr] ${name} skipped`, e); }
 }
 
 function byId(id) { return document.getElementById(id); }
@@ -103,11 +103,11 @@ async function bootAuthenticatedApp(session) {
   }
 
   // Render the shell immediately, then hydrate data in the background.
-  loadSettings().catch(e => console.warn('[Amplr] settings load failed', e));
-  loadCreate().catch(e => console.warn('[Amplr] post flow load failed', e));
-  loadDashboard().catch(e => console.warn('[Amplr] overview load failed', e));
-  checkConn().catch(e => console.warn('[Amplr] connection check failed', e));
-  setInterval(() => checkConn().catch(e => console.warn('[Amplr] connection check failed', e)), 60000);
+  loadSettings().catch(e => console.warn('[reachr] settings load failed', e));
+  loadCreate().catch(e => console.warn('[reachr] post flow load failed', e));
+  loadDashboard().catch(e => console.warn('[reachr] overview load failed', e));
+  checkConn().catch(e => console.warn('[reachr] connection check failed', e));
+  setInterval(() => checkConn().catch(e => console.warn('[reachr] connection check failed', e)), 60000);
   safeStartupStep('schedule checker init', startScheduleChecker);
 }
 window.bootAuthenticatedApp = bootAuthenticatedApp;
@@ -187,7 +187,7 @@ async function sbSet(key, value) {
     { user_id: user.id, key, value, updated_at: new Date().toISOString() },
     { onConflict: 'user_id,key' }
   );
-  if (error) console.error('[Amplr] sbSet error:', key, error.message);
+  if (error) console.error('[reachr] sbSet error:', key, error.message);
   return error;
 }
 
@@ -257,9 +257,9 @@ async function checkConn() {
       connected = false;
       bar.className = 'conn-bar disconnected';
       dot.className = 'conn-dot off';
-      const staleVersionHint = extVersion ? ` Reopen Amplr in Chrome; dashboard last heard from${extVersion}.` : '';
+      const staleVersionHint = extVersion ? ` Reopen reachr in Chrome; dashboard last heard from${extVersion}.` : '';
       label.textContent = hb ? `Chrome helper offline · last seen ${timeAgo(hb)}${extVersion}` : 'Chrome helper offline';
-      label.title = `Open Amplr in Chrome and sign in with this dashboard account.${staleVersionHint}`;
+      label.title = `Open reachr in Chrome and sign in with this dashboard account.${staleVersionHint}`;
     }
 
     // Keep this lightweight. Heavy page data is loaded by the active page renderer,
@@ -272,7 +272,7 @@ async function checkConn() {
     bar.className = 'conn-bar disconnected';
     dot.className = 'conn-dot off';
     label.textContent = 'Could not check connection';
-    label.title = 'Open Amplr in Chrome and refresh this page.';
+    label.title = 'Open reachr in Chrome and refresh this page.';
   } finally {
     checkConnRunning = false;
   }
@@ -292,7 +292,7 @@ async function pollExtLogs() {
 
     if (!logs || !logs.length) {
       if (!el.querySelector('[data-empty]')) {
-        el.innerHTML = '<div data-empty style="color:var(--text-3);padding:20px;text-align:center;">No activity yet. Recent Amplr activity will appear here.</div>';
+        el.innerHTML = '<div data-empty style="color:var(--text-3);padding:20px;text-align:center;">No activity yet. Recent reachr activity will appear here.</div>';
       }
       return;
     }
@@ -743,7 +743,7 @@ function renderPostingProfilesList(identities = cachedData.postingIdentities || 
   const el = document.getElementById('postingProfilesList');
   if (!el) return;
   if (!identities.length) {
-    el.innerHTML = '<div class="empty" style="padding:22px 16px;text-align:center;"><p style="color:var(--text-3);font-size:13px;">No Facebook profiles added yet. Open Amplr in Chrome, sign in to Facebook, then click Update profiles.</p></div>';
+    el.innerHTML = '<div class="empty" style="padding:22px 16px;text-align:center;"><p style="color:var(--text-3);font-size:13px;">No Facebook profiles added yet. Open reachr in Chrome, sign in to Facebook, then click Update profiles.</p></div>';
     renderPostingIdentitySelect();
     return;
   }
@@ -787,7 +787,7 @@ function renderIdentitySyncStatus(job = null, identities = cachedData.postingIde
   if (job) {
     const result = jobResult(job);
     const rel = timeAgo(job.completed_at || job.started_at || job.created_at);
-    if (active) { text = result.text || (job.status === 'pending' ? 'Waiting. Open Amplr in Chrome to continue.' : 'Reading your Facebook profiles...'); color = 'var(--yellow)'; }
+    if (active) { text = result.text || (job.status === 'pending' ? 'Waiting. Open reachr in Chrome to continue.' : 'Reading your Facebook profiles...'); color = 'var(--yellow)'; }
     else if (job.status === 'done') { const count = result.count ?? identities.length; const photos = result.avatar_count ?? avatarCount; text = `Last update found ${count} Facebook profile${count === 1 ? '' : 's'} · ${photos} photo${photos === 1 ? '' : 's'} · ${rel}.`; color = 'var(--green)'; }
     else if (job.status === 'failed') { text = `Profile update failed${rel ? ' · ' + rel : ''}: ${result.error || job.error || 'unknown error'}`; color = 'var(--red)'; }
   }
@@ -824,7 +824,7 @@ async function syncPostingIdentities() {
       message: '__sync_identities__',
       groups: [],
       status: 'pending',
-      result: { text: 'Profile update waiting. Open Amplr in Chrome to continue.' },
+      result: { text: 'Profile update waiting. Open reachr in Chrome to continue.' },
       delay: 0,
       ai_enabled: false,
       scheduled_for: null
@@ -836,7 +836,7 @@ async function syncPostingIdentities() {
     checkConn().catch(() => {});
     return data;
   } catch (e) {
-    console.error('[Amplr] profile update error:', e);
+    console.error('[reachr] profile update error:', e);
     document.querySelectorAll('.identity-sync-status').forEach(el => { el.textContent = 'Could not start profile update: ' + e.message; el.style.color = 'var(--red)'; });
     document.querySelectorAll('.identity-sync-btn').forEach(btn => { btn.disabled = false; btn.textContent = 'Update profiles'; });
     toast('Could not start profile update');
@@ -860,7 +860,7 @@ function pollIdentitySyncJob(jobId) {
       if (Date.now() - started > 180000) clearInterval(timer);
     } catch (e) {
       clearInterval(timer);
-      console.warn('[Amplr] identity sync poll failed', e);
+      console.warn('[reachr] identity sync poll failed', e);
     }
   }, 2500);
 }
@@ -1244,7 +1244,7 @@ async function handleCreateImageFile(file) {
     setCreateImagePreview(publicUrl, file.name);
     setCreateImageStatus('Image uploaded.', 'ok');
   } catch (e) {
-    console.error('[Amplr] image upload failed', e);
+    console.error('[reachr] image upload failed', e);
     try {
       await useInlineImageFallback(file, e);
       return;
@@ -1381,7 +1381,7 @@ async function postNow() {
     if (error) throw new Error(error.message);
 
     if (waiting) waiting.style.display = 'none';
-    toast('Sent — Amplr will post it');
+    toast('Sent — reachr will post it');
     localStorage.removeItem('amplr_draft');
     clearCreateForm();
   } catch (e) {
@@ -1511,7 +1511,7 @@ function displayTime(value) {
 function findPostingIdentityByName(name) {
   const target = String(name || '').trim().toLowerCase();
   const identities = sanitizePostingIdentities(cachedData.postingIdentities || []);
-  return identities.find(i => String(i.name || '').trim().toLowerCase() === target) || (name ? { name } : identities[0] || { name: 'Amplr' });
+  return identities.find(i => String(i.name || '').trim().toLowerCase() === target) || (name ? { name } : identities[0] || { name: 'reachr' });
 }
 
 let upcomingPostDetails = {};
@@ -1967,7 +1967,7 @@ async function firePost(id) {
     p.schedule.firedCount = (Number(p.schedule.firedCount) || 0) + 1;
     p.schedule.lastManualFiredAt = new Date().toISOString();
     await sbSet('posts', cachedData.posts || []);
-    toast('Post sent — Amplr will handle it');
+    toast('Post sent — reachr will handle it');
   }
   catch (e) { toast(e.message); }
 }
@@ -2135,10 +2135,10 @@ function renderGroupSyncStatus(job, groups = cachedData.groups || [], heartbeat 
 
   if (!job) {
     setStatus(groups.length
-      ? `Last loaded: ${groups.length} group${groups.length === 1 ? '' : 's'}. Amplr refreshes this daily when Chrome is open.`
+      ? `Last loaded: ${groups.length} group${groups.length === 1 ? '' : 's'}. reachr refreshes this daily when Chrome is open.`
       : online
         ? 'No groups added yet. Press Import groups.'
-        : 'No groups added yet. Open Amplr in Chrome, sign in, then press Import groups.', online ? 'var(--text-3)' : 'var(--yellow)');
+        : 'No groups added yet. Open reachr in Chrome, sign in, then press Import groups.', online ? 'var(--text-3)' : 'var(--yellow)');
     return;
   }
 
@@ -2147,11 +2147,11 @@ function renderGroupSyncStatus(job, groups = cachedData.groups || [], heartbeat 
   const result = job.result || {};
   if (active) {
     if (stale) {
-      setStatus(`Previous import is old${rel ? ' · ' + rel : ''}. Press Try again to replace it. ${online ? '' : 'Amplr in Chrome currently looks offline.'}`.trim(), 'var(--yellow)');
+      setStatus(`Previous import is old${rel ? ' · ' + rel : ''}. Press Try again to replace it. ${online ? '' : 'reachr in Chrome currently looks offline.'}`.trim(), 'var(--yellow)');
     } else if (!online) {
-      setStatus('Waiting. Open Amplr in Chrome and sign in; your groups will import automatically.', 'var(--yellow)');
+      setStatus('Waiting. Open reachr in Chrome and sign in; your groups will import automatically.', 'var(--yellow)');
     } else {
-      setStatus(result.text || (job.status === 'pending' ? 'Waiting. Open Amplr in Chrome to continue.' : 'Importing groups...'), 'var(--yellow)');
+      setStatus(result.text || (job.status === 'pending' ? 'Waiting. Open reachr in Chrome to continue.' : 'Importing groups...'), 'var(--yellow)');
     }
   } else if (job.status === 'done') {
     const count = result.total_groups ?? result.count ?? groups.length;
@@ -2184,7 +2184,7 @@ async function refreshGroupSyncStatus() {
               await loadGroups();
             }
           } catch (e) {
-            console.warn('[Amplr] group sync poll failed:', e.message);
+            console.warn('[reachr] group sync poll failed:', e.message);
           }
         }, 4000);
       }
@@ -2249,7 +2249,7 @@ async function syncFacebookGroups(automatic = false) {
       message: '__import_groups__',
       groups: refreshedTargets,
       status: 'pending',
-      result: { text: online ? `Group import waiting. Amplr will collect joined groups for ${refreshedTargets.length || 'each'} synced profile/page.` : 'Group import waiting. Open Amplr in Chrome and sign in to continue.' },
+      result: { text: online ? `Group import waiting. reachr will collect joined groups for ${refreshedTargets.length || 'each'} synced profile/page.` : 'Group import waiting. Open reachr in Chrome and sign in to continue.' },
       delay: 0,
       ai_enabled: false,
       scheduled_for: null,
@@ -2259,10 +2259,10 @@ async function syncFacebookGroups(automatic = false) {
     localStorage.setItem(`amplr_last_group_auto_sync_${user.id}`, String(Date.now()));
     renderGroupSyncStatus(data, cachedData.groups || [], heartbeat);
     refreshGroupSyncStatus();
-    toast(automatic ? 'Auto-import waiting' : online ? 'Group import waiting' : 'Import waiting — open Amplr in Chrome to continue');
+    toast(automatic ? 'Auto-import waiting' : online ? 'Group import waiting' : 'Import waiting — open reachr in Chrome to continue');
     return data;
   } catch (e) {
-    console.error('[Amplr] syncFacebookGroups error:', e);
+    console.error('[reachr] syncFacebookGroups error:', e);
     if (!automatic) toast('Import error: ' + e.message);
     const statusEls = [...document.querySelectorAll('.group-sync-status')];
     statusEls.forEach(el => {
@@ -2457,7 +2457,7 @@ function buildGroupProfileBuckets(groups = []) {
     if (!buckets.has(key)) buckets.set(key, { key, profile, label, groups: [] });
     return buckets.get(key);
   };
-  const all = ensure('__all__', { name: 'All profiles', type: 'Everything Amplr knows about' }, 'Every group across every profile/page.');
+  const all = ensure('__all__', { name: 'All profiles', type: 'Everything reachr knows about' }, 'Every group across every profile/page.');
   identities.forEach(identity => ensure(identityKey(identity), identity));
 
   groups.forEach(group => {
@@ -2703,7 +2703,7 @@ async function assignGroupToProfile(url, profileKey) {
     renderGroupsList(cachedData.groups || []);
     toast(`Assigned to ${identity.name}`);
   } catch (e) {
-    console.error('[Amplr] assignGroupToProfile error:', e);
+    console.error('[reachr] assignGroupToProfile error:', e);
     toast('Could not assign profile: ' + e.message);
     renderGroupsList(cachedData.groups || []);
   }
@@ -2838,7 +2838,7 @@ async function addGroupFromInput() {
     toast('Group added');
     loadGroups();
   } catch (e) {
-    console.error('[Amplr] addGroup error:', e);
+    console.error('[reachr] addGroup error:', e);
     toast('Error: ' + e.message);
   }
 }
@@ -2855,7 +2855,7 @@ async function removeGroup(url) {
     loadGroups();
     toast('Removed');
   } catch (e) {
-    console.error('[Amplr] removeGroup error:', e);
+    console.error('[reachr] removeGroup error:', e);
     toast('Error: ' + e.message);
   }
 }
@@ -3055,7 +3055,7 @@ async function exportLogs() {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = `amplr-logs-${new Date().toISOString().split('T')[0]}.csv`;
+  a.download = `reachr-logs-${new Date().toISOString().split('T')[0]}.csv`;
   a.click();
   URL.revokeObjectURL(url);
   toast('Exported');
@@ -3135,7 +3135,7 @@ async function saveSettings() {
     if (aiKey) jswSettings.ai_key = aiKey;
     await sb.from('jsw_settings').upsert(jswSettings, { onConflict: 'user_id' });
   } catch (e) {
-    console.warn('[Amplr] jsw_settings upsert failed:', e.message);
+    console.warn('[reachr] jsw_settings upsert failed:', e.message);
   }
 
   toast('Settings saved');
@@ -3209,9 +3209,9 @@ function startScheduleChecker() {
           post.schedule.firedCount = (Number(post.schedule.firedCount) || 0) + 1;
           if (scheduleLimitReached(post, now)) post.enabled = false;
           changed = true;
-          console.log('[Amplr] Fired scheduled post:', post.id);
+          console.log('[reachr] Fired scheduled post:', post.id);
         } catch (e) {
-          console.warn('[Amplr] Schedule fire failed:', e.message);
+          console.warn('[reachr] Schedule fire failed:', e.message);
         }
       }
       if (changed) {

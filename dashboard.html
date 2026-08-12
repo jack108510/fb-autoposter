@@ -7,7 +7,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400&display=swap" rel="stylesheet">
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Amplr — Post</title>
+  <title>reachr — Post</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     
@@ -958,9 +958,9 @@
       <!-- Logo -->
       <div style="display:flex;align-items:center;justify-content:center;gap:10px;margin-bottom:40px;">
         <div style="width:44px;height:44px;border-radius:12px;overflow:hidden;background:#000;">
-          <img src="logo.jpg" style="width:100%;height:100%;object-fit:cover;" alt="Amplr">
+          <img src="logo.jpg" style="width:100%;height:100%;object-fit:cover;" alt="reachr">
         </div>
-        <span style="font-size:20px;font-weight:700;color:#0C0C16;font-family:'Inter',sans-serif;letter-spacing:-.02em;">amplr</span>
+        <span style="font-size:20px;font-weight:700;color:#0C0C16;font-family:'Inter',sans-serif;letter-spacing:-.02em;">reachr</span>
       </div>
       <!-- Card -->
       <div style="background:#fff;border-radius:16px;padding:36px;box-shadow:0 4px 24px rgba(0,0,0,.08),0 1px 4px rgba(0,0,0,.04);border:1px solid #E4E4EC;">
@@ -998,10 +998,10 @@
     <div class="sidebar" id="sidebar">
       <div class="brand">
         <div class="brand-icon" style="overflow:hidden;padding:2px;">
-          <img src="logo.jpg" style="width:100%;height:100%;object-fit:cover;border-radius:6px;" alt="Amplr">
+          <img src="logo.jpg" style="width:100%;height:100%;object-fit:cover;border-radius:6px;" alt="reachr">
         </div>
         <div>
-          <div class="brand-text">amplr</div>
+          <div class="brand-text">reachr</div>
           <div class="brand-sub">FB Groups</div>
         </div>
       </div>
@@ -1042,7 +1042,7 @@
         <div class="overview-command-card">
           <div>
             <div class="overview-kicker">Ready check</div>
-            <h2>Is Amplr ready to post?</h2>
+            <h2>Is reachr ready to post?</h2>
             <p>Profiles, groups, scheduled posts, and warning signals in one place.</p>
           </div>
           <button class="btn btn-primary" onclick="nav('create')">Start a Post</button>
@@ -1162,16 +1162,16 @@ Example: Quick reminder for clinic owners — if your fee schedule is outdated, 
               <div class="cp-pane active" data-pane="1">
                 <div class="cp-pane-kicker">Step 1</div>
                 <div class="cp-pane-title">Choose what page/profile is posting.</div>
-                <div class="cp-pane-copy">This is the first safety choice. Pick the exact Facebook profile or Page by its picture; Amplr will use that identity and confirm it before posting.</div>
+                <div class="cp-pane-copy">This is the first safety choice. Pick the exact Facebook profile or Page by its picture; reachr will use that identity and confirm it before posting.</div>
                 <div id="createProfileCards" class="cp-profile-list cp-profile-list-first"></div>
                 <select id="createIdentitySelect" class="cp-url-input cp-profile-fallback-select" onchange="setSelectedPostingIdentity(this.value); updateFacebookPreviewIdentity(); renderCreateProfileCards(); filterGroupsForSelectedIdentity(); updateCreateWizardSummary();"></select>
-                <div class="cp-profile-sync-help" style="font-size:12px;color:var(--text-3);margin-top:14px;">Missing something? Open Amplr in Chrome, then update profiles from Profiles.</div>
+                <div class="cp-profile-sync-help" style="font-size:12px;color:var(--text-3);margin-top:14px;">Missing something? Open reachr in Chrome, then update profiles from Profiles.</div>
               </div>
 
               <div class="cp-pane" data-pane="3">
                 <div class="cp-pane-kicker">Step 3</div>
                 <div class="cp-pane-title">Pick the groups for this profile.</div>
-                <div class="cp-pane-copy">Groups stay tied to the selected profile. Amplr shows the groups attached to the profile/Page you picked first.</div>
+                <div class="cp-pane-copy">Groups stay tied to the selected profile. reachr shows the groups attached to the profile/Page you picked first.</div>
                 <div class="cp-groups-toolbar">
                   <input type="text" id="createGroupSearch" class="cp-url-input" placeholder="Search groups..." oninput="filterGroupsForSelectedIdentity()">
                   <div class="cp-actions-row"><a href="#" class="cp-link" onclick="selectAllGroups();return false;">Select all</a><span class="cp-dot-sep">·</span><a href="#" class="cp-link cp-link-dim" onclick="deselectAllGroups();return false;">Clear</a></div>
@@ -1204,7 +1204,7 @@ Example: Quick reminder for clinic owners — if your fee schedule is outdated, 
                     <div><div class="cp-section-hd"><span class="cp-label">Stop after weeks</span></div><input type="number" id="scheduleWeeks" class="cp-url-input" min="1" placeholder="No limit" oninput="updateCreateWizardSummary();" /></div>
                   </div>
                 </div>
-                <div id="postWaiting" class="cp-waiting" style="display:none;"><div class="cp-spinner"></div><span>Sending to Amplr...</span></div>
+                <div id="postWaiting" class="cp-waiting" style="display:none;"><div class="cp-spinner"></div><span>Sending to reachr...</span></div>
               </div>
 
               <div class="cp-nav">
@@ -1296,11 +1296,11 @@ Example: Quick reminder for clinic owners — if your fee schedule is outdated, 
           <!-- Always-visible scheduling tip -->
           <div style="margin-top:14px;padding:12px 14px;background:var(--blue-light);border-radius:var(--radius-sm);font-size:12px;color:var(--blue);line-height:1.7;">
             <strong>For scheduled posts:</strong><br>
-            Keep Chrome open with the Amplr helper signed in near posting time. The dashboard queues scheduled jobs; the Chrome helper publishes them to Facebook.
+            Keep Chrome open with the reachr helper signed in near posting time. The dashboard queues scheduled jobs; the Chrome helper publishes them to Facebook.
           </div>
           <div id="installHint" style="display:none;margin-top:16px;padding-top:16px;border-top:1px solid var(--border);font-size:12px;color:var(--text-3);line-height:1.8;">
             <strong style="color:var(--text-2);">Not connected?</strong><br>
-            Open Amplr in Chrome, sign in with the same email and password, then refresh this page.
+            Open reachr in Chrome, sign in with the same email and password, then refresh this page.
           </div>
         </div>
 
@@ -1309,7 +1309,7 @@ Example: Quick reminder for clinic owners — if your fee schedule is outdated, 
           <div class="card-header" style="margin-bottom:12px;">
             <div>
               <div class="card-title">Facebook profiles</div>
-              <div style="font-size:13px;color:var(--text-3);margin-top:4px;">These are the Facebook profiles or Pages Amplr can post from, like Vet Inc, Jack Sereda, and Empty Slot.</div>
+              <div style="font-size:13px;color:var(--text-3);margin-top:4px;">These are the Facebook profiles or Pages reachr can post from, like Vet Inc, Jack Sereda, and Empty Slot.</div>
             </div>
             <button id="settingsIdentitySyncBtn" class="btn btn-primary btn-sm identity-sync-btn" onclick="syncPostingIdentities(false)">Update profiles</button>
           </div>
@@ -1561,6 +1561,6 @@ Example: Quick reminder for clinic owners — if your fee schedule is outdated, 
       }
     }, 1200);
   </script>
-  <script src="app.js?v=54"></script>
+  <script src="app.js?v=55"></script>
 </body>
 </html>
