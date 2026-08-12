@@ -349,6 +349,11 @@
     .groups-profile-name { font-size:14px; font-weight:900; color:var(--text); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
     .groups-profile-type { color:var(--text-3); font-size:12px; margin-top:2px; }
     .groups-profile-count { color:var(--text-3); font-size:12px; font-weight:800; white-space:nowrap; }
+    .groups-profile-actions { display:flex; align-items:center; gap:10px; flex-wrap:wrap; justify-content:flex-end; }
+    .groups-assign-select { height:32px; border:1px solid var(--border); border-radius:10px; background:var(--surface); color:var(--text); font-size:12px; font-weight:800; padding:0 28px 0 10px; outline:none; max-width:190px; }
+    .group-profile-row { display:flex; align-items:center; justify-content:space-between; gap:8px; padding-top:2px; }
+    .group-profile-label { color:var(--text-3); font-size:11px; font-weight:900; text-transform:uppercase; letter-spacing:.04em; }
+    .groups-empty-profile { padding:20px; color:var(--text-3); font-size:13px; text-align:center; }
     .groups-card-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(280px,1fr)); gap:12px; padding:14px; }
     .group-card { min-width:0; border:1px solid var(--border); border-radius:18px; background:linear-gradient(180deg,var(--surface),var(--bg)); padding:15px; display:flex; flex-direction:column; gap:12px; transition:transform .15s, box-shadow .15s, border-color .15s; }
     .group-card:hover { transform:translateY(-1px); box-shadow:var(--shadow); border-color:rgba(91,111,232,.28); }
@@ -367,7 +372,7 @@
     .group-card-meta { color:var(--text-3); font-size:12px; font-weight:700; }
     .group-card-remove { color:var(--text-3)!important; border-color:transparent!important; padding:6px!important; }
     .group-card-remove:hover { color:var(--red)!important; background:var(--red-light)!important; }
-    @media (max-width: 980px) { .groups-command { grid-template-columns:1fr; } .groups-stat-grid { grid-template-columns:repeat(2,1fr); } .groups-toolbar-main { flex-direction:column; align-items:stretch; } .groups-profile-head { align-items:flex-start; flex-direction:column; } }
+    @media (max-width: 980px) { .groups-command { grid-template-columns:1fr; } .groups-stat-grid { grid-template-columns:repeat(2,1fr); } .groups-toolbar-main { flex-direction:column; align-items:stretch; } .groups-profile-head { align-items:flex-start; flex-direction:column; } .groups-profile-actions { justify-content:flex-start; } }
 
     /* ─── Tag filter pills (shared: groups page + modals) ─── */
     .tag-filter-pill {
@@ -1538,6 +1543,6 @@ Example: Quick reminder for clinic owners — if your fee schedule is outdated, 
       }
     }, 1200);
   </script>
-  <script src="app.js?v=40"></script>
+  <script src="app.js?v=41"></script>
 </body>
 </html>

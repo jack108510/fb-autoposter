@@ -2139,6 +2139,42 @@ async function saveGroupTags(url, tags) {
   }
 }
 
+async function saveGroupProfile(url, identityKeyValue) {
+  const group = (cachedData.groups || []).find(x => x.url === url);
+  if (!group) return;
+  const identity = identityByKey(identityKeyValue);
+  const oldTags = (group.tags || []).filter(tag => !String(tag).toLowerCase().startsWith('profile:'));
+  const nextTags = identity ? [...new Set([...oldTags, identityAssignmentTag(identity)])] : oldTags;
+  const profilePatch = identity
+    ? { tags: nextTags, identity_name: identity.name || null, identity_key: identityKey(identity) || null, profile_name: identity.name || null, profile_key: identityKey(identity) || null, page_name: identity.name || null }
+    : { tags: nextTags, identity_name: null, identity_key: null, profile_name: null, profile_key: null, page_name: null };
+  try {
+    let { error } = await sb.from('jsw_groups').update(profilePatch).eq('user_id', user.id).eq('group_url', url);
+    if (error && /identity_name|identity_key|profile_name|profile_key|page_name|schema cache|column/i.test(error.message || '')) {
+      ({ error } = await sb.from('jsw_groups').update({ tags: nextTags }).eq('user_id', user.id).eq('group_url', url));
+    }
+    if (error) throw error;
+    Object.assign(group, {
+      tags: nextTags,
+      identity_name: identity?.name || null,
+      identity_key: identity ? identityKey(identity) : null,
+      profile_name: identity?.name || null,
+      profile_key: identity ? identityKey(identity) : null,
+      page_name: identity?.name || null,
+    });
+    renderGroupTagBar(cachedData.groups || []);
+    renderGroupsList(cachedData.groups || []);
+    toast(identity ? `Assigned to ${identity.name}` : 'Moved to Unassigned');
+  } catch (e) {
+    console.error('saveGroupProfile failed', e);
+    toast('Error assigning profile');
+  }
+}
+
+async function bulkAssignGroups(urls, identityKeyValue) {
+  for (const url of urls) await saveGroupProfile(url, identityKeyValue);
+}
+
 function renderGroupTagBar(groups) {
   const bar = document.getElementById('groupTagFilterBar');
   if (!bar) return;
@@ -2210,6 +2246,47 @@ function identityProfileTerms(identity = {}) {
   return [name, name.replace(/\s+/g, '-'), name.replace(/\s+/g, '_')].filter(Boolean);
 }
 
+function identityAssignmentTag(identity = {}) {
+  const name = String(identity.name || '').trim().toLowerCase();
+  return name ? `profile:${name}` : '';
+}
+
+function identityByKey(key) {
+  const identities = sanitizePostingIdentities(cachedData.postingIdentities || []);
+  return identities.find(identity => identityKey(identity) === key) || null;
+}
+
+function groupCurrentIdentityKey(group = {}) {
+  const identities = sanitizePostingIdentities(cachedData.postingIdentities || []);
+  const direct = identities.find(identity => groupMatchesIdentity(group, identity));
+  if (direct) return identityKey(direct);
+  const names = postIdentityNamesForGroup(group);
+  for (const name of names) {
+    const matched = identities.find(identity => profileBucketKeyForName(identity.name) === profileBucketKeyForName(name));
+    if (matched) return identityKey(matched);
+  }
+  return '';
+}
+
+function assignmentSelectHtml(group = {}, extraClass = '') {
+  const identities = sanitizePostingIdentities(cachedData.postingIdentities || []);
+  if (!identities.length) return '<span class="group-card-meta">No profiles synced</span>';
+  const current = group?.url ? groupCurrentIdentityKey(group) : '';
+  return `<select class="groups-assign-select ${extraClass}" data-group-url="${esc(group.url || '')}">
+    <option value="">Unassigned</option>
+    ${identities.map(identity => `<option value="${esc(identityKey(identity))}" ${identityKey(identity) === current ? 'selected' : ''}>${esc(identity.name || 'Unnamed profile')}</option>`).join('')}
+  </select>`;
+}
+
+function bulkAssignmentSelectHtml(bucketKey, groups = []) {
+  const identities = sanitizePostingIdentities(cachedData.postingIdentities || []);
+  if (!identities.length || !groups.length) return '';
+  return `<select class="groups-assign-select groups-bulk-assign" data-bucket-key="${esc(bucketKey)}">
+    <option value="">Move all to profile…</option>
+    ${identities.map(identity => `<option value="${esc(identityKey(identity))}">${esc(identity.name || 'Unnamed profile')}</option>`).join('')}
+  </select>`;
+}
+
 function groupMatchesIdentity(group = {}, identity = {}) {
   if (!identity?.name) return false;
   const identityName = String(identity.name || '').trim().toLowerCase();
@@ -2219,7 +2296,7 @@ function groupMatchesIdentity(group = {}, identity = {}) {
   const tags = (group.tags || []).map(t => String(t).toLowerCase());
   if (groupProfileKey && key && groupProfileKey === key) return true;
   if (owner && owner === identityName) return true;
-  return identityProfileTerms(identity).some(term => tags.includes(term));
+  return [...identityProfileTerms(identity), identityAssignmentTag(identity)].some(term => tags.includes(term));
 }
 
 function postGroupUrlMatches(ref, groupUrl) {
@@ -2279,7 +2356,7 @@ function buildGroupProfileBuckets(groups = []) {
   });
 
   const profileBuckets = [...buckets.values()]
-    .filter(bucket => bucket.groups.length)
+    .filter(bucket => bucket.groups.length || !String(bucket.key).startsWith('name:'))
     .sort((a, b) => (a.profile?.name || '').localeCompare(b.profile?.name || ''));
   if (unassigned.groups.length) profileBuckets.push(unassigned);
   return profileBuckets;
@@ -2314,6 +2391,10 @@ function renderGroupCard(g, postCounts, color) {
       ${tagPills || '<span class="group-card-meta">No tags yet</span>'}
       <span class="group-tag-add" data-group-url="${esc(groupUrl)}" title="Add tag">+ tag</span>
       <input type="text" class="group-tag-input" data-group-url="${esc(groupUrl)}" style="display:none;width:104px;font-size:11px;padding:3px 8px;border:1px solid var(--border);border-radius:12px;outline:none;background:var(--surface);" />
+    </div>
+    <div class="group-profile-row">
+      <span class="group-profile-label">Profile</span>
+      ${assignmentSelectHtml(g)}
     </div>
     <div class="group-card-footer">
       <div class="group-card-meta">${posts > 0 ? `${posts} saved post${posts === 1 ? '' : 's'}` : 'No saved posts'}</div>
@@ -2367,8 +2448,11 @@ function renderGroupsList(groups) {
     const avatar = bucket.key === '__unassigned__'
       ? '<div class="profile-avatar profile-avatar-sm avatar-fallback">?</div>'
       : identityAvatarHtml(profile, 'profile-avatar-sm');
-    const cards = bucket.groups.map(g => renderGroupCard(g, postCounts, colors[(cardIndex++) % colors.length])).join('');
+    const cards = bucket.groups.length
+      ? bucket.groups.map(g => renderGroupCard(g, postCounts, colors[(cardIndex++) % colors.length])).join('')
+      : '<div class="groups-empty-profile">No groups assigned to this profile yet.</div>';
     const subtitle = bucket.label || `${esc(profile.type || 'Facebook profile')}${profile.is_active ? ' · active' : ''}`;
+    const bulk = bucket.key === '__unassigned__' ? bulkAssignmentSelectHtml(bucket.key, bucket.groups) : '';
     return `<section class="groups-profile-section" data-profile-section="${esc(bucket.key)}">
       <div class="groups-profile-head">
         <div class="groups-profile-title">
@@ -2378,7 +2462,10 @@ function renderGroupsList(groups) {
             <div class="groups-profile-type">${subtitle}</div>
           </div>
         </div>
-        <div class="groups-profile-count">${bucket.groups.length} group${bucket.groups.length === 1 ? '' : 's'}</div>
+        <div class="groups-profile-actions">
+          ${bulk}
+          <div class="groups-profile-count">${bucket.groups.length} group${bucket.groups.length === 1 ? '' : 's'}</div>
+        </div>
       </div>
       <div class="groups-card-grid">${cards}</div>
     </section>`;
@@ -2437,6 +2524,22 @@ document.addEventListener('click', (event) => {
   if (removeBtn) {
     event.stopPropagation();
     removeGroup(removeBtn.dataset.groupUrl);
+  }
+});
+
+document.addEventListener('change', async (event) => {
+  const single = event.target.closest?.('.groups-assign-select[data-group-url]:not(.groups-bulk-assign)');
+  if (single) {
+    await saveGroupProfile(single.dataset.groupUrl, single.value);
+    return;
+  }
+  const bulk = event.target.closest?.('.groups-bulk-assign[data-bucket-key]');
+  if (bulk && bulk.value) {
+    const urls = [...document.querySelectorAll(`[data-profile-section="${CSS.escape(bulk.dataset.bucketKey)}"] .group-card .groups-assign-select[data-group-url]`)]
+      .map(select => select.dataset.groupUrl)
+      .filter(Boolean);
+    bulk.disabled = true;
+    await bulkAssignGroups(urls, bulk.value);
   }
 });
 
