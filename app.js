@@ -1624,9 +1624,11 @@ function renderSubscriptionsTable(posts = [], jobs = []) {
       const nextLabel = isQueued && post.nextDate ? `${post.nextDate.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })} · ${displayTime(post.schedule?.time || '09:00')}` : (post.enabled ? nextRunLabel(post) : 'Paused');
       const statusLabel = isQueued ? 'Scheduled' : (post.enabled ? 'Active' : 'Paused');
       const statusClass = (isQueued || post.enabled) ? 'badge-green' : 'badge-gray';
+      const eyeIcon = '<svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M1.5 8s2.3-4 6.5-4 6.5 4 6.5 4-2.3 4-6.5 4-6.5-4-6.5-4Z"/><circle cx="8" cy="8" r="2"/></svg>';
+      const pencilIcon = '<svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M11.8 2.2 13.8 4.2 5.8 12.2 2.5 13.5 3.8 10.2 11.8 2.2Z"/><path d="M10.5 3.5 12.5 5.5"/></svg>';
       const actions = isQueued
-        ? `<button class="btn btn-secondary btn-sm" onclick="openQueuedJobDetail('${esc(post.id)}')">View</button><button class="btn btn-danger btn-sm" onclick="cancelScheduledJobs('${esc(post.jobIds.join(','))}')">Cancel</button>`
-        : `<button class="btn btn-secondary btn-sm" onclick="editPost('${esc(post.id)}')">Edit</button><button class="btn btn-secondary btn-sm" onclick="togglePost('${esc(post.id)}')">${post.enabled ? 'Pause' : 'Resume'}</button><button class="btn btn-danger btn-sm" onclick="delPost('${esc(post.id)}')">Delete</button>`;
+        ? `<button class="btn btn-secondary btn-sm icon-action-btn" onclick="openQueuedJobDetail('${esc(post.id)}')" title="View" aria-label="View queued post">${eyeIcon}</button><button class="btn btn-secondary btn-sm icon-action-btn" onclick="editQueuedSubscription('${esc(post.id)}')" title="Edit" aria-label="Edit queued post">${pencilIcon}</button>`
+        : `<button class="btn btn-secondary btn-sm icon-action-btn" onclick="openUpcomingPostDetailFromItem(cachedData.posts.find(p => p.id === '${esc(post.id)}'))" title="View" aria-label="View subscription">${eyeIcon}</button><button class="btn btn-secondary btn-sm icon-action-btn" onclick="editPost('${esc(post.id)}')" title="Edit" aria-label="Edit subscription">${pencilIcon}</button>`;
       return `<div class="subscription-item">
         <div class="subscription-item-top">
           <div class="subscription-profile">
@@ -1785,6 +1787,30 @@ function openQueuedJobDetail(id) {
     dateLabel: item.nextDate ? item.nextDate.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }) : 'Queued',
     title: `${scheduledEventIdentityName(item) || 'Facebook profile'} · ${(item.groups || []).length || 1} group${((item.groups || []).length || 1) === 1 ? '' : 's'}`
   });
+}
+
+async function editQueuedSubscription(id) {
+  const item = queuedSubscriptionDetails?.[id];
+  if (!item) return;
+  const draft = {
+    ...item,
+    id: `edit-${id}`,
+    kind: 'post',
+    enabled: true,
+    text: scheduledEventText(item),
+    imageUrl: scheduledEventImage(item),
+    identityName: scheduledEventIdentityName(item),
+    groups: scheduledEventGroups(item),
+    schedule: {
+      ...(item.schedule || {}),
+      time: item.schedule?.time || '09:00',
+      days: Array.isArray(item.schedule?.days) && item.schedule.days.length ? item.schedule.days : (item.nextDate ? [item.nextDate.getDay()] : [new Date().getDay()]),
+    },
+    createdAt: new Date().toISOString()
+  };
+  cachedData.posts = [draft, ...(cachedData.posts || []).filter(p => p.id !== draft.id)];
+  await editPost(draft.id);
+  toast('Editing queued post — save to create a saved schedule');
 }
 
 async function cancelScheduledJobs(idsCsv) {
