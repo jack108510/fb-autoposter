@@ -406,53 +406,6 @@
     .log-preview { font-size: 13px; margin: 2px 0; }
     .log-results { font-size: 12px; }
     
-    /* ─── Calendar planner ─── */
-    .calendar-shell { display:grid; grid-template-columns:minmax(0,1fr) 320px; gap:18px; align-items:start; }
-    .calendar-board { background:var(--surface); border:1px solid var(--border); border-radius:24px; box-shadow:var(--shadow); overflow:hidden; }
-    .calendar-top { display:flex; justify-content:space-between; align-items:flex-start; gap:16px; padding:20px; border-bottom:1px solid var(--border); }
-    .calendar-eyebrow { font-size:10px; font-weight:900; color:var(--blue); text-transform:uppercase; letter-spacing:.12em; margin-bottom:5px; }
-    .calendar-title { font-size:20px; font-weight:900; letter-spacing:-.045em; }
-    .calendar-sub { color:var(--text-3); font-size:12px; margin-top:4px; line-height:1.45; }
-    .calendar-actions { display:flex; gap:8px; align-items:center; flex-wrap:wrap; justify-content:flex-end; }
-    .calendar-month-nav { display:flex; align-items:center; gap:8px; }
-    .calendar-stat-strip { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:10px; padding:14px 20px; border-bottom:1px solid var(--border); background:var(--bg); }
-    .calendar-stat { background:var(--surface); border:1px solid var(--border); border-radius:16px; padding:12px; }
-    .calendar-stat strong { display:block; font-size:22px; line-height:1; letter-spacing:-.06em; }
-    .calendar-stat span { display:block; color:var(--text-3); font-size:10px; font-weight:850; text-transform:uppercase; letter-spacing:.08em; margin-top:6px; }
-    .calendar-grid { display:grid; grid-template-columns:repeat(7,minmax(0,1fr)); }
-    .calendar-day-name { padding:12px 10px; color:var(--text-3); font-size:10px; font-weight:900; text-transform:uppercase; letter-spacing:.08em; border-right:1px solid var(--border); border-bottom:1px solid var(--border); background:var(--bg); }
-    .calendar-day-name:last-child { border-right:0; }
-    .calendar-day { min-height:124px; padding:10px; border-right:1px solid var(--border); border-bottom:1px solid var(--border); background:var(--surface); display:flex; flex-direction:column; gap:8px; }
-    .calendar-day:nth-child(7n) { border-right:0; }
-    .calendar-day.other { background:var(--bg); opacity:.55; }
-    .calendar-day.today { box-shadow:inset 0 0 0 2px var(--blue); }
-    .calendar-day.busy { background:linear-gradient(180deg,var(--surface),rgba(54,87,246,.035)); }
-    .calendar-day-head { display:flex; justify-content:space-between; align-items:center; gap:8px; }
-    .calendar-day-num { font-size:12px; font-weight:900; color:var(--text-2); }
-    .calendar-count-pill { font-size:10px; font-weight:900; color:var(--blue); background:var(--blue-light); border-radius:999px; padding:3px 7px; }
-    .calendar-profile-row { display:flex; align-items:center; gap:7px; min-width:0; cursor:pointer; padding:6px; border-radius:12px; background:var(--bg); border:1px solid transparent; }
-    .calendar-profile-row:hover { border-color:var(--border); background:var(--surface-2); }
-    .calendar-profile-row .profile-avatar { width:24px; height:24px; font-size:9px; box-shadow:none; }
-    .calendar-event-copy { min-width:0; flex:1; }
-    .calendar-event-main { font-size:11px; font-weight:850; color:var(--text); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-    .calendar-event-meta { font-size:10px; color:var(--text-3); margin-top:1px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-    .calendar-more { color:var(--text-3); font-size:10px; font-weight:800; padding-left:6px; }
-    .calendar-side { display:flex; flex-direction:column; gap:14px; }
-    .calendar-panel { background:var(--surface); border:1px solid var(--border); border-radius:22px; box-shadow:var(--shadow); padding:18px; }
-    .calendar-panel-title { font-size:14px; font-weight:900; margin-bottom:12px; letter-spacing:-.02em; }
-    .calendar-list { display:flex; flex-direction:column; gap:10px; }
-    .calendar-list-item { display:flex; justify-content:space-between; gap:12px; padding:11px 0; border-bottom:1px solid var(--border); }
-    .calendar-list-item:last-child { border-bottom:0; padding-bottom:0; }
-    .calendar-list-main { min-width:0; }
-    .calendar-list-main strong { display:block; font-size:12px; color:var(--text); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-    .calendar-list-main span { display:block; font-size:11px; color:var(--text-3); margin-top:3px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-    .calendar-list-num { font-size:18px; font-weight:900; letter-spacing:-.05em; color:var(--text); white-space:nowrap; }
-    .calendar-gap { border:1px dashed var(--border); border-radius:16px; padding:12px; background:var(--bg); color:var(--text-2); font-size:12px; line-height:1.45; }
-    .calendar-empty { padding:64px 22px; text-align:center; color:var(--text-3); }
-    .calendar-empty h3 { color:var(--text); font-size:17px; margin-bottom:8px; }
-    @media (max-width: 1080px) { .calendar-shell { grid-template-columns:1fr; } .calendar-stat-strip { grid-template-columns:repeat(2,1fr); } }
-    @media (max-width: 760px) { .calendar-board { overflow-x:auto; } .calendar-grid { min-width:760px; } .calendar-top { flex-direction:column; } .calendar-actions { justify-content:flex-start; } }
-
     /* ─── History cleanup ─── */
     .history-shell { display:flex; flex-direction:column; gap:16px; }
     .history-summary { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:12px; }
@@ -889,7 +842,7 @@
     .page:not(#page-create) .row { gap:14px; flex-wrap:wrap; }
     #page-settings .card > p, #page-settings .card [style*="line-height:1.8"], #installHint { color:var(--text-3)!important; }
     #page-groups .card:first-of-type, #page-settings .card:first-of-type { background:var(--surface); }
-    #page-calendar .card, #page-scheduled .card, #page-logs .card, #page-groups .card { max-width:none; }
+    #page-scheduled .card, #page-logs .card, #page-groups .card { max-width:none; }
     #page-logs .card-header > div:last-child { gap:10px!important; }
     #page-settings .card:nth-of-type(3) .row { display:grid!important; grid-template-columns:repeat(4,minmax(110px,1fr)); }
     @media (max-width: 760px) { #page-settings .card:nth-of-type(3) .row { grid-template-columns:1fr 1fr; } }
@@ -1016,7 +969,6 @@
         <div class="nav-section">Review</div>
         <div class="nav-item" data-page="dashboard"><span class="icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="2" width="5" height="6" rx="1"/><rect x="9" y="2" width="5" height="4" rx="1"/><rect x="2" y="10" width="5" height="4" rx="1"/><rect x="9" y="8" width="5" height="6" rx="1"/></svg></span> Overview</div>
         <div class="nav-item" data-page="logs"><span class="icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><line x1="3" y1="4" x2="13" y2="4"/><line x1="3" y1="8" x2="13" y2="8"/><line x1="3" y1="12" x2="9" y2="12"/></svg></span> History</div>
-        <div class="nav-item" data-page="calendar"><span class="icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="3" width="12" height="11" rx="1.5"/><line x1="2" y1="6" x2="14" y2="6"/><line x1="5" y1="1.5" x2="5" y2="4"/><line x1="11" y1="1.5" x2="11" y2="4"/></svg></span> Calendar</div>
 
         <div class="nav-section">Account</div>
         <div class="nav-item" data-page="settings"><span class="icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="2.5"/><path d="M8 1L8 3M8 13L8 15M1 8L3 8M13 8L15 8M2.5 2.5L4 4M12 12L13.5 13.5M2.5 13.5L4 12M12 4L13.5 2.5"/></svg></span> Settings</div>
@@ -1093,13 +1045,6 @@
             <div id="dashTopGroups"></div>
           </div>
         </div>
-      </div>
-
-      <!-- ═══ CALENDAR ═══ -->
-      <div class="page" id="page-calendar">
-        <div class="page-title">Calendar</div>
-        <div class="page-subtitle">Plan the month: see profile coverage, busy days, and gaps before you schedule more.</div>
-        <div id="calendarPlanner"></div>
       </div>
 
       <!-- ═══ CREATE ═══ -->
@@ -1561,6 +1506,6 @@ Example: Quick reminder for clinic owners — if your fee schedule is outdated, 
       }
     }, 1200);
   </script>
-  <script src="app.js?v=56"></script>
+  <script src="app.js?v=57"></script>
 </body>
 </html>

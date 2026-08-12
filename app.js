@@ -23,7 +23,6 @@ let cachedData = { posts: [], logs: [], groups: [], settings: {}, postingIdentit
 let selDays = [1, 2, 3, 4, 5];
 let editingPostId = null;
 let groupCount = 0;
-let calDate = new Date();
 let historyFilter = 'posts';
 let schedChecker = null;
 let checkConnRunning = false;
@@ -66,7 +65,6 @@ function setStyle(id, prop, value) { const el = byId(id); if (el) el.style[prop]
 async function bootApp() {
   safeStartupStep('theme init', initTheme);
   safeStartupStep('day picker init', renderDays);
-  safeStartupStep('calendar header init', renderCalNames);
   safeStartupStep('nav init', setupNav);
 
   if (!sb?.auth) throw new Error('Sign-in did not load. Check your connection and refresh.');
@@ -164,7 +162,6 @@ function nav(page) {
   if (window.history?.replaceState) window.history.replaceState(null, '', `#${page}`);
   switch (page) {
     case 'dashboard': return loadDashboard();
-    case 'calendar': return loadCalendar();
     case 'create': return loadCreate();
     case 'scheduled': return loadScheduled();
     case 'groups': return loadGroups();
@@ -1032,123 +1029,6 @@ async function loadDashboard() {
   ]);
 }
 
-// ═══ CALENDAR ═══
-function renderCalNames() {
-  const el = document.getElementById('calDayNames');
-  if (!el) return;
-  el.innerHTML = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat']
-    .map(d => `<div class="calendar-day-name">${d}</div>`).join('');
-}
-
-async function loadCalendar() {
-  cachedData = await fetchAll();
-  const start = new Date(calDate.getFullYear(), calDate.getMonth(), 1);
-  const end = new Date(calDate.getFullYear(), calDate.getMonth() + 1, 1);
-  const { data: scheduledJobs } = await sb.from('jsw_post_jobs')
-    .select('*')
-    .eq('user_id', user.id)
-    .eq('status', 'pending')
-    .not('scheduled_for', 'is', null)
-    .gte('scheduled_for', start.toISOString())
-    .lt('scheduled_for', end.toISOString())
-    .order('scheduled_for', { ascending: true });
-  renderCalendar(scheduledJobs || []);
-}
-
-function monthScheduledEvents(legacyPosts = [], scheduledJobs = []) {
-  const year = calDate.getFullYear();
-  const month = calDate.getMonth();
-  const start = new Date(year, month, 1);
-  const daysInMonth = new Date(year, month + 1, 0).getDate();
-  const monthDays = Array.from({ length: daysInMonth }, (_, i) => addDays(start, i));
-  return scheduledWeekEvents(legacyPosts, scheduledJobs, monthDays)
-    .sort((a, b) => a.dateKey.localeCompare(b.dateKey) || a.time.localeCompare(b.time));
-}
-
-function calendarEventRowHtml(event) {
-  const identity = event.identity || findPostingIdentityByName(event.identityName);
-  const groupCount = scheduledEventGroups(event).length || 1;
-  return `<div class="calendar-profile-row" title="${esc(event.title || '')}" onclick="openUpcomingPostDetail('${esc(event.id)}')">
-    ${identityAvatarHtml(identity, '')}
-    <div class="calendar-event-copy">
-      <div class="calendar-event-main">${esc(event.identityName || identity?.name || 'Facebook profile')}</div>
-      <div class="calendar-event-meta">${displayTime(event.time)} · ${groupCount} group${groupCount === 1 ? '' : 's'}</div>
-    </div>
-  </div>`;
-}
-
-function renderCalendar(scheduledJobs = []) {
-  const el = document.getElementById('calendarPlanner');
-  if (!el) return;
-  const year = calDate.getFullYear(), month = calDate.getMonth();
-  const firstDay = new Date(year, month, 1).getDay();
-  const daysInMonth = new Date(year, month + 1, 0).getDate();
-  const prevDays = new Date(year, month, 0).getDate();
-  const today = startOfLocalDay(new Date());
-  const events = monthScheduledEvents(cachedData.posts || [], scheduledJobs || []);
-  upcomingPostDetails = Object.fromEntries(events.map(e => [e.id, e]));
-
-  const byDay = new Map();
-  const byProfile = new Map();
-  events.forEach(e => {
-    if (!byDay.has(e.dateKey)) byDay.set(e.dateKey, []);
-    byDay.get(e.dateKey).push(e);
-    const profile = e.identityName || e.identity?.name || 'Unknown profile';
-    byProfile.set(profile, (byProfile.get(profile) || 0) + 1);
-  });
-
-  const activeDays = byDay.size;
-  const profileCount = byProfile.size;
-  const busiest = [...byDay.entries()].sort((a, b) => b[1].length - a[1].length)[0];
-  const busiestLabel = busiest ? new Date(`${busiest[0]}T12:00:00`).toLocaleDateString('en-US', { month:'short', day:'numeric' }) : '—';
-  const quietDays = Array.from({ length: daysInMonth }, (_, i) => new Date(year, month, i + 1))
-    .filter(d => d >= today && !byDay.has(localDateKey(d)))
-    .slice(0, 5);
-  const topProfiles = [...byProfile.entries()].sort((a, b) => b[1] - a[1]).slice(0, 6);
-  const busyDays = [...byDay.entries()].sort((a, b) => b[1].length - a[1].length).slice(0, 5);
-
-  let cells = '';
-  for (let i = firstDay - 1; i >= 0; i--) cells += `<div class="calendar-day other"><div class="calendar-day-head"><div class="calendar-day-num">${prevDays - i}</div></div></div>`;
-  for (let d = 1; d <= daysInMonth; d++) {
-    const date = new Date(year, month, d);
-    const key = localDateKey(date);
-    const dayEvents = (byDay.get(key) || []).sort((a, b) => a.time.localeCompare(b.time));
-    const visible = dayEvents.slice(0, 3);
-    cells += `<div class="calendar-day ${date.toDateString() === today.toDateString() ? 'today' : ''} ${dayEvents.length ? 'busy' : ''}">
-      <div class="calendar-day-head"><div class="calendar-day-num">${d}</div>${dayEvents.length ? `<div class="calendar-count-pill">${dayEvents.length}</div>` : ''}</div>
-      ${visible.map(calendarEventRowHtml).join('')}
-      ${dayEvents.length > visible.length ? `<div class="calendar-more">+${dayEvents.length - visible.length} more</div>` : ''}
-    </div>`;
-  }
-  const remaining = (7 - ((firstDay + daysInMonth) % 7)) % 7;
-  for (let i = 1; i <= remaining; i++) cells += `<div class="calendar-day other"><div class="calendar-day-head"><div class="calendar-day-num">${i}</div></div></div>`;
-
-  const emptyState = !events.length ? `<div class="calendar-empty"><h3>No scheduled posts this month</h3><p>Create a recurring post or queue scheduled posts to start planning coverage.</p><button class="btn btn-primary" onclick="nav('create')">Schedule a post</button></div>` : '';
-  el.innerHTML = `<div class="calendar-shell">
-    <div class="calendar-board">
-      <div class="calendar-top">
-        <div><div class="calendar-eyebrow">Monthly planner</div><div class="calendar-title">${MONTHS[month]} ${year}</div><div class="calendar-sub">Use this to balance posting across profiles and spot days with no coverage.</div></div>
-        <div class="calendar-actions"><div class="calendar-month-nav"><button class="btn btn-secondary btn-sm" onclick="prevMonth()">‹</button><button class="btn btn-secondary btn-sm" onclick="goThisMonth()">This month</button><button class="btn btn-secondary btn-sm" onclick="nextMonth()">›</button></div><button class="btn btn-primary btn-sm" onclick="nav('create')">Schedule</button></div>
-      </div>
-      <div class="calendar-stat-strip">
-        <div class="calendar-stat"><strong>${events.length}</strong><span>scheduled posts</span></div>
-        <div class="calendar-stat"><strong>${activeDays}</strong><span>active days</span></div>
-        <div class="calendar-stat"><strong>${profileCount}</strong><span>profiles used</span></div>
-        <div class="calendar-stat"><strong>${busiestLabel}</strong><span>busiest day</span></div>
-      </div>
-      ${events.length ? `<div class="calendar-grid">${['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map(d => `<div class="calendar-day-name">${d}</div>`).join('')}${cells}</div>` : emptyState}
-    </div>
-    <div class="calendar-side">
-      <div class="calendar-panel"><div class="calendar-panel-title">Profile coverage</div>${topProfiles.length ? `<div class="calendar-list">${topProfiles.map(([name, count]) => `<div class="calendar-list-item"><div class="calendar-list-main"><strong>${esc(name)}</strong><span>${Math.round(count / Math.max(events.length, 1) * 100)}% of this month</span></div><div class="calendar-list-num">${count}</div></div>`).join('')}</div>` : `<div class="calendar-gap">No profiles scheduled this month.</div>`}</div>
-      <div class="calendar-panel"><div class="calendar-panel-title">Busiest days</div>${busyDays.length ? `<div class="calendar-list">${busyDays.map(([key, items]) => `<div class="calendar-list-item"><div class="calendar-list-main"><strong>${new Date(`${key}T12:00:00`).toLocaleDateString('en-US', { weekday:'short', month:'short', day:'numeric' })}</strong><span>${[...new Set(items.map(i => i.identityName || 'Profile'))].slice(0, 2).join(', ')}</span></div><div class="calendar-list-num">${items.length}</div></div>`).join('')}</div>` : `<div class="calendar-gap">No busy days yet.</div>`}</div>
-      <div class="calendar-panel"><div class="calendar-panel-title">Open days</div>${quietDays.length ? `<div class="calendar-list">${quietDays.map(d => `<div class="calendar-list-item"><div class="calendar-list-main"><strong>${d.toLocaleDateString('en-US', { weekday:'short', month:'short', day:'numeric' })}</strong><span>No posts currently scheduled</span></div><button class="btn btn-secondary btn-sm" onclick="nav('create')">Fill</button></div>`).join('')}</div>` : `<div class="calendar-gap">No obvious gaps left in the rest of this month.</div>`}</div>
-    </div>
-  </div>`;
-}
-function prevMonth() { calDate.setMonth(calDate.getMonth() - 1); loadCalendar(); }
-function nextMonth() { calDate.setMonth(calDate.getMonth() + 1); loadCalendar(); }
-function goThisMonth() { calDate = new Date(); loadCalendar(); }
-
 // ═══ CREATE ═══
 function renderDays() {
   document.getElementById('createDays').innerHTML = DAYS.map((name, i) =>
@@ -1729,7 +1609,7 @@ function renderSubscriptionsTable(posts = [], jobs = []) {
 
   return `<div class="subscription-card">
     <div class="subscription-top">
-      <div><div class="subscription-title">Subscriptions</div><div class="subscription-subtitle">Recurring schedules inferred from the calendar.</div></div>
+      <div><div class="subscription-title">Subscriptions</div><div class="subscription-subtitle">Recurring and queued scheduled posts.</div></div>
       <button class="btn btn-secondary btn-sm" onclick="nav('create')">Add subscription</button>
     </div>
     <div class="subscription-list">${subscriptions.map(post => {
@@ -1763,7 +1643,7 @@ function renderSubscriptionsTable(posts = [], jobs = []) {
             ${identityAvatarHtml(identity, '')}
             <div style="min-width:0;">
               <div class="subscription-profile-name">${esc(identityName || identity?.name || 'Facebook profile')}</div>
-              <div class="subscription-muted">${esc(isQueued ? 'Inferred from calendar' : 'Saved subscription')}</div>
+              <div class="subscription-muted">${esc(isQueued ? 'Queued schedule' : 'Saved subscription')}</div>
             </div>
           </div>
           <div class="subscription-actions-wrap">
