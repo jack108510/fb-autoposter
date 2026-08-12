@@ -2250,9 +2250,8 @@ function updateGroupsStats(groups = [], filtered = groups) {
   set('groupsRiskStat', groups.filter(g => groupRiskLevel(g)).length);
   const sub = document.getElementById('groupsLibrarySub');
   if (sub) {
-    const activeFilters = [groupTagFilter ? `tagged ${groupTagFilter}` : '', groupSearchQuery ? `matching “${groupSearchQuery}”` : ''].filter(Boolean).join(' and ');
     const base = `${filtered.length} of ${groups.length} group${groups.length === 1 ? '' : 's'}`;
-    sub.textContent = activeFilters ? `${base} ${activeFilters}.` : `${base} organized by ${identities.length || 0} Facebook profile${identities.length === 1 ? '' : 's'}/Pages.`;
+    sub.textContent = `${base} organized by ${identities.length || 0} Facebook profile${identities.length === 1 ? '' : 's'}/Pages.`;
   }
 }
 
@@ -2382,20 +2381,6 @@ function buildGroupProfileBuckets(groups = []) {
   });
 }
 
-function groupOwnerSelectHtml(group = {}) {
-  const identities = sanitizePostingIdentities(cachedData.postingIdentities || []);
-  const assigned = groupAssignmentProfileForGroup(group, identities);
-  const assignedKey = assigned ? identityKey(assigned) : groupOwnerKey(group);
-  const options = identities.map(identity => {
-    const key = identityKey(identity);
-    return `<option value="${esc(key)}" ${key === assignedKey ? 'selected' : ''}>${esc(identity.name || 'Facebook profile')}</option>`;
-  }).join('');
-  return `<div class="group-owner-row">
-    <div class="group-owner-label">Profile</div>
-    <select class="group-owner-select" data-group-url="${esc(group.url || '')}">${options}</select>
-  </div>`;
-}
-
 function renderGroupCard(g, postCounts, color) {
   const posts = postCounts[g.url] || 0;
   const isPending = g.namePending;
@@ -2404,9 +2389,6 @@ function renderGroupCard(g, postCounts, color) {
   const cooldown = groupCooldownInfo(g);
   const risk = groupRiskLevel(g);
   const avatar = g.avatar_url || g.group_avatar_url;
-  const tagPills = visibleGroupTags(g).map(t =>
-    `<span class="group-tag-pill" data-group-url="${esc(groupUrl)}" data-group-tag="${esc(t)}" title="Click to remove">${esc(t)} ×</span>`
-  ).join('');
   const badges = [
     isPending ? '<span class="group-status-pill group-status-warn">Fetching name</span>' : '',
     cooldown ? `<span class="group-status-pill group-status-warn" title="Posted ${cooldown.daysSince.toFixed(1)}d ago — rest period active">${cooldown.daysLeft.toFixed(1)}d rest</span>` : '',
@@ -2421,13 +2403,7 @@ function renderGroupCard(g, postCounts, color) {
         <a class="group-card-url" href="${esc(safeHref)}" target="_blank" rel="noopener noreferrer" title="${esc(groupUrl)}">${esc(groupUrl || 'No URL saved')}</a>
       </div>
     </div>
-    ${groupOwnerSelectHtml(g)}
     <div class="group-card-badges">${badges}</div>
-    <div class="group-card-tags">
-      ${tagPills || '<span class="group-card-meta">No tags yet</span>'}
-      <span class="group-tag-add" data-group-url="${esc(groupUrl)}" title="Add tag">+ tag</span>
-      <input type="text" class="group-tag-input" data-group-url="${esc(groupUrl)}" style="display:none;width:104px;font-size:11px;padding:3px 8px;border:1px solid var(--border);border-radius:12px;outline:none;background:var(--surface);" />
-    </div>
     <div class="group-card-footer">
       <div class="group-card-meta">${posts > 0 ? `${posts} saved post${posts === 1 ? '' : 's'}` : 'No saved posts'}</div>
       <button class="btn btn-ghost btn-sm group-remove-btn group-card-remove" data-group-url="${esc(groupUrl)}" title="Remove group" aria-label="Remove group">
@@ -2457,17 +2433,7 @@ function renderGroupsList(groups) {
   const countEl = document.getElementById('groupCount');
   if (countEl) countEl.textContent = `(${groups.length})`;
 
-  const query = groupSearchQuery.trim().toLowerCase();
-  const filtered = groups.filter(g => {
-    const tags = visibleGroupTags(g);
-    const tagOk = groupTagFilter ? tags.includes(groupTagFilter) : true;
-    const attachmentNames = postIdentityNamesForGroup(g);
-    const owner = groupOwnerName(g);
-    const ownerKey = groupOwnerKey(g);
-    const haystack = [g.name, g.url, owner, ownerKey, ...attachmentNames, ...tags].join(' ').toLowerCase();
-    const searchOk = query ? haystack.includes(query) : true;
-    return tagOk && searchOk;
-  });
+  const filtered = groups;
 
   const postCounts = {};
   (cachedData.posts || []).forEach(p => {
@@ -2490,7 +2456,6 @@ function renderGroupsList(groups) {
   const buckets = buildGroupProfileBuckets(filtered);
   if (!buckets.some(b => b.key === selectedGroupProfileKey)) selectedGroupProfileKey = '__all__';
   const selectedBucket = buckets.find(b => b.key === selectedGroupProfileKey) || buckets[0];
-  const activeFilters = [groupTagFilter ? `tagged ${groupTagFilter}` : '', groupSearchQuery ? `matching “${groupSearchQuery}”` : ''].filter(Boolean).join(' and ');
 
   const rail = `<aside class="groups-profile-rail">
     ${buckets.map(bucket => {
@@ -2515,7 +2480,7 @@ function renderGroupsList(groups) {
     : identityAvatarHtml(profile, '');
   const cards = selectedBucket.groups.length
     ? `<div class="groups-card-grid">${selectedBucket.groups.map(g => renderGroupCard(g, postCounts, colors[(cardIndex++) % colors.length])).join('')}</div>`
-    : `<div class="groups-empty-profile">${activeFilters ? 'No groups in this profile match the current filters.' : 'No groups found for this profile yet. Import groups while this profile is active on Facebook, or add one above.'}</div>`;
+    : `<div class="groups-empty-profile">No groups found for this profile yet.</div>`;
 
   list.innerHTML = `${rail}<main class="groups-workspace">
     <div class="groups-workspace-head">
@@ -2523,7 +2488,7 @@ function renderGroupsList(groups) {
         ${workspaceAvatar}
         <div style="min-width:0;">
           <h3>${esc(profile.name || 'Facebook profile')}</h3>
-          <p>${esc(selectedBucket.label || profile.type || 'Facebook profile')} · ${selectedBucket.groups.length} group${selectedBucket.groups.length === 1 ? '' : 's'}${activeFilters ? ` · ${esc(activeFilters)}` : ''}</p>
+          <p>${esc(selectedBucket.label || profile.type || 'Facebook profile')} · ${selectedBucket.groups.length} group${selectedBucket.groups.length === 1 ? '' : 's'}</p>
         </div>
       </div>
       <div class="groups-workspace-actions">
@@ -2564,12 +2529,6 @@ function handleTagInput(event) {
 }
 
 document.addEventListener('click', (event) => {
-  const tagFilter = event.target.closest?.('[data-tag-filter]');
-  if (tagFilter) {
-    event.stopPropagation();
-    setGroupTagFilter(tagFilter.dataset.tagFilter || null);
-    return;
-  }
   const profileTab = event.target.closest?.('[data-group-profile-key]');
   if (profileTab) {
     event.stopPropagation();
@@ -2582,38 +2541,12 @@ document.addEventListener('click', (event) => {
     postFromGroupProfile(postProfileBtn.dataset.postProfileKey || '__all__');
     return;
   }
-  const tagPill = event.target.closest?.('.group-tag-pill[data-group-url][data-group-tag]');
-  if (tagPill) {
-    event.stopPropagation();
-    removeGroupTag(tagPill.dataset.groupUrl, tagPill.dataset.groupTag);
-    return;
-  }
-  const addBtn = event.target.closest?.('.group-tag-add[data-group-url]');
-  if (addBtn) {
-    event.stopPropagation();
-    showTagInput(addBtn);
-    return;
-  }
   const removeBtn = event.target.closest?.('.group-remove-btn[data-group-url]');
   if (removeBtn) {
     event.stopPropagation();
     removeGroup(removeBtn.dataset.groupUrl);
   }
 });
-
-document.addEventListener('keydown', (event) => {
-  if (event.target.matches?.('.group-tag-input[data-group-url]')) handleTagInput(event);
-});
-
-document.addEventListener('change', (event) => {
-  if (event.target.matches?.('.group-owner-select[data-group-url]')) {
-    assignGroupToProfile(event.target.dataset.groupUrl, event.target.value);
-  }
-});
-
-document.addEventListener('blur', (event) => {
-  if (event.target.matches?.('.group-tag-input[data-group-url]')) hideTagInput(event.target);
-}, true);
 
 function groupUpdatePayloadForIdentity(identity) {
   if (!identity) throw new Error('Choose a Facebook profile/page for this group.');
