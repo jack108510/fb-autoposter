@@ -1942,6 +1942,7 @@ async function editPost(id) {
 let groupTagFilter = null; // null = all
 let groupSearchQuery = '';
 let groupSyncPollTimer = null;
+let selectedGroupProfileKey = localStorage.getItem('amplr_selected_group_profile') || '__all__';
 
 async function getLatestGroupSyncJob() {
   const { data, error } = await sb.from('jsw_post_jobs')
@@ -2195,11 +2196,19 @@ async function saveGroupTags(url, tags) {
   }
 }
 
+function isProfileOwnershipTag(tag) {
+  return /^profile:/i.test(String(tag || '').trim());
+}
+
+function visibleGroupTags(group = {}) {
+  return (group.tags || []).filter(t => !isProfileOwnershipTag(t));
+}
+
 function renderGroupTagBar(groups) {
   const bar = document.getElementById('groupTagFilterBar');
   if (!bar) return;
-  // Collect all unique tags
-  const allTags = [...new Set(groups.flatMap(g => g.tags || []))].sort();
+  // Collect all unique user-facing tags
+  const allTags = [...new Set(groups.flatMap(g => visibleGroupTags(g)))].sort();
   if (allTags.length === 0) {
     bar.style.display = 'none';
     return;
@@ -2241,14 +2250,17 @@ function groupRiskLevel(g) {
 
 function updateGroupsStats(groups = [], filtered = groups) {
   const set = (id, value) => { const el = document.getElementById(id); if (el) el.textContent = value; };
+  const identities = sanitizePostingIdentities(cachedData.postingIdentities || []);
+  const unassignedCount = groups.filter(g => !groupAssignmentProfileForGroup(g, identities)).length;
   set('groupsTotalStat', groups.length);
-  set('groupsTaggedStat', groups.filter(g => (g.tags || []).length).length);
-  set('groupsCooldownStat', groups.filter(g => groupCooldownInfo(g)).length);
+  set('groupsTaggedStat', identities.length);
+  set('groupsCooldownStat', unassignedCount);
   set('groupsRiskStat', groups.filter(g => groupRiskLevel(g)).length);
   const sub = document.getElementById('groupsLibrarySub');
   if (sub) {
     const activeFilters = [groupTagFilter ? `tagged ${groupTagFilter}` : '', groupSearchQuery ? `matching “${groupSearchQuery}”` : ''].filter(Boolean).join(' and ');
-    sub.textContent = activeFilters ? `${filtered.length} of ${groups.length} groups ${activeFilters}.` : `${groups.length} group${groups.length === 1 ? '' : 's'} ready for posting.`;
+    const base = `${filtered.length} of ${groups.length} group${groups.length === 1 ? '' : 's'}`;
+    sub.textContent = activeFilters ? `${base} ${activeFilters}.` : `${base} organized by ${identities.length || 0} Facebook profile${identities.length === 1 ? '' : 's'}/Pages. ${unassignedCount ? `${unassignedCount} need profile assignment.` : 'Everything has a profile.'}`;
   }
 }
 
@@ -2311,6 +2323,27 @@ function profileBucketKeyForName(name) {
   return String(name || '').trim().toLowerCase();
 }
 
+function groupAssignmentProfileForGroup(group = {}, identities = sanitizePostingIdentities(cachedData.postingIdentities || [])) {
+  const ownerKey = groupOwnerKey(group);
+  const ownerName = groupOwnerName(group).toLowerCase();
+  const byKey = ownerKey ? identities.find(identity => identityKey(identity) === ownerKey) : null;
+  if (byKey) return byKey;
+  const byOwnerName = ownerName ? identities.find(identity => String(identity.name || '').trim().toLowerCase() === ownerName) : null;
+  if (byOwnerName) return byOwnerName;
+  const tags = (group.tags || []).map(t => String(t).toLowerCase());
+  const byTag = identities.find(identity => {
+    const name = String(identity.name || '').trim().toLowerCase();
+    return name && tags.includes(`profile:${name}`);
+  });
+  if (byTag) return byTag;
+  const scheduledNames = postIdentityNamesForGroup(group);
+  for (const name of scheduledNames) {
+    const match = identities.find(identity => profileBucketKeyForName(identity.name) === profileBucketKeyForName(name));
+    if (match) return match;
+  }
+  return null;
+}
+
 function buildGroupProfileBuckets(groups = []) {
   const identities = sanitizePostingIdentities(cachedData.postingIdentities || []);
   const buckets = new Map();
@@ -2318,10 +2351,12 @@ function buildGroupProfileBuckets(groups = []) {
     if (!buckets.has(key)) buckets.set(key, { key, profile, label, groups: [] });
     return buckets.get(key);
   };
+  const all = ensure('__all__', { name: 'All profiles', type: 'Everything Amplr knows about' }, 'Every group across every profile/page.');
   identities.forEach(identity => ensure(identityKey(identity), identity));
-  const unassigned = { key: '__unassigned__', profile: { name: 'Unassigned groups', type: 'No profile attachment yet' }, label: 'Tag or schedule these under a profile to attach them.', groups: [] };
+  const unassigned = ensure('__unassigned__', { name: 'Unassigned', type: 'Needs profile cleanup' }, 'Groups with no profile/page ownership yet.');
 
   groups.forEach(group => {
+    all.groups.push(group);
     const attached = new Set();
     identities.forEach(identity => {
       if (groupMatchesIdentity(group, identity)) attached.add(identityKey(identity));
@@ -2342,11 +2377,30 @@ function buildGroupProfileBuckets(groups = []) {
     attached.forEach(key => ensure(key, buckets.get(key)?.profile || { name: key }).groups.push(group));
   });
 
-  const profileBuckets = [...buckets.values()]
-    .filter(bucket => bucket.groups.length || !String(bucket.key).startsWith('name:'))
-    .sort((a, b) => (a.profile?.name || '').localeCompare(b.profile?.name || ''));
-  if (unassigned.groups.length) profileBuckets.push(unassigned);
-  return profileBuckets;
+  return [...buckets.values()].sort((a, b) => {
+    if (a.key === '__all__') return -1;
+    if (b.key === '__all__') return 1;
+    if (a.key === '__unassigned__') return 1;
+    if (b.key === '__unassigned__') return -1;
+    return (a.profile?.name || '').localeCompare(b.profile?.name || '');
+  });
+}
+
+function groupOwnerSelectHtml(group = {}) {
+  const identities = sanitizePostingIdentities(cachedData.postingIdentities || []);
+  const assigned = groupAssignmentProfileForGroup(group, identities);
+  const assignedKey = assigned ? identityKey(assigned) : '__unassigned__';
+  const options = [
+    `<option value="__unassigned__" ${assignedKey === '__unassigned__' ? 'selected' : ''}>Unassigned</option>`,
+    ...identities.map(identity => {
+      const key = identityKey(identity);
+      return `<option value="${esc(key)}" ${key === assignedKey ? 'selected' : ''}>${esc(identity.name || 'Facebook profile')}</option>`;
+    })
+  ].join('');
+  return `<div class="group-owner-row">
+    <div class="group-owner-label">Profile</div>
+    <select class="group-owner-select" data-group-url="${esc(group.url || '')}">${options}</select>
+  </div>`;
 }
 
 function renderGroupCard(g, postCounts, color) {
@@ -2356,7 +2410,8 @@ function renderGroupCard(g, postCounts, color) {
   const safeHref = safeExternalHref(groupUrl);
   const cooldown = groupCooldownInfo(g);
   const risk = groupRiskLevel(g);
-  const tagPills = (g.tags || []).map(t =>
+  const avatar = g.avatar_url || g.group_avatar_url;
+  const tagPills = visibleGroupTags(g).map(t =>
     `<span class="group-tag-pill" data-group-url="${esc(groupUrl)}" data-group-tag="${esc(t)}" title="Click to remove">${esc(t)} ×</span>`
   ).join('');
   const badges = [
@@ -2365,14 +2420,15 @@ function renderGroupCard(g, postCounts, color) {
     risk ? `<span class="group-status-pill group-status-risk" title="${g.removal_count || 0} post(s) removed">${risk === 'high' ? 'High risk' : 'Med risk'}</span>` : ''
   ].filter(Boolean).join('');
 
-  return `<div class="group-card">
+  return `<div class="group-card" data-group-url="${esc(groupUrl)}">
     <div class="group-card-top">
-      <div class="group-card-avatar" style="background:${color};">${esc((g.name || '?')[0].toUpperCase())}</div>
+      <div class="group-card-avatar" style="background:${color};">${avatar ? `<img src="${esc(avatar)}" alt="" onerror="this.remove(); this.parentElement.textContent='${esc((g.name || '?')[0].toUpperCase())}';">` : esc((g.name || '?')[0].toUpperCase())}</div>
       <div class="group-card-main">
         <div class="group-card-title" title="${esc(g.name || 'Facebook group')}">${esc(g.name || 'Facebook group')}</div>
         <a class="group-card-url" href="${esc(safeHref)}" target="_blank" rel="noopener noreferrer" title="${esc(groupUrl)}">${esc(groupUrl || 'No URL saved')}</a>
       </div>
     </div>
+    ${groupOwnerSelectHtml(g)}
     <div class="group-card-badges">${badges}</div>
     <div class="group-card-tags">
       ${tagPills || '<span class="group-card-meta">No tags yet</span>'}
@@ -2388,18 +2444,34 @@ function renderGroupCard(g, postCounts, color) {
   </div>`;
 }
 
+function selectGroupProfile(key) {
+  selectedGroupProfileKey = key || '__all__';
+  localStorage.setItem('amplr_selected_group_profile', selectedGroupProfileKey);
+  renderGroupsList(cachedData.groups || []);
+}
+
+function postFromGroupProfile(key) {
+  if (key && !['__all__', '__unassigned__'].includes(key)) {
+    localStorage.setItem('amplr_selected_posting_identity', key);
+  }
+  nav('create');
+}
+
 function renderGroupsList(groups) {
   const list = document.getElementById('groupsList');
   const empty = document.getElementById('groupsEmpty');
   if (!list) return;
+  const countEl = document.getElementById('groupCount');
+  if (countEl) countEl.textContent = `(${groups.length})`;
 
   const query = groupSearchQuery.trim().toLowerCase();
   const filtered = groups.filter(g => {
-    const tags = g.tags || [];
+    const tags = visibleGroupTags(g);
     const tagOk = groupTagFilter ? tags.includes(groupTagFilter) : true;
     const attachmentNames = postIdentityNamesForGroup(g);
-    const owner = g.identity_name || g.identityName || g.profile_name || g.profileName || g.page_name || g.pageName || '';
-    const haystack = [g.name, g.url, owner, ...attachmentNames, ...tags].join(' ').toLowerCase();
+    const owner = groupOwnerName(g);
+    const ownerKey = groupOwnerKey(g);
+    const haystack = [g.name, g.url, owner, ownerKey, ...attachmentNames, ...tags].join(' ').toLowerCase();
     const searchOk = query ? haystack.includes(query) : true;
     return tagOk && searchOk;
   });
@@ -2414,41 +2486,65 @@ function renderGroupsList(groups) {
 
   updateGroupsStats(groups, filtered);
 
-  if (filtered.length === 0) {
-    list.innerHTML = groups.length
-      ? `<div style="padding:34px;text-align:center;color:var(--text-3);font-size:13px;">No groups match the current filters.</div>`
-      : '';
-    if (empty) empty.style.display = groups.length === 0 ? 'block' : 'none';
+  if (empty) empty.style.display = groups.length === 0 ? 'block' : 'none';
+  if (groups.length === 0) {
+    list.innerHTML = '';
     return;
   }
-  if (empty) empty.style.display = 'none';
 
   const colors = ['#5B6FE8','#9B5DE5','#F368A8','#10b981','#f59e0b','#06b6d4'];
   let cardIndex = 0;
   const buckets = buildGroupProfileBuckets(filtered);
-  list.innerHTML = buckets.map(bucket => {
-    const profile = bucket.profile || { name: 'Facebook profile' };
-    const avatar = bucket.key === '__unassigned__'
-      ? '<div class="profile-avatar profile-avatar-sm avatar-fallback">?</div>'
-      : identityAvatarHtml(profile, 'profile-avatar-sm');
-    const cards = bucket.groups.length
-      ? bucket.groups.map(g => renderGroupCard(g, postCounts, colors[(cardIndex++) % colors.length])).join('')
-      : '<div class="groups-empty-profile">No groups assigned to this profile yet.</div>';
-    const subtitle = bucket.label || `${esc(profile.type || 'Facebook profile')}${profile.is_active ? ' · active' : ''}`;
-    return `<section class="groups-profile-section" data-profile-section="${esc(bucket.key)}">
-      <div class="groups-profile-head">
-        <div class="groups-profile-title">
-          ${avatar}
-          <div style="min-width:0;">
-            <div class="groups-profile-name">${esc(profile.name || 'Facebook profile')}</div>
-            <div class="groups-profile-type">${subtitle}</div>
-          </div>
+  if (!buckets.some(b => b.key === selectedGroupProfileKey)) selectedGroupProfileKey = '__all__';
+  const selectedBucket = buckets.find(b => b.key === selectedGroupProfileKey) || buckets[0];
+  const activeFilters = [groupTagFilter ? `tagged ${groupTagFilter}` : '', groupSearchQuery ? `matching “${groupSearchQuery}”` : ''].filter(Boolean).join(' and ');
+
+  const rail = `<aside class="groups-profile-rail">
+    ${buckets.map(bucket => {
+      const profile = bucket.profile || { name: 'Facebook profile' };
+      const avatar = bucket.key === '__all__'
+        ? '<div class="profile-avatar profile-avatar-sm avatar-fallback">All</div>'
+        : bucket.key === '__unassigned__'
+          ? '<div class="profile-avatar profile-avatar-sm avatar-fallback">?</div>'
+          : identityAvatarHtml(profile, 'profile-avatar-sm');
+      return `<button type="button" class="groups-profile-tab ${bucket.key === selectedGroupProfileKey ? 'active' : ''}" data-group-profile-key="${esc(bucket.key)}">
+        ${avatar}
+        <div class="groups-profile-tab-main">
+          <div class="groups-profile-name">${esc(profile.name || 'Facebook profile')}</div>
+          <div class="groups-profile-type">${esc(bucket.label || profile.type || 'Facebook profile')}</div>
         </div>
-        <div class="groups-profile-count">${bucket.groups.length} group${bucket.groups.length === 1 ? '' : 's'}</div>
+        <div class="groups-profile-count">${bucket.groups.length}</div>
+      </button>`;
+    }).join('')}
+  </aside>`;
+
+  const profile = selectedBucket.profile || { name: 'Facebook profile' };
+  const workspaceAvatar = selectedBucket.key === '__all__'
+    ? '<div class="profile-avatar avatar-fallback">All</div>'
+    : selectedBucket.key === '__unassigned__'
+      ? '<div class="profile-avatar avatar-fallback">?</div>'
+      : identityAvatarHtml(profile, '');
+  const cards = selectedBucket.groups.length
+    ? `<div class="groups-card-grid">${selectedBucket.groups.map(g => renderGroupCard(g, postCounts, colors[(cardIndex++) % colors.length])).join('')}</div>`
+    : `<div class="groups-empty-profile">${activeFilters ? 'No groups in this profile match the current filters.' : selectedBucket.key === '__unassigned__' ? 'Everything is assigned. Good.' : 'No groups assigned to this profile yet. Import groups while this profile is active on Facebook, or add one above.'}</div>`;
+
+  list.innerHTML = `${rail}<main class="groups-workspace">
+    <div class="groups-workspace-head">
+      <div class="groups-workspace-title">
+        ${workspaceAvatar}
+        <div style="min-width:0;">
+          <h3>${esc(profile.name || 'Facebook profile')}</h3>
+          <p>${esc(selectedBucket.label || profile.type || 'Facebook profile')} · ${selectedBucket.groups.length} group${selectedBucket.groups.length === 1 ? '' : 's'}${activeFilters ? ` · ${esc(activeFilters)}` : ''}</p>
+        </div>
       </div>
-      <div class="groups-card-grid">${cards}</div>
-    </section>`;
-  }).join('');
+      <div class="groups-workspace-actions">
+        ${selectedBucket.key === '__unassigned__'
+          ? `<button class="btn btn-secondary btn-sm" onclick="clearGroupFilters()">Show all cleanup</button>`
+          : `<button class="btn btn-primary btn-sm" data-post-profile-key="${esc(selectedBucket.key)}">${selectedBucket.key === '__all__' ? 'Create post' : 'Post from this profile'}</button>`}
+      </div>
+    </div>
+    ${cards}
+  </main>`;
 }
 
 function showTagInput(addBtn) {
@@ -2487,6 +2583,18 @@ document.addEventListener('click', (event) => {
     setGroupTagFilter(tagFilter.dataset.tagFilter || null);
     return;
   }
+  const profileTab = event.target.closest?.('[data-group-profile-key]');
+  if (profileTab) {
+    event.stopPropagation();
+    selectGroupProfile(profileTab.dataset.groupProfileKey || '__all__');
+    return;
+  }
+  const postProfileBtn = event.target.closest?.('[data-post-profile-key]');
+  if (postProfileBtn) {
+    event.stopPropagation();
+    postFromGroupProfile(postProfileBtn.dataset.postProfileKey || '__all__');
+    return;
+  }
   const tagPill = event.target.closest?.('.group-tag-pill[data-group-url][data-group-tag]');
   if (tagPill) {
     event.stopPropagation();
@@ -2510,9 +2618,69 @@ document.addEventListener('keydown', (event) => {
   if (event.target.matches?.('.group-tag-input[data-group-url]')) handleTagInput(event);
 });
 
+document.addEventListener('change', (event) => {
+  if (event.target.matches?.('.group-owner-select[data-group-url]')) {
+    assignGroupToProfile(event.target.dataset.groupUrl, event.target.value);
+  }
+});
+
 document.addEventListener('blur', (event) => {
   if (event.target.matches?.('.group-tag-input[data-group-url]')) hideTagInput(event.target);
 }, true);
+
+function groupUpdatePayloadForIdentity(identity) {
+  if (!identity) {
+    return {
+      identity_name: null,
+      identity_key: null,
+      profile_name: null,
+      profile_key: null,
+      page_name: null,
+    };
+  }
+  const key = identityKey(identity) || null;
+  return {
+    identity_name: identity.name || null,
+    identity_key: key,
+    profile_name: identity.name || null,
+    profile_key: key,
+    page_name: identity.type && /page/i.test(identity.type) ? identity.name : null,
+  };
+}
+
+async function assignGroupToProfile(url, profileKey) {
+  const group = (cachedData.groups || []).find(x => x.url === url);
+  if (!group) return;
+  if (!user?.id) {
+    toast('Sign in before assigning groups.');
+    renderGroupsList(cachedData.groups || []);
+    return;
+  }
+  const identities = sanitizePostingIdentities(cachedData.postingIdentities || []);
+  const identity = profileKey && profileKey !== '__unassigned__' ? identities.find(i => identityKey(i) === profileKey) : null;
+  const payload = groupUpdatePayloadForIdentity(identity);
+  try {
+    let res = await sb.from('jsw_groups').update(payload).eq('user_id', user.id).eq('group_url', url);
+    if (res.error && /identity_name|identity_key|profile_name|profile_key|page_name|schema cache|column/i.test(res.error.message || '')) {
+      const tags = new Set(group.tags || []);
+      [...tags].filter(t => /^profile:/i.test(t)).forEach(t => tags.delete(t));
+      if (identity?.name) tags.add(`profile:${identity.name}`);
+      res = await sb.from('jsw_groups').update({ tags: [...tags] }).eq('user_id', user.id).eq('group_url', url);
+      group.tags = [...tags];
+    }
+    if (res.error) throw new Error(res.error.message);
+    Object.assign(group, payload);
+    selectedGroupProfileKey = profileKey || '__unassigned__';
+    localStorage.setItem('amplr_selected_group_profile', selectedGroupProfileKey);
+    renderGroupTagBar(cachedData.groups || []);
+    renderGroupsList(cachedData.groups || []);
+    toast(identity?.name ? `Assigned to ${identity.name}` : 'Moved to Unassigned');
+  } catch (e) {
+    console.error('[Amplr] assignGroupToProfile error:', e);
+    toast('Could not assign profile: ' + e.message);
+    renderGroupsList(cachedData.groups || []);
+  }
+}
 
 function removeGroupTag(url, tag) {
   const g = (cachedData.groups || []).find(x => x.url === url);
@@ -2623,12 +2791,28 @@ async function addGroupFromInput() {
     let name = extractGroupName(url);
     if (!name) name = url.split('/').filter(Boolean).pop() || url;
 
+    const selectedIdentity = selectedGroupProfileKey && !['__all__', '__unassigned__'].includes(selectedGroupProfileKey)
+      ? sanitizePostingIdentities(cachedData.postingIdentities || []).find(identity => identityKey(identity) === selectedGroupProfileKey)
+      : getSelectedPostingIdentity();
+    const ownership = groupUpdatePayloadForIdentity(selectedIdentity);
+
     // Write directly to jsw_groups (shared with extension)
-    const { error: insertErr } = await sb.from('jsw_groups').insert({
+    let { error: insertErr } = await sb.from('jsw_groups').insert({
       user_id: user.id,
       group_url: url,
       group_name: name || null,
+      ...ownership,
     });
+    if (insertErr && /identity_name|identity_key|profile_name|profile_key|page_name|schema cache|column/i.test(insertErr.message || '')) {
+      const tags = selectedIdentity?.name ? [`profile:${selectedIdentity.name}`] : [];
+      const fallback = await sb.from('jsw_groups').insert({
+        user_id: user.id,
+        group_url: url,
+        group_name: name || null,
+        tags,
+      });
+      insertErr = fallback.error;
+    }
     if (insertErr) throw new Error(insertErr.message);
 
     input.value = '';
