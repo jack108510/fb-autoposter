@@ -431,7 +431,7 @@ async function fetchAll() {
       collected_by_key: r.collected_by_key || null,
       imported_by: r.imported_by || null,
       imported_by_key: r.imported_by_key || null,
-    }));
+    })).filter(g => groupOwnerKey(g) && !isLegacyGroupAssignment(g));
     return {
       posts: postsRes || [],
       logs: logs || [],
@@ -2251,17 +2251,16 @@ function groupRiskLevel(g) {
 function updateGroupsStats(groups = [], filtered = groups) {
   const set = (id, value) => { const el = document.getElementById(id); if (el) el.textContent = value; };
   const identities = sanitizePostingIdentities(cachedData.postingIdentities || []);
-  const legacyCount = groups.filter(g => isLegacyGroupAssignment(g)).length;
-  const unassignedCount = groups.filter(g => !isLegacyGroupAssignment(g) && !groupAssignmentProfileForGroup(g, identities)).length;
+  const activeProfiles = buildGroupProfileBuckets(groups).filter(b => !['__all__'].includes(b.key) && b.groups.length > 0).length;
   set('groupsTotalStat', groups.length);
   set('groupsTaggedStat', identities.length);
-  set('groupsCooldownStat', unassignedCount);
+  set('groupsCooldownStat', activeProfiles);
   set('groupsRiskStat', groups.filter(g => groupRiskLevel(g)).length);
   const sub = document.getElementById('groupsLibrarySub');
   if (sub) {
     const activeFilters = [groupTagFilter ? `tagged ${groupTagFilter}` : '', groupSearchQuery ? `matching “${groupSearchQuery}”` : ''].filter(Boolean).join(' and ');
     const base = `${filtered.length} of ${groups.length} group${groups.length === 1 ? '' : 's'}`;
-    sub.textContent = activeFilters ? `${base} ${activeFilters}.` : `${base} organized by ${identities.length || 0} Facebook profile${identities.length === 1 ? '' : 's'}/Pages. ${unassignedCount ? `${unassignedCount} need profile assignment.` : 'Everything has a profile.'}${legacyCount ? ` ${legacyCount} legacy groups need a successful profile resync.` : ''}`;
+    sub.textContent = activeFilters ? `${base} ${activeFilters}.` : `${base} organized by ${identities.length || 0} Facebook profile${identities.length === 1 ? '' : 's'}/Pages.`;
   }
 }
 
@@ -2359,15 +2358,9 @@ function buildGroupProfileBuckets(groups = []) {
   };
   const all = ensure('__all__', { name: 'All profiles', type: 'Everything Amplr knows about' }, 'Every group across every profile/page.');
   identities.forEach(identity => ensure(identityKey(identity), identity));
-  const legacy = ensure('__legacy__', { name: 'Legacy / needs resync', type: 'Imported before profile tracking' }, 'Older imports that need a successful profile/page resync.');
-  const unassigned = ensure('__unassigned__', { name: 'Unassigned', type: 'Needs profile cleanup' }, 'Groups with no profile/page ownership yet.');
 
   groups.forEach(group => {
     all.groups.push(group);
-    if (isLegacyGroupAssignment(group)) {
-      legacy.groups.push(group);
-      return;
-    }
     const attached = new Set();
     identities.forEach(identity => {
       if (groupMatchesIdentity(group, identity)) attached.add(identityKey(identity));
@@ -2382,8 +2375,10 @@ function buildGroupProfileBuckets(groups = []) {
       }
     });
     if (!attached.size) {
-      unassigned.groups.push(group);
-      return;
+      const ownerName = groupOwnerName(group) || groupOwnerKey(group) || 'Facebook profile';
+      const key = groupOwnerKey(group) || `owner:${profileBucketKeyForName(ownerName)}`;
+      ensure(key, { name: ownerName, type: 'Saved profile/page owner' });
+      attached.add(key);
     }
     attached.forEach(key => ensure(key, buckets.get(key)?.profile || { name: key }).groups.push(group));
   });
@@ -2391,10 +2386,6 @@ function buildGroupProfileBuckets(groups = []) {
   return [...buckets.values()].sort((a, b) => {
     if (a.key === '__all__') return -1;
     if (b.key === '__all__') return 1;
-    if (a.key === '__legacy__') return 1;
-    if (b.key === '__legacy__') return -1;
-    if (a.key === '__unassigned__') return 1;
-    if (b.key === '__unassigned__') return -1;
     return (a.profile?.name || '').localeCompare(b.profile?.name || '');
   });
 }
@@ -2402,14 +2393,11 @@ function buildGroupProfileBuckets(groups = []) {
 function groupOwnerSelectHtml(group = {}) {
   const identities = sanitizePostingIdentities(cachedData.postingIdentities || []);
   const assigned = groupAssignmentProfileForGroup(group, identities);
-  const assignedKey = assigned ? identityKey(assigned) : '__unassigned__';
-  const options = [
-    `<option value="__unassigned__" ${assignedKey === '__unassigned__' ? 'selected' : ''}>Unassigned</option>`,
-    ...identities.map(identity => {
-      const key = identityKey(identity);
-      return `<option value="${esc(key)}" ${key === assignedKey ? 'selected' : ''}>${esc(identity.name || 'Facebook profile')}</option>`;
-    })
-  ].join('');
+  const assignedKey = assigned ? identityKey(assigned) : groupOwnerKey(group);
+  const options = identities.map(identity => {
+    const key = identityKey(identity);
+    return `<option value="${esc(key)}" ${key === assignedKey ? 'selected' : ''}>${esc(identity.name || 'Facebook profile')}</option>`;
+  }).join('');
   return `<div class="group-owner-row">
     <div class="group-owner-label">Profile</div>
     <select class="group-owner-select" data-group-url="${esc(group.url || '')}">${options}</select>
@@ -2464,7 +2452,7 @@ function selectGroupProfile(key) {
 }
 
 function postFromGroupProfile(key) {
-  if (key && !['__all__', '__unassigned__'].includes(key)) {
+  if (key && key !== '__all__') {
     localStorage.setItem('amplr_selected_posting_identity', key);
   }
   nav('create');
@@ -2517,11 +2505,7 @@ function renderGroupsList(groups) {
       const profile = bucket.profile || { name: 'Facebook profile' };
       const avatar = bucket.key === '__all__'
         ? '<div class="profile-avatar profile-avatar-sm avatar-fallback">All</div>'
-        : bucket.key === '__legacy__'
-          ? '<div class="profile-avatar profile-avatar-sm avatar-fallback">Old</div>'
-          : bucket.key === '__unassigned__'
-            ? '<div class="profile-avatar profile-avatar-sm avatar-fallback">?</div>'
-            : identityAvatarHtml(profile, 'profile-avatar-sm');
+        : identityAvatarHtml(profile, 'profile-avatar-sm');
       return `<button type="button" class="groups-profile-tab ${bucket.key === selectedGroupProfileKey ? 'active' : ''}" data-group-profile-key="${esc(bucket.key)}">
         ${avatar}
         <div class="groups-profile-tab-main">
@@ -2536,12 +2520,10 @@ function renderGroupsList(groups) {
   const profile = selectedBucket.profile || { name: 'Facebook profile' };
   const workspaceAvatar = selectedBucket.key === '__all__'
     ? '<div class="profile-avatar avatar-fallback">All</div>'
-    : selectedBucket.key === '__unassigned__'
-      ? '<div class="profile-avatar avatar-fallback">?</div>'
-      : identityAvatarHtml(profile, '');
+    : identityAvatarHtml(profile, '');
   const cards = selectedBucket.groups.length
     ? `<div class="groups-card-grid">${selectedBucket.groups.map(g => renderGroupCard(g, postCounts, colors[(cardIndex++) % colors.length])).join('')}</div>`
-    : `<div class="groups-empty-profile">${activeFilters ? 'No groups in this profile match the current filters.' : selectedBucket.key === '__unassigned__' ? 'Everything is assigned. Good.' : 'No groups assigned to this profile yet. Import groups while this profile is active on Facebook, or add one above.'}</div>`;
+    : `<div class="groups-empty-profile">${activeFilters ? 'No groups in this profile match the current filters.' : 'No groups found for this profile yet. Import groups while this profile is active on Facebook, or add one above.'}</div>`;
 
   list.innerHTML = `${rail}<main class="groups-workspace">
     <div class="groups-workspace-head">
@@ -2553,9 +2535,7 @@ function renderGroupsList(groups) {
         </div>
       </div>
       <div class="groups-workspace-actions">
-        ${selectedBucket.key === '__unassigned__'
-          ? `<button class="btn btn-secondary btn-sm" onclick="clearGroupFilters()">Show all cleanup</button>`
-          : `<button class="btn btn-primary btn-sm" data-post-profile-key="${esc(selectedBucket.key)}">${selectedBucket.key === '__all__' ? 'Create post' : 'Post from this profile'}</button>`}
+        <button class="btn btn-primary btn-sm" data-post-profile-key="${esc(selectedBucket.key)}">${selectedBucket.key === '__all__' ? 'Create post' : 'Post from this profile'}</button>
       </div>
     </div>
     ${cards}
@@ -2644,15 +2624,7 @@ document.addEventListener('blur', (event) => {
 }, true);
 
 function groupUpdatePayloadForIdentity(identity) {
-  if (!identity) {
-    return {
-      identity_name: null,
-      identity_key: null,
-      profile_name: null,
-      profile_key: null,
-      page_name: null,
-    };
-  }
+  if (!identity) throw new Error('Choose a Facebook profile/page for this group.');
   const key = identityKey(identity) || null;
   return {
     identity_name: identity.name || null,
@@ -2672,7 +2644,12 @@ async function assignGroupToProfile(url, profileKey) {
     return;
   }
   const identities = sanitizePostingIdentities(cachedData.postingIdentities || []);
-  const identity = profileKey && profileKey !== '__unassigned__' ? identities.find(i => identityKey(i) === profileKey) : null;
+  const identity = profileKey ? identities.find(i => identityKey(i) === profileKey) : null;
+  if (!identity) {
+    toast('Choose a Facebook profile/page for this group.');
+    renderGroupsList(cachedData.groups || []);
+    return;
+  }
   const payload = groupUpdatePayloadForIdentity(identity);
   try {
     let res = await sb.from('jsw_groups').update(payload).eq('user_id', user.id).eq('group_url', url);
@@ -2685,11 +2662,11 @@ async function assignGroupToProfile(url, profileKey) {
     }
     if (res.error) throw new Error(res.error.message);
     Object.assign(group, payload);
-    selectedGroupProfileKey = profileKey || '__unassigned__';
+    selectedGroupProfileKey = profileKey;
     localStorage.setItem('amplr_selected_group_profile', selectedGroupProfileKey);
     renderGroupTagBar(cachedData.groups || []);
     renderGroupsList(cachedData.groups || []);
-    toast(identity?.name ? `Assigned to ${identity.name}` : 'Moved to Unassigned');
+    toast(`Assigned to ${identity.name}`);
   } catch (e) {
     console.error('[Amplr] assignGroupToProfile error:', e);
     toast('Could not assign profile: ' + e.message);
@@ -2806,28 +2783,18 @@ async function addGroupFromInput() {
     let name = extractGroupName(url);
     if (!name) name = url.split('/').filter(Boolean).pop() || url;
 
-    const selectedIdentity = selectedGroupProfileKey && !['__all__', '__unassigned__'].includes(selectedGroupProfileKey)
+    const selectedIdentity = selectedGroupProfileKey && selectedGroupProfileKey !== '__all__'
       ? sanitizePostingIdentities(cachedData.postingIdentities || []).find(identity => identityKey(identity) === selectedGroupProfileKey)
       : getSelectedPostingIdentity();
     const ownership = groupUpdatePayloadForIdentity(selectedIdentity);
 
     // Write directly to jsw_groups (shared with extension)
-    let { error: insertErr } = await sb.from('jsw_groups').insert({
+    const { error: insertErr } = await sb.from('jsw_groups').insert({
       user_id: user.id,
       group_url: url,
       group_name: name || null,
       ...ownership,
     });
-    if (insertErr && /identity_name|identity_key|profile_name|profile_key|page_name|schema cache|column/i.test(insertErr.message || '')) {
-      const tags = selectedIdentity?.name ? [`profile:${selectedIdentity.name}`] : [];
-      const fallback = await sb.from('jsw_groups').insert({
-        user_id: user.id,
-        group_url: url,
-        group_name: name || null,
-        tags,
-      });
-      insertErr = fallback.error;
-    }
     if (insertErr) throw new Error(insertErr.message);
 
     input.value = '';
