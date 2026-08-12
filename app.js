@@ -933,14 +933,34 @@ async function loadDashboard() {
   const banLevel = banScore >= 60 ? 'High' : banScore >= 30 ? 'Medium' : 'Low';
   const banColor = banScore >= 60 ? 'var(--red)' : banScore >= 30 ? 'var(--yellow)' : 'var(--green)';
 
+  const profileCount = (cachedData.postingIdentities || []).length;
+  const savedGroupCount = (cachedData.groups || []).length;
+  const readyState = document.getElementById('overviewReadyState');
+  const readyNote = document.getElementById('overviewPrimaryNote');
+  const riskNote = document.getElementById('overviewRiskNote');
+  const missing = [];
+  if (!profileCount) missing.push('connect a Facebook profile or Page');
+  if (!savedGroupCount) missing.push('import groups');
+  if (hasActivity && banLevel === 'High') missing.push('review recent failures');
+  if (readyState) {
+    readyState.className = 'overview-status-pill ' + (missing.length ? (banLevel === 'High' ? 'stop' : 'warn') : 'ready');
+    readyState.textContent = missing.length ? 'Needs attention' : 'Ready';
+  }
+  if (readyNote) readyNote.textContent = missing.length
+    ? `Before posting: ${missing.join(', ')}.`
+    : 'Profiles and groups are ready. Check the next posts below, then create when you are ready.';
+  if (riskNote) riskNote.textContent = hasActivity
+    ? `Recent reliability: ${successRate}% success across ${totalAttempts} attempts.`
+    : 'No recent posting attempts yet.';
+
   setText('sPostsWeek', postsThisWeek);
   setText('sGroupsHit', groupUrls.size);
   setText('sSuccessRate', hasActivity ? successRate + '%' : '—');
   setText('sBanRisk', hasActivity ? banLevel : '—');
   setStyle('sBanRisk', 'color', hasActivity ? banColor : 'var(--text-3)');
   setText('navCount', posts.length);
-  setText('dashProfilesCount', (cachedData.postingIdentities || []).length);
-  setText('dashGroupsCount', (cachedData.groups || []).length);
+  setText('dashProfilesCount', profileCount);
+  setText('dashGroupsCount', savedGroupCount);
   setText('dashScheduledCount', active);
 
   // 7-day chart from real job data
@@ -971,10 +991,10 @@ async function loadDashboard() {
     : upcoming.map(p => {
         const days = (Array.isArray(p.schedule?.days) ? p.schedule.days : []).map(d => DAYS[d]).filter(Boolean).join(', ') || 'Not set';
         const spin = hasSpintax(p.text) ? ' <span class="spin-badge">SPIN</span>' : '';
-        return `<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--border);">
-          <div style="flex:1;">
-            <div style="font-weight:600;font-size:13px;">${esc(p.text.substring(0, 50))}${p.text.length > 50 ? '...' : ''}${spin}</div>
-            <div style="font-size:11px;color:var(--text-3);margin-top:2px;">${esc(p.schedule?.time || 'Not set')} • ${days} • ${scheduledEventGroups(p).length} groups</div>
+        return `<div class="overview-upcoming-item">
+          <div style="min-width:0;flex:1;">
+            <div class="overview-upcoming-title">${esc(p.text.substring(0, 64))}${p.text.length > 64 ? '...' : ''}${spin}</div>
+            <div class="overview-upcoming-meta">${esc(p.schedule?.time || 'Not set')} • ${days} • ${scheduledEventGroups(p).length} groups</div>
           </div>
           <button class="btn btn-primary btn-xs" onclick="firePost('${p.id}')">Post</button>
         </div>`;
@@ -1013,10 +1033,10 @@ async function loadDashboard() {
   setHtml('dashTopGroups', topGroups.length === 0
     ? '<div style="text-align:center;color:var(--text-3);font-size:13px;padding:12px;">No post attempts yet</div>'
     : topGroups.map(g => `
-      <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);">
-        <span style="font-size:13px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:160px;">${esc(g.name)}</span>
-        <div style="display:flex;align-items:center;gap:8px;">
-          <span style="font-size:12px;color:var(--text-3);">${g.ok}/${g.ok + g.fail}</span>
+      <div class="overview-group-row">
+        <span class="overview-group-name">${esc(g.name)}</span>
+        <div class="overview-group-meter">
+          <span>${g.ok}/${g.ok + g.fail}</span>
           <div style="width:50px;height:6px;background:var(--surface-2);border-radius:3px;overflow:hidden;">
             <div style="width:${g.rate}%;height:100%;background:${g.rate > 80 ? 'var(--green)' : g.rate > 50 ? 'var(--yellow)' : 'var(--red)'};"></div>
           </div>
