@@ -1697,19 +1697,47 @@ async function editQueuedSubscription(id) {
   toast('Editing queued post — save to create a saved schedule');
 }
 
+async function cancelQueuedJobIds(ids, opts = {}) {
+  ids = (Array.isArray(ids) ? ids : String(ids || '').split(',')).map(s => String(s || '').trim()).filter(Boolean);
+  if (!ids.length) return false;
+  const confirmText = opts.confirmText || `Cancel ${ids.length} queued scheduled post${ids.length === 1 ? '' : 's'}?`;
+  if (opts.confirm !== false && !confirm(confirmText)) return false;
+  const { error } = await sb.from('jsw_post_jobs').update({ status: 'cancelled' }).eq('user_id', user.id).in('id', ids);
+  if (error) {
+    toast('Error: ' + error.message);
+    return false;
+  }
+  if (opts.toast !== false) toast(opts.successText || 'Cancelled');
+  if (opts.reload !== false) loadScheduled();
+  return true;
+}
+
 async function deleteQueuedSubscription(id) {
   if (!id) return;
-  await cancelScheduledJobs(id);
+  const row = queuedSubscriptionDetails?.[id];
+  const ids = row?.jobIds?.length ? row.jobIds : [id];
+  await cancelQueuedJobIds(ids, {
+    confirmText: `Delete ${ids.length} queued scheduled post${ids.length === 1 ? '' : 's'}?`,
+    successText: 'Deleted'
+  });
 }
 
 async function cancelScheduledJobs(idsCsv) {
-  const ids = String(idsCsv || '').split(',').map(s => s.trim()).filter(Boolean);
-  if (!ids.length) return;
-  if (!confirm(`Cancel ${ids.length} queued scheduled post${ids.length === 1 ? '' : 's'}?`)) return;
-  const { error } = await sb.from('jsw_post_jobs').update({ status: 'cancelled' }).eq('user_id', user.id).in('id', ids);
-  if (error) return toast('Error: ' + error.message);
-  toast('Cancelled');
-  loadScheduled();
+  await cancelQueuedJobIds(idsCsv, { successText: 'Cancelled' });
+}
+
+async function pendingJobIdsForSubscription(post) {
+  if (!post) return [];
+  const key = subscriptionRowKey(post);
+  const { data, error } = await sb.from('jsw_post_jobs')
+    .select('*')
+    .eq('user_id', user.id)
+    .eq('status', 'pending');
+  if (error) {
+    console.error('[Reachr] pending job lookup failed:', error.message);
+    return [];
+  }
+  return (data || []).filter(job => !isSystemJob(job) && subscriptionRowKey(job) === key).map(job => job.id).filter(Boolean);
 }
 
 // ═══ POSTS CRUD ═══
@@ -1742,11 +1770,18 @@ async function togglePost(id) {
 
 async function delPost(id) {
   if (!confirm('Delete this scheduled post?')) return;
+  const existing = (cachedData.posts || []).find(p => p.id === id);
+  const queuedIds = await pendingJobIdsForSubscription(existing);
   const posts = (cachedData.posts || []).filter(p => p.id !== id);
   cachedData.posts = posts;
-  await sbSet('posts', posts);
+  const err = await sbSet('posts', posts);
+  if (err) return toast('Error: ' + err.message);
+  if (queuedIds.length) {
+    const cancelled = await cancelQueuedJobIds(queuedIds, { confirm: false, toast: false, reload: false });
+    if (!cancelled) return;
+  }
   loadScheduled();
-  toast('Deleted');
+  toast(queuedIds.length ? 'Deleted schedule and queued posts' : 'Deleted');
 }
 
 function subscriptionEditGroupOptions(identity) {
