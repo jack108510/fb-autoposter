@@ -540,7 +540,7 @@ function sanitizePostingIdentities(identities) {
 }
 
 function identityKey(identity) {
-  return identity?.id || identity?.url || identity?.name || '';
+  return identity?.identity_key || identity?.identityKey || identity?.profile_key || identity?.profileKey || identity?.page_key || identity?.pageKey || identity?.id || identity?.url || identity?.name || '';
 }
 
 function identityInitials(name='') {
@@ -666,7 +666,7 @@ function setSelectedPostingIdentity(key) {
   if (key) localStorage.setItem('amplr_selected_posting_identity', key);
   renderPostingIdentitySelect();
   renderCreateProfileCards();
-  filterGroupsForSelectedIdentity();
+  renderGroupChips();
   updateCreateWizardSummary();
 }
 
@@ -698,11 +698,15 @@ function renderPostingIdentitySelect() {
 function selectedGroupTargets() {
   const identity = getSelectedPostingIdentity();
   const identityName = identity?.name || null;
+  const identityKeyValue = identity ? identityKey(identity) : null;
   return getSelectedGroups().map(g => ({
     url: g.url,
     name: g.name,
     group_name: g.name,
-    identity_name: identityName
+    identity_name: identityName,
+    identity_key: identityKeyValue,
+    profile_name: identityName,
+    profile_key: identityKeyValue
   }));
 }
 
@@ -711,9 +715,13 @@ function groupRefUrl(group) {
 }
 
 function selectCreateGroupsByUrl(groups = []) {
+  const visibleKeys = new Set(createVisibleGroups().map(groupChipKey));
   const wantedUrls = new Set(groups.map(groupRefUrl).filter(Boolean));
+  const wantedKeys = new Set(groups.map(groupRefKey).filter(Boolean));
   document.querySelectorAll('#createGroupSelect .group-chip').forEach(chip => {
-    chip.classList.toggle('selected', wantedUrls.has(chip.dataset.url));
+    const isVisible = visibleKeys.has(chip.dataset.groupKey);
+    const wanted = isVisible && (wantedKeys.has(chip.dataset.groupKey) || wantedUrls.has(chip.dataset.url));
+    chip.classList.toggle('selected', wanted);
   });
   updateSelectedCount();
   updateCreateWizardSummary();
@@ -1173,43 +1181,59 @@ function renderTagFilterBar(containerId, groups, currentFilter, onClickFn) {
   ].join('');
 }
 
+function groupChipKey(group = {}) {
+  const url = groupRefUrl(group);
+  const owner = groupOwnerKey(group) || profileBucketKeyForName(groupOwnerName(group));
+  return [owner || '__unowned__', url || group?.name || group?.group_name || ''].join('::');
+}
+
+function createVisibleGroups() {
+  const identity = getSelectedPostingIdentity();
+  const search = (document.getElementById('createGroupSearch')?.value || '').toLowerCase().trim();
+  return (cachedData.groups || [])
+    .filter(g => identity && groupMatchesIdentity(g, identity))
+    .filter(g => !createGroupTagFilter || (g.tags || []).includes(createGroupTagFilter))
+    .filter(g => !search || (g.name || '').toLowerCase().includes(search) || (g.url || '').toLowerCase().includes(search));
+}
+
 function renderGroupChipsFiltered(containerId, groups, currentFilter) {
   const container = document.getElementById(containerId);
   if (!container) return;
-  const filtered = currentFilter ? groups.filter(g => (g.tags || []).includes(currentFilter)) : groups;
-
-  // Hide/show existing chips based on filter
+  const visibleKeys = new Set(createVisibleGroups().map(groupChipKey));
   [...container.querySelectorAll('.group-chip')].forEach(chip => {
-    const g = groups.find(x => x.url === chip.dataset.url);
-    const show = !currentFilter || (g && (g.tags || []).includes(currentFilter));
+    const show = visibleKeys.has(chip.dataset.groupKey);
     chip.style.display = show ? '' : 'none';
+    if (!show) chip.classList.remove('selected');
   });
+  updateCreateGroupEmptyState();
+  updateSelectedCount();
 }
 
 function setCreateGroupTagFilter(tag) {
   createGroupTagFilter = tag;
-  const groups = cachedData.groups || [];
-  renderTagFilterBar('createGroupTagBar', groups, createGroupTagFilter, 'setCreateGroupTagFilter');
-  renderGroupChipsFiltered('createGroupSelect', groups, createGroupTagFilter);
+  renderGroupChips();
 }
 
+function updateCreateGroupEmptyState() {
+  const noGroups = document.getElementById('createNoGroups');
+  if (!noGroups) return;
+  const identity = getSelectedPostingIdentity();
+  const shown = createVisibleGroups();
+  noGroups.style.display = shown.length ? 'none' : 'block';
+  noGroups.innerHTML = identity
+    ? `No groups tied to ${esc(identity.name)} match this view. <a href="#" onclick="nav('groups');return false;" style="color:var(--blue);font-weight:700;text-decoration:none;">Review groups &rarr;</a>`
+    : 'Choose a Facebook profile/Page first.';
+}
 
 function renderGroupChips() {
-  const groups = cachedData.groups || [];
+  const identity = getSelectedPostingIdentity();
+  const scopedGroups = identity ? (cachedData.groups || []).filter(g => groupMatchesIdentity(g, identity)) : [];
+  const visibleGroups = createVisibleGroups();
   const container = document.getElementById('createGroupSelect');
-  const noGroups = document.getElementById('createNoGroups');
   if (!container) return;
 
-  if (groups.length === 0) {
-    container.innerHTML = '';
-    if (noGroups) noGroups.style.display = 'block';
-    renderTagFilterBar('createGroupTagBar', groups, createGroupTagFilter, 'setCreateGroupTagFilter');
-    return;
-  }
-  if (noGroups) noGroups.style.display = 'none';
-
-  container.innerHTML = groups.map((g, i) => {
-    return `<div class="group-chip" onclick="this.classList.toggle('selected'); updateSelectedCount(); updateCreateWizardSummary();" data-url="${esc(g.url)}" data-name="${esc(g.name)}"
+  container.innerHTML = visibleGroups.map((g) => {
+    return `<div class="group-chip" onclick="this.classList.toggle('selected'); updateSelectedCount(); updateCreateWizardSummary();" data-group-key="${esc(groupChipKey(g))}" data-url="${esc(g.url)}" data-name="${esc(g.name)}" data-identity-key="${esc(groupOwnerKey(g))}" data-identity-name="${esc(groupOwnerName(g))}"
       style="display:inline-flex;align-items:center;gap:8px;padding:7px 12px 7px 8px;border-radius:22px;font-size:12px;cursor:pointer;border:1px solid var(--border);background:var(--surface);transition:all .15s;">
       ${groupAvatarHtml(g, 'group-avatar-chip')}
       <span>${esc(g.name)}</span>
@@ -1224,17 +1248,24 @@ function renderGroupChips() {
     document.head.appendChild(style);
   }
 
-  // Render tag filter bar and apply current filter
-  renderTagFilterBar('createGroupTagBar', groups, createGroupTagFilter, 'setCreateGroupTagFilter');
-  if (createGroupTagFilter) renderGroupChipsFiltered('createGroupSelect', groups, createGroupTagFilter);
+  renderTagFilterBar('createGroupTagBar', scopedGroups, createGroupTagFilter, 'setCreateGroupTagFilter');
+  updateCreateGroupEmptyState();
+  const hint = document.getElementById('createGroupScopeHint');
+  if (hint) hint.textContent = identity ? `Showing only groups tied to ${identity.name}.` : '';
+  updateSelectedCount();
 }
 
 function getSelectedGroups() {
+  const visibleKeys = new Set(createVisibleGroups().map(groupChipKey));
   return [...document.querySelectorAll('#createGroupSelect .group-chip.selected')]
-    .filter(c => c.style.display !== 'none')
+    .filter(c => c.style.display !== 'none' && visibleKeys.has(c.dataset.groupKey))
     .map(c => ({
       url: c.dataset.url,
       name: c.dataset.name,
+      identity_key: c.dataset.identityKey || null,
+      identity_name: c.dataset.identityName || null,
+      profile_key: c.dataset.identityKey || null,
+      profile_name: c.dataset.identityName || null,
     }));
 }
 
@@ -1790,7 +1821,7 @@ function subscriptionEditGroupOptions(identity) {
 }
 
 function groupRefKey(group) {
-  return groupRefUrl(group) || group?.name || group?.group_name || '';
+  return groupChipKey(group) || groupRefUrl(group) || group?.name || group?.group_name || '';
 }
 
 function renderSubscriptionEditGroups(identity, selectedGroups = []) {
@@ -1812,8 +1843,9 @@ function renderSubscriptionEditGroups(identity, selectedGroups = []) {
     const key = groupRefKey(group);
     const name = groupDisplayName(group);
     const url = groupRefUrl(group);
+    const checked = selectedKeys.has(key) || selectedKeys.has(url);
     return `<label class="edit-group-option">
-      <input type="checkbox" value="${esc(key)}" ${selectedKeys.has(key) ? 'checked' : ''} onchange="toggleSubscriptionEditGroup(this.value, this.checked)">
+      <input type="checkbox" value="${esc(key)}" ${checked ? 'checked' : ''} onchange="toggleSubscriptionEditGroup(this.value, this.checked)">
       <div style="min-width:0;">
         <div class="edit-group-name">${esc(name)}</div>
         <div class="edit-group-url">${esc(url || 'Linked group')}</div>
@@ -1968,7 +2000,7 @@ async function saveSubscriptionEditSettings() {
   if (!identity) return toast('Choose a profile first');
 
   const available = subscriptionEditGroupOptions(identity);
-  const selected = available.filter(g => subscriptionEditSelectedGroups.has(groupRefKey(g)));
+  const selected = available.filter(g => subscriptionEditSelectedGroups.has(groupRefKey(g)) || subscriptionEditSelectedGroups.has(groupRefUrl(g)));
   if (!selected.length) return toast('Select at least one group');
   const text = document.getElementById('subscriptionEditText')?.value.trim() || '';
   if (!text) return toast('Write something first');
@@ -3364,16 +3396,7 @@ function selectedProfileGroupTags() {
 }
 
 function groupBelongsToIdentity(identity, group) {
-  if (!identity || !group) return false;
-  const name = (identity.name || '').toLowerCase().trim();
-  if (!name) return false;
-  const profileTags = [name, name.replace(/\s+/g, '-'), name.replace(/\s+/g, '_')];
-  const tags = (group.tags || []).map(t => String(t).toLowerCase());
-  const owner = String(group.identity_name || group.identityName || group.profile_name || group.profileName || group.page_name || group.pageName || '').toLowerCase().trim();
-  const groupProfileKey = String(group.identity_key || group.identityKey || group.profile_key || group.profileKey || '').trim();
-  if (groupProfileKey && groupProfileKey === identityKey(identity)) return true;
-  if (owner && profileTags.includes(owner)) return true;
-  return tags.some(t => profileTags.includes(t));
+  return groupMatchesIdentity(group, identity);
 }
 
 function groupBelongsToSelectedProfile(group) {
@@ -3381,23 +3404,7 @@ function groupBelongsToSelectedProfile(group) {
 }
 
 function filterGroupsForSelectedIdentity() {
-  const search = (document.getElementById('createGroupSearch')?.value || '').toLowerCase().trim();
-  const groups = cachedData.groups || [];
-  const shown = groups.filter(g => groupBelongsToSelectedProfile(g)).filter(g => !search || (g.name || '').toLowerCase().includes(search) || (g.url || '').toLowerCase().includes(search));
-  document.querySelectorAll('#createGroupSelect .group-chip').forEach(chip => {
-    const g = groups.find(x => x.url === chip.dataset.url);
-    chip.style.display = g && shown.some(x => x.url === g.url) ? '' : 'none';
-  });
-  const noGroups = document.getElementById('createNoGroups');
-  if (noGroups) {
-    const identity = getSelectedPostingIdentity();
-    noGroups.style.display = shown.length ? 'none' : 'block';
-    noGroups.innerHTML = identity
-      ? `No groups tied to ${esc(identity.name)} yet.`
-      : 'Choose a profile first.';
-  }
-  const hint = document.getElementById('createGroupScopeHint');
-  if (hint) hint.textContent = '';
+  renderGroupChips();
 }
 
 function selectAllGroups() {
@@ -3413,18 +3420,17 @@ function deselectAllGroups() {
 }
 
 function updateSelectedCount() {
-  const selected = document.querySelectorAll('#createGroupSelect .group-chip.selected').length;
-  const visibleSelected = [...document.querySelectorAll('#createGroupSelect .group-chip.selected')].filter(c => c.style.display !== 'none').length;
+  const visibleKeys = new Set(createVisibleGroups().map(groupChipKey));
+  const visibleSelected = [...document.querySelectorAll('#createGroupSelect .group-chip.selected')]
+    .filter(c => c.style.display !== 'none' && visibleKeys.has(c.dataset.groupKey)).length;
   const el = document.getElementById('selectedGroupCount');
-  if (el) el.textContent = selected === visibleSelected
-    ? `${selected} group${selected === 1 ? '' : 's'} selected`
-    : `${selected} group${selected === 1 ? '' : 's'} selected (${visibleSelected} visible)`;
+  if (el) el.textContent = `${visibleSelected} group${visibleSelected === 1 ? '' : 's'} selected`;
   updateCreateWizardSummary();
 }
 
 function updateCreateWizardSummary() {
   const identity = getSelectedPostingIdentity();
-  const groupCount = document.querySelectorAll('#createGroupSelect .group-chip.selected').length;
+  const groupCount = getSelectedGroups().length;
   const maxRuns = parsePositiveInt(document.getElementById('scheduleMaxRuns')?.value);
   const weeks = parsePositiveInt(document.getElementById('scheduleWeeks')?.value);
   const limitText = [maxRuns ? `${maxRuns}x` : '', weeks ? `${weeks}w` : ''].filter(Boolean).join(' / ');
