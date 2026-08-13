@@ -872,8 +872,19 @@
     #page-groups .card:first-of-type, #page-settings .card:first-of-type { background:var(--surface); }
     #page-scheduled .card, #page-logs .card, #page-groups .card { max-width:none; }
     #page-logs .card-header > div:last-child { gap:10px!important; }
-    #page-settings .card:nth-of-type(3) .row { display:grid!important; grid-template-columns:repeat(4,minmax(110px,1fr)); }
-    @media (max-width: 760px) { #page-settings .card:nth-of-type(3) .row { grid-template-columns:1fr 1fr; } }
+    .settings-topline { display:flex; align-items:flex-start; justify-content:space-between; gap:16px; flex-wrap:wrap; }
+    .settings-muted { font-size:13px; color:var(--text-3); line-height:1.55; }
+    .settings-status-card { background:var(--surface); }
+    .posting-defaults-grid { display:grid!important; grid-template-columns:repeat(4,minmax(120px,1fr)); gap:14px; }
+    .settings-advanced { border:1px solid var(--border); border-radius:22px; background:var(--surface); overflow:hidden; }
+    .settings-advanced > summary { list-style:none; cursor:pointer; padding:18px 22px; display:flex; align-items:center; justify-content:space-between; gap:16px; font-weight:900; color:var(--text); }
+    .settings-advanced > summary::-webkit-details-marker { display:none; }
+    .settings-advanced > summary:after { content:'Show'; font-size:12px; color:var(--text-3); font-weight:800; }
+    .settings-advanced[open] > summary:after { content:'Hide'; }
+    .settings-advanced-body { padding:0 22px 22px; display:flex; flex-direction:column; gap:16px; }
+    .settings-advanced .card { box-shadow:none!important; max-width:none!important; }
+    .danger-zone { border-color:rgba(239,68,68,.25)!important; background:rgba(239,68,68,.035)!important; }
+    @media (max-width: 760px) { .posting-defaults-grid { grid-template-columns:1fr 1fr; } }
 
     /* Management pages: calmer density. */
     #page-groups .card, #page-settings .card, #page-logs .card, #page-scheduled .card { max-width: 1060px; }
@@ -1219,24 +1230,21 @@ Example: Quick reminder for clinic owners — if your fee schedule is outdated, 
       <!-- ═══ SETTINGS ═══ -->
       <div class="page" id="page-settings">
         <div class="page-title">Settings</div>
-        <div class="page-subtitle">Chrome connection, Facebook profiles, posting limits, and AI rewriting.</div>
+        <div class="page-subtitle">Keep the Chrome helper connected, choose posting profiles, and set safe posting defaults.</div>
 
         <!-- Connection -->
-        <div class="card" style="margin-bottom:16px;">
-          <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:16px;">
+        <div class="card settings-status-card" style="margin-bottom:16px;">
+          <div class="settings-topline">
             <div>
-              <div style="font-size:15px;font-weight:700;margin-bottom:2px;">Chrome helper</div>
-              <div id="connStatus" style="font-size:13px;color:var(--text-2);">—</div>
+              <div class="card-title" style="margin-bottom:4px;">Chrome helper</div>
+              <div id="connStatus" class="settings-muted">—</div>
             </div>
           </div>
-          <!-- Always-visible scheduling tip -->
-          <div style="margin-top:14px;padding:12px 14px;background:var(--blue-light);border-radius:var(--radius-sm);font-size:12px;color:var(--blue);line-height:1.7;">
-            <strong>For scheduled posts:</strong><br>
-            Keep Chrome open with the Reachr helper signed in near posting time. The dashboard queues scheduled jobs; the Chrome helper publishes them to Facebook.
+          <div class="settings-muted" style="margin-top:12px;">
+            Scheduled posts are queued here and published by the Chrome helper on the Mac mini.
           </div>
-          <div id="installHint" style="display:none;margin-top:16px;padding-top:16px;border-top:1px solid var(--border);font-size:12px;color:var(--text-3);line-height:1.8;">
-            <strong style="color:var(--text-2);">Not connected?</strong><br>
-            Open Reachr in Chrome, sign in with the same email and password, then refresh this page.
+          <div id="installHint" style="display:none;margin-top:14px;padding-top:14px;border-top:1px solid var(--border);" class="settings-muted">
+            Open Reachr in Chrome on the Mac mini and sign in with this same account.
           </div>
         </div>
 
@@ -1245,102 +1253,106 @@ Example: Quick reminder for clinic owners — if your fee schedule is outdated, 
           <div class="card-header" style="margin-bottom:12px;">
             <div>
               <div class="card-title">Facebook profiles</div>
-              <div style="font-size:13px;color:var(--text-3);margin-top:4px;">These are the Facebook profiles or Pages Reachr can post from, like Vet Inc, Jack Sereda, and Empty Slot.</div>
+              <div class="settings-muted" style="margin-top:4px;">Profiles and Pages Reachr can post from.</div>
             </div>
             <button id="settingsIdentitySyncBtn" class="btn btn-primary btn-sm identity-sync-btn" onclick="syncPostingIdentities(false)">Update profiles</button>
           </div>
-          <div id="settingsIdentitySyncStatus" class="identity-sync-status" style="font-size:12px;color:var(--text-3);margin-bottom:10px;">Checking profiles...</div>
+          <div id="settingsIdentitySyncStatus" class="identity-sync-status settings-muted" style="margin-bottom:10px;">Checking profiles...</div>
           <div id="postingProfilesList"></div>
-        </div>
-
-        <!-- Chrome helper activity -->
-        <div class="card" style="margin-bottom:16px;">
-          <div class="card-header" style="margin-bottom:12px;">
-            <div class="card-title">Recent helper activity</div>
-            <button class="btn btn-secondary btn-sm" onclick="clearExtLogs()">Clear</button>
-          </div>
-          <div id="extLogList" style="max-height:300px;overflow-y:auto;font-size:12px;line-height:1.6;">
-            <div style="color:var(--text-3);padding:20px;text-align:center;">Waiting for recent activity...</div>
-          </div>
         </div>
 
         <!-- Posting -->
         <div class="card" style="margin-bottom:16px;">
-          <div class="card-title" style="margin-bottom:18px;">Posting</div>
-          <div class="row" style="margin-bottom:16px;">
+          <div class="card-title" style="margin-bottom:4px;">Posting defaults</div>
+          <div class="settings-muted" style="margin-bottom:18px;">These limits apply when you queue posts. Keep them conservative unless you intentionally want to move faster.</div>
+          <div class="posting-defaults-grid" style="margin-bottom:16px;">
             <div class="form-group" style="margin:0;">
-              <label>Shortest wait</label>
-              <input type="number" id="setDelay" value="90" min="90" max="300" style="width:80px;" />
+              <label>Minimum wait</label>
+              <input type="number" id="setDelay" value="90" min="90" max="300" />
             </div>
             <div class="form-group" style="margin:0;">
               <label>Groups per run</label>
-              <input type="number" id="setMaxGroups" value="10" min="1" max="50" style="width:80px;" />
+              <input type="number" id="setMaxGroups" value="10" min="1" max="50" />
             </div>
             <div class="form-group" style="margin:0;">
               <label>Randomness</label>
-              <input type="number" id="setJitter" value="5" min="0" max="30" style="width:80px;" />
+              <input type="number" id="setJitter" value="5" min="0" max="30" />
             </div>
             <div class="form-group" style="margin:0;">
-              <label>Rest days per group</label>
-              <input type="number" id="setCooldown" value="2" min="0" max="30" style="width:80px;" />
+              <label>Rest days</label>
+              <input type="number" id="setCooldown" value="2" min="0" max="30" />
             </div>
           </div>
-          <button class="btn btn-primary" onclick="saveSettings()">Save</button>
+          <button class="btn btn-primary" onclick="saveSettings()">Save settings</button>
         </div>
 
-        <!-- AI Paraphrasing -->
-        <div class="card" style="margin-bottom:16px;">
-          <div class="card-title" style="margin-bottom:4px;">AI Paraphrasing</div>
-          <p style="font-size:13px;color:var(--text-3);margin-bottom:18px;">Rewrites your post uniquely for each group so campaigns look less repetitive.</p>
+        <details class="settings-advanced">
+          <summary>Advanced</summary>
+          <div class="settings-advanced-body">
+            <!-- AI rewriting -->
+            <div class="card">
+              <div class="card-title" style="margin-bottom:4px;">AI rewriting</div>
+              <p class="settings-muted" style="margin-bottom:18px;">Optional. Used to vary wording between groups.</p>
 
-          <!-- Enable toggle -->
-          <div class="form-group" style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;">
-            <label style="margin:0;">Enable AI Paraphrasing</label>
-            <div class="toggle-switch" id="setAiEnabled" onclick="toggleSettingsAI()" style="cursor:pointer;"></div>
-          </div>
+              <div class="form-group" style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;">
+                <label style="margin:0;">Enable AI rewriting</label>
+                <div class="toggle-switch" id="setAiEnabled" onclick="toggleSettingsAI()" style="cursor:pointer;"></div>
+              </div>
 
-          <!-- AI service + writing model -->
-          <div class="row" style="margin-bottom:0;">
-            <div class="form-group">
-              <label>AI service</label>
-              <select id="setAiProvider">
-                <option value="openai">OpenAI</option>
-                <option value="anthropic">Anthropic</option>
-                <option value="openrouter">OpenRouter</option>
-              </select>
+              <div class="row" style="margin-bottom:0;">
+                <div class="form-group">
+                  <label>AI service</label>
+                  <select id="setAiProvider">
+                    <option value="openai">OpenAI</option>
+                    <option value="anthropic">Anthropic</option>
+                    <option value="openrouter">OpenRouter</option>
+                  </select>
+                </div>
+                <div class="form-group">
+                  <label>Writing model</label>
+                  <input type="text" id="setAiModel" placeholder="gpt-4o-mini">
+                </div>
+              </div>
+
+              <div class="form-group">
+                <label>AI access key</label>
+                <input type="password" id="setAiKey" placeholder="Leave blank to keep current key">
+              </div>
+
+              <div class="form-group">
+                <label>Custom prompt <span style="font-weight:400;color:var(--text-3);">(optional)</span></label>
+                <textarea id="setAiPrompt" rows="3" placeholder="Rewrite this as a unique Facebook group post. Keep the same message but vary the hook, tone, and structure. Sound natural and human."></textarea>
+              </div>
+
+              <button class="btn btn-primary" onclick="saveSettings()">Save AI settings</button>
             </div>
-            <div class="form-group">
-              <label>Writing model</label>
-              <input type="text" id="setAiModel" placeholder="gpt-4o-mini">
+
+            <!-- Chrome helper activity -->
+            <div class="card">
+              <div class="card-header" style="margin-bottom:12px;">
+                <div class="card-title">Helper activity</div>
+                <button class="btn btn-secondary btn-sm" onclick="clearExtLogs()">Clear</button>
+              </div>
+              <div id="extLogList" style="max-height:260px;overflow-y:auto;font-size:12px;line-height:1.6;">
+                <div style="color:var(--text-3);padding:20px;text-align:center;">Waiting for recent activity...</div>
+              </div>
+            </div>
+
+            <!-- Reset options -->
+            <div class="card danger-zone">
+              <div style="display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;">
+                <div>
+                  <div style="font-size:13px;font-weight:800;color:var(--text-1);">Reset options</div>
+                  <div class="settings-muted" style="margin-top:2px;">Dashboard cleanup only. Does not erase Facebook or extension history.</div>
+                </div>
+                <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                  <button class="btn btn-danger btn-sm" onclick="deleteAllPosts()">Clear old saved posts</button>
+                  <button class="btn btn-danger btn-sm" onclick="resetAll()">Reset dashboard</button>
+                </div>
+              </div>
             </div>
           </div>
-
-          <div class="form-group">
-            <label>AI access key</label>
-            <input type="password" id="setAiKey" placeholder="Leave blank to keep current key">
-          </div>
-
-          <div class="form-group">
-            <label>Custom prompt <span style="font-weight:400;color:var(--text-3);">(optional)</span></label>
-            <textarea id="setAiPrompt" rows="3" placeholder="Rewrite this as a unique Facebook group post. Keep the same message but vary the hook, tone, and structure. Sound natural and human."></textarea>
-          </div>
-
-          <button class="btn btn-primary" onclick="saveSettings()">Save</button>
-        </div>
-
-        <!-- Reset options -->
-        <div class="card">
-          <div style="display:flex;align-items:center;justify-content:space-between;gap:16px;">
-            <div>
-              <div style="font-size:13px;font-weight:700;color:var(--text-1);">Reset options</div>
-              <div style="font-size:12px;color:var(--text-3);margin-top:2px;">These actions only clear what you see in this dashboard. Recent helper activity is kept unless cleared separately.</div>
-            </div>
-            <div style="display:flex;gap:8px;flex-shrink:0;">
-              <button class="btn btn-danger btn-sm" onclick="deleteAllPosts()">Clear old saved posts</button>
-              <button class="btn btn-danger btn-sm" onclick="resetAll()">Reset Dashboard</button>
-            </div>
-          </div>
-        </div>
+        </details>
       </div>
 
     </div>
@@ -1514,6 +1526,6 @@ Example: Quick reminder for clinic owners — if your fee schedule is outdated, 
       }
     }, 1200);
   </script>
-  <script src="app.js?v=64"></script>
+  <script src="app.js?v=65"></script>
 </body>
 </html>
