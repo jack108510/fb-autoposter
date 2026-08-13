@@ -24,6 +24,7 @@ let selDays = [1, 2, 3, 4, 5];
 let editingPostId = null;
 let subscriptionEditId = null;
 let subscriptionEditSelectedGroups = new Set();
+let subscriptionEditSelectedDays = [];
 let groupCount = 0;
 let historyFilter = 'posts';
 let schedChecker = null;
@@ -1851,6 +1852,21 @@ function changeSubscriptionEditProfile(key) {
   renderSubscriptionEditGroups(identity);
 }
 
+function renderSubscriptionEditDays() {
+  const el = document.getElementById('subscriptionEditDays');
+  if (!el) return;
+  el.innerHTML = DAYS.map((name, i) =>
+    `<div class="day-chip ${subscriptionEditSelectedDays.includes(i) ? 'selected' : ''}" onclick="toggleSubscriptionEditDay(${i})">${esc(name)}</div>`
+  ).join('');
+}
+
+function toggleSubscriptionEditDay(day) {
+  subscriptionEditSelectedDays = subscriptionEditSelectedDays.includes(day)
+    ? subscriptionEditSelectedDays.filter(d => d !== day)
+    : [...subscriptionEditSelectedDays, day].sort((a, b) => a - b);
+  renderSubscriptionEditDays();
+}
+
 async function editPost(id) {
   const p = (cachedData.posts || []).find(x => x.id === id);
   if (!p) return;
@@ -1866,6 +1882,8 @@ async function editPost(id) {
   const identity = findIdentityForGroups(savedGroups) || findPostingIdentityByName(identityName) || identities[0] || null;
   const linkedGroups = identity ? savedGroups.filter(g => groupBelongsToIdentity(identity, g)) : savedGroups;
   subscriptionEditSelectedGroups = new Set(linkedGroups.map(groupRefKey).filter(Boolean));
+  const schedule = p.schedule || {};
+  subscriptionEditSelectedDays = (Array.isArray(schedule.days) && schedule.days.length ? schedule.days : [new Date().getDay()]).map(Number).filter(d => d >= 0 && d <= 6).sort((a, b) => a - b);
 
   const body = document.getElementById('subscriptionEditBody');
   if (!body) return;
@@ -1890,6 +1908,28 @@ async function editPost(id) {
     </div>
     <div class="edit-setting-row">
       <div>
+        <div class="edit-setting-label">Frequency</div>
+        <div class="edit-setting-help">Days, time, limits.</div>
+      </div>
+      <div class="edit-setting-field">
+        <div class="edit-frequency-grid">
+          <div class="edit-frequency-field">
+            <label>Time</label>
+            <input id="subscriptionEditTime" type="time" class="edit-setting-input" value="${esc(normalizeTimeValue(schedule.time || '09:00'))}">
+          </div>
+          <div class="edit-frequency-field">
+            <label>Max posts</label>
+            <input id="subscriptionEditMaxRuns" type="number" min="1" class="edit-setting-input" value="${esc(schedule.maxRuns || '')}" placeholder="No limit">
+          </div>
+        </div>
+        <div class="edit-frequency-field">
+          <label>Repeat on</label>
+          <div class="days edit-frequency-days" id="subscriptionEditDays"></div>
+        </div>
+      </div>
+    </div>
+    <div class="edit-setting-row">
+      <div>
         <div class="edit-setting-label">Text</div>
         <div class="edit-setting-help">Post copy.</div>
       </div>
@@ -1906,6 +1946,7 @@ async function editPost(id) {
       </div>
     </div>`;
   renderSubscriptionEditGroups(identity, linkedGroups);
+  renderSubscriptionEditDays();
   updateSubscriptionEditImagePreview();
   document.getElementById('subscriptionEditModal')?.classList.add('show');
 }
@@ -1914,6 +1955,7 @@ function closeSubscriptionEditModal() {
   document.getElementById('subscriptionEditModal')?.classList.remove('show');
   subscriptionEditId = null;
   subscriptionEditSelectedGroups = new Set();
+  subscriptionEditSelectedDays = [];
 }
 
 async function saveSubscriptionEditSettings() {
@@ -1931,6 +1973,11 @@ async function saveSubscriptionEditSettings() {
   const text = document.getElementById('subscriptionEditText')?.value.trim() || '';
   if (!text) return toast('Write something first');
   const imageUrl = document.getElementById('subscriptionEditImage')?.value.trim() || '';
+  const time = normalizeTimeValue(document.getElementById('subscriptionEditTime')?.value || existing.schedule?.time || '09:00');
+  if (!time) return toast('Choose a time');
+  const days = [...new Set(subscriptionEditSelectedDays.map(Number).filter(d => d >= 0 && d <= 6))].sort((a, b) => a - b);
+  if (!days.length) return toast('Pick at least one day');
+  const maxRuns = parsePositiveInt(document.getElementById('subscriptionEditMaxRuns')?.value);
 
   const groups = selected.map(g => ({
     ...g,
@@ -1946,6 +1993,13 @@ async function saveSubscriptionEditSettings() {
     imageUrl,
     groups,
     identityName: identity.name,
+    schedule: {
+      ...(existing.schedule || {}),
+      time,
+      days,
+      maxRuns,
+      firedCount: existing.schedule?.firedCount || 0,
+    },
     updatedAt: new Date().toISOString(),
   };
   cachedData.posts = (cachedData.posts || []).map(p => p.id === id ? post : p);
