@@ -1509,9 +1509,10 @@ function renderSubscriptionsTable(posts = [], jobs = []) {
       const statusClass = (isQueued || post.enabled) ? 'badge-green' : 'badge-gray';
       const eyeIcon = '<svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M1.5 8s2.3-4 6.5-4 6.5 4 6.5 4-2.3 4-6.5 4-6.5-4-6.5-4Z"/><circle cx="8" cy="8" r="2"/></svg>';
       const pencilIcon = '<svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M11.8 2.2 13.8 4.2 5.8 12.2 2.5 13.5 3.8 10.2 11.8 2.2Z"/><path d="M10.5 3.5 12.5 5.5"/></svg>';
+      const trashIcon = '<svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M2 4h12"/><path d="M6 4V2.8h4V4"/><path d="M5 6v6"/><path d="M8 6v6"/><path d="M11 6v6"/><path d="M3.5 4l.7 10h7.6l.7-10"/></svg>';
       const actions = isQueued
-        ? `<button class="btn btn-secondary btn-sm icon-action-btn" onclick="openQueuedJobDetail('${esc(post.id)}')" title="View" aria-label="View queued post">${eyeIcon}</button><button class="btn btn-secondary btn-sm icon-action-btn" onclick="editQueuedSubscription('${esc(post.id)}')" title="Edit" aria-label="Edit queued post">${pencilIcon}</button>`
-        : `<button class="btn btn-secondary btn-sm icon-action-btn" onclick="openUpcomingPostDetailFromItem(cachedData.posts.find(p => p.id === '${esc(post.id)}'))" title="View" aria-label="View subscription">${eyeIcon}</button><button class="btn btn-secondary btn-sm icon-action-btn" onclick="editPost('${esc(post.id)}')" title="Edit" aria-label="Edit subscription">${pencilIcon}</button>`;
+        ? `<button class="btn btn-secondary btn-sm icon-action-btn" onclick="openQueuedJobDetail('${esc(post.id)}')" title="View" aria-label="View queued post">${eyeIcon}</button><button class="btn btn-secondary btn-sm icon-action-btn" onclick="editQueuedSubscription('${esc(post.id)}')" title="Edit" aria-label="Edit queued post">${pencilIcon}</button><button class="btn btn-secondary btn-sm icon-action-btn danger" onclick="deleteQueuedSubscription('${esc(post.id)}')" title="Delete" aria-label="Delete queued post">${trashIcon}</button>`
+        : `<button class="btn btn-secondary btn-sm icon-action-btn" onclick="openUpcomingPostDetailFromItem(cachedData.posts.find(p => p.id === '${esc(post.id)}'))" title="View" aria-label="View subscription">${eyeIcon}</button><button class="btn btn-secondary btn-sm icon-action-btn" onclick="editPost('${esc(post.id)}')" title="Edit" aria-label="Edit subscription">${pencilIcon}</button><button class="btn btn-secondary btn-sm icon-action-btn danger" onclick="delPost('${esc(post.id)}')" title="Delete" aria-label="Delete subscription">${trashIcon}</button>`;
       return `<div class="subscription-item">
         <div class="subscription-item-top">
           <div class="subscription-profile">
@@ -1696,6 +1697,11 @@ async function editQueuedSubscription(id) {
   toast('Editing queued post — save to create a saved schedule');
 }
 
+async function deleteQueuedSubscription(id) {
+  if (!id) return;
+  await cancelScheduledJobs(id);
+}
+
 async function cancelScheduledJobs(idsCsv) {
   const ids = String(idsCsv || '').split(',').map(s => s.trim()).filter(Boolean);
   if (!ids.length) return;
@@ -1735,7 +1741,7 @@ async function togglePost(id) {
 }
 
 async function delPost(id) {
-  if (!confirm('Delete this post?')) return;
+  if (!confirm('Delete this scheduled post?')) return;
   const posts = (cachedData.posts || []).filter(p => p.id !== id);
   cachedData.posts = posts;
   await sbSet('posts', posts);
@@ -1832,7 +1838,7 @@ async function editPost(id) {
     <div class="edit-setting-row">
       <div>
         <div class="edit-setting-label">Profile</div>
-        <div class="edit-setting-help">Changing this resets groups to only groups linked to the new profile.</div>
+        <div class="edit-setting-help">Changing profile resets groups.</div>
       </div>
       <div class="edit-setting-field">
         <select id="subscriptionEditProfile" class="edit-setting-select" onchange="changeSubscriptionEditProfile(this.value)">
@@ -1843,21 +1849,21 @@ async function editPost(id) {
     <div class="edit-setting-row">
       <div>
         <div class="edit-setting-label">Groups <span id="subscriptionEditGroupCount" style="color:var(--text-3);font-weight:700;">0 selected</span></div>
-        <div class="edit-setting-help">Only groups connected to the selected profile are shown.</div>
+        <div class="edit-setting-help">Linked to selected profile.</div>
       </div>
       <div class="edit-setting-field"><div class="edit-group-list" id="subscriptionEditGroups"></div></div>
     </div>
     <div class="edit-setting-row">
       <div>
         <div class="edit-setting-label">Text</div>
-        <div class="edit-setting-help">Click in the box to edit the post copy.</div>
+        <div class="edit-setting-help">Post copy.</div>
       </div>
       <div class="edit-setting-field"><textarea id="subscriptionEditText" class="edit-setting-textarea">${esc(scheduledEventText(p))}</textarea></div>
     </div>
     <div class="edit-setting-row">
       <div>
         <div class="edit-setting-label">Image</div>
-        <div class="edit-setting-help">Paste an image URL. Click the preview to open it.</div>
+        <div class="edit-setting-help">Optional URL.</div>
       </div>
       <div class="edit-setting-field">
         <input id="subscriptionEditImage" class="edit-setting-input" value="${esc(scheduledEventImage(p))}" placeholder="No image" oninput="updateSubscriptionEditImagePreview()">
