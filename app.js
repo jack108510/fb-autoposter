@@ -1565,49 +1565,68 @@ async function loadScheduled() {
     .lt('scheduled_for', weekEnd.toISOString())
     .order('scheduled_for', { ascending: true });
 
-  const events = scheduledWeekEvents(cachedData.posts || [], scheduledJobs || [], weekDays);
+  const events = scheduledWeekEvents(cachedData.posts || [], scheduledJobs || [], weekDays)
+    .sort((a, b) => a.dateKey.localeCompare(b.dateKey) || a.time.localeCompare(b.time));
   upcomingPostDetails = Object.fromEntries(events.map(e => [e.id, e]));
   queuedSubscriptionDetails = Object.fromEntries(queuedJobSubscriptionRows(scheduledJobs || []).map(row => [row.id, row]));
 
+  const weekRange = `${weekDays[0].toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – ${weekDays[6].toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`;
+  setText('navCount', events.length);
+
   if (!events.length) {
-    el.innerHTML = `<div class="upcoming-week-card">
-      <div class="upcoming-week-top">
-        <div><div class="upcoming-week-title">This week</div><div class="upcoming-week-range">${weekDays[0].toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – ${weekDays[6].toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</div></div>
-        <button class="btn btn-primary btn-sm" onclick="nav('create')">Schedule a post</button>
+    el.innerHTML = `<div class="upcoming-shell">
+      <div class="upcoming-toolbar">
+        <div class="upcoming-summary">${weekRange}</div>
       </div>
-      <div class="upcoming-empty"><h3>No posts this week</h3><p>Schedule a post and it will show up here by profile picture.</p></div>
-    </div>${renderSubscriptionsTable(cachedData.posts || [], scheduledJobs || [])}`;
+      <div class="upcoming-empty-simple"><h3>No upcoming posts</h3><p>Scheduled posts for the next 7 days will show here.</p></div>
+    </div>`;
     return;
   }
 
-  const times = [...new Set(events.map(e => e.time))].sort();
-  const eventMap = new Map();
-  events.forEach(e => {
-    const key = `${e.dateKey}|${e.time}`;
-    if (!eventMap.has(key)) eventMap.set(key, []);
-    eventMap.get(key).push(e);
+  const grouped = new Map();
+  events.forEach(event => {
+    if (!grouped.has(event.dateKey)) grouped.set(event.dateKey, []);
+    grouped.get(event.dateKey).push(event);
   });
 
-  const header = `<div class="week-grid">
-    <div class="week-head-cell"></div>
-    ${weekDays.map((day, i) => `<div class="week-head-cell ${i === 0 ? 'today' : ''}"><div class="week-day-name">${day.toLocaleDateString('en-US', { weekday: 'short' })}</div><div class="week-day-date">${day.getDate()}</div></div>`).join('')}
-  </div>`;
+  const dayCards = [...grouped.entries()].map(([dateKey, items]) => {
+    const date = new Date(`${dateKey}T00:00:00`);
+    const dayTitle = date.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' });
+    const rows = items.map(item => {
+      const groupNames = scheduledEventGroups(item).map(groupDisplayName).filter(Boolean);
+      const groupLabel = groupNames.length
+        ? `${groupNames.length} group${groupNames.length === 1 ? '' : 's'} · ${groupNames.slice(0, 2).join(', ')}${groupNames.length > 2 ? ` +${groupNames.length - 2}` : ''}`
+        : 'No groups selected';
+      const identityName = item.identityName || scheduledEventIdentityName(item) || 'Facebook profile';
+      const preview = (scheduledEventText(item).replace(/\s+/g, ' ').trim() || 'No post text saved');
+      const statusLabel = item.id.startsWith('job-') ? 'Queued' : 'Recurring';
+      return `<div class="upcoming-row" role="button" tabindex="0" onclick="openUpcomingPostDetail('${esc(item.id)}')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openUpcomingPostDetail('${esc(item.id)}')}">
+        <div class="upcoming-time">${displayTime(item.time)}</div>
+        <div class="upcoming-main">
+          ${identityAvatarHtml(item.identity, '')}
+          <div class="upcoming-copy">
+            <div class="upcoming-copy-title" title="${esc(preview)}">${esc(preview)}</div>
+            <div class="upcoming-copy-meta" title="${esc(identityName + ' · ' + groupLabel)}">${esc(identityName)} · ${esc(groupLabel)}</div>
+          </div>
+        </div>
+        <div class="upcoming-status"><span class="badge ${item.id.startsWith('job-') ? 'badge-blue' : 'badge-green'}">${statusLabel}</span></div>
+      </div>`;
+    }).join('');
+    return `<div class="upcoming-day-card">
+      <div class="upcoming-day-head">
+        <div class="upcoming-day-title">${esc(dayTitle)}</div>
+        <div class="upcoming-day-count">${items.length} post${items.length === 1 ? '' : 's'}</div>
+      </div>
+      <div class="upcoming-list">${rows}</div>
+    </div>`;
+  }).join('');
 
-  const rows = times.map(time => `<div class="week-grid">
-    <div class="week-time-label">${displayTime(time)}</div>
-    ${weekDays.map(day => {
-      const items = eventMap.get(`${localDateKey(day)}|${time}`) || [];
-      return `<div class="week-cell ${items.length ? 'has-post' : ''}">${items.length ? `<div class="week-avatar-stack">${items.map(upcomingAvatarHtml).join('')}</div>` : ''}</div>`;
-    }).join('')}
-  </div>`).join('');
-
-  el.innerHTML = `<div class="upcoming-week-card">
-    <div class="upcoming-week-top">
-      <div><div class="upcoming-week-title">This week</div><div class="upcoming-week-range">${weekDays[0].toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – ${weekDays[6].toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</div></div>
-      <button class="btn btn-primary btn-sm" onclick="nav('create')">Schedule a post</button>
+  el.innerHTML = `<div class="upcoming-shell">
+    <div class="upcoming-toolbar">
+      <div class="upcoming-summary">${events.length} upcoming post${events.length === 1 ? '' : 's'} · ${weekRange}</div>
     </div>
-    <div class="week-scroll"><div class="week-calendar">${header}${rows}</div></div>
-  </div>${renderSubscriptionsTable(cachedData.posts || [], scheduledJobs || [])}`;
+    ${dayCards}
+  </div>`;
 }
 
 function openUpcomingPostDetail(id) {
