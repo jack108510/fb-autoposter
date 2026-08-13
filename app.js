@@ -865,127 +865,33 @@ function pollIdentitySyncJob(jobId) {
 // ═══ DASHBOARD ═══
 async function loadDashboard() {
   cachedData = await fetchAll();
-  const { posts, logs } = cachedData;
+  const posts = cachedData.posts || [];
   const active = posts.filter(p => p.enabled).length;
-
-  // Pull real data from jsw_post_jobs (extension results)
-  const { data: jobs } = await sb.from('jsw_post_jobs')
-    .select('status, groups, created_at, completed_at')
-    .eq('user_id', user.id)
-    .order('created_at', { ascending: false })
-    .limit(200);
-
-  let ok = 0, fail = 0, postsThisWeek = 0;
-  const groupUrls = new Set();
-  const dayMap = {};
-
-  if (jobs && jobs.length) {
-    const weekAgo = new Date(); weekAgo.setDate(weekAgo.getDate() - 7);
-    jobs.forEach(j => {
-      const g = Array.isArray(j.groups) ? j.groups : [];
-      const count = g.length || 1;
-      if (j.status === 'done') ok += count;
-      else if (j.status === 'failed') fail += count;
-      g.forEach(gu => { const u = typeof gu === 'string' ? gu : gu.url; if (u) groupUrls.add(u); });
-
-      const ts = j.completed_at || j.created_at;
-      if (ts) {
-        if (new Date(ts) >= weekAgo) postsThisWeek++;
-        const dStr = new Date(ts).toDateString();
-        if (!dayMap[dStr]) dayMap[dStr] = { ok: 0, fail: 0 };
-        if (j.status === 'done') dayMap[dStr].ok += count;
-        else if (j.status === 'failed') dayMap[dStr].fail += count;
-      }
-    });
-  }
-
-  // Also count old local logs
-  (logs || []).forEach(l => {
-    (l.results || []).forEach(r => {
-      if (r.success) ok++;
-      else fail++;
-      const ts = l.timestamp;
-      if (ts) {
-        const dStr = new Date(ts).toDateString();
-        if (!dayMap[dStr]) dayMap[dStr] = { ok: 0, fail: 0 };
-        if (r.success) dayMap[dStr].ok++;
-        else dayMap[dStr].fail++;
-      }
-    });
-  });
-
-  // Groups from saved groups too
-  (cachedData.groups || []).forEach(g => groupUrls.add(g.url));
-
-  // Compute stats
-  const totalAttempts = ok + fail;
-  const hasActivity = totalAttempts > 0;
-  const successRate = hasActivity ? Math.round((ok / totalAttempts) * 100) : 0;
-
-  // Ban risk calculation
-  // Factors: posts/day in last 7 days, avg groups per post, failure rate
-  const postsPerDay = postsThisWeek / 7;
-  const avgGroupsPerPost = postsThisWeek > 0 ? Math.round(ok / postsThisWeek) : 0;
-  let banScore = 0;
-  if (postsPerDay >= 10) banScore += 40; else if (postsPerDay >= 5) banScore += 25; else if (postsPerDay >= 3) banScore += 10;
-  if (avgGroupsPerPost >= 20) banScore += 35; else if (avgGroupsPerPost >= 10) banScore += 20; else if (avgGroupsPerPost >= 5) banScore += 10;
-  if (successRate < 50) banScore += 25; else if (successRate < 80) banScore += 10;
-  const banLevel = banScore >= 60 ? 'High' : banScore >= 30 ? 'Medium' : 'Low';
-  const banColor = banScore >= 60 ? 'var(--red)' : banScore >= 30 ? 'var(--yellow)' : 'var(--green)';
-
   const profileCount = (cachedData.postingIdentities || []).length;
   const savedGroupCount = (cachedData.groups || []).length;
+
   const readyState = document.getElementById('overviewReadyState');
   const readyNote = document.getElementById('overviewPrimaryNote');
-  const riskNote = document.getElementById('overviewRiskNote');
   const missing = [];
-  if (!profileCount) missing.push('connect a Facebook profile or Page');
+  if (!profileCount) missing.push('connect a profile');
   if (!savedGroupCount) missing.push('import groups');
-  if (hasActivity && banLevel === 'High') missing.push('review recent failures');
-  if (readyState) {
-    readyState.className = 'overview-status-pill ' + (missing.length ? (banLevel === 'High' ? 'stop' : 'warn') : 'ready');
-    readyState.textContent = missing.length ? 'Needs attention' : 'Ready';
-  }
-  if (readyNote) readyNote.textContent = missing.length
-    ? `Before posting: ${missing.join(', ')}.`
-    : 'Profiles and groups are ready. Check the next posts below, then create when you are ready.';
-  if (riskNote) riskNote.textContent = hasActivity
-    ? `Recent reliability: ${successRate}% success across ${totalAttempts} attempts.`
-    : 'No recent posting attempts yet.';
 
-  setText('sPostsWeek', postsThisWeek);
-  setText('sGroupsHit', groupUrls.size);
-  setText('sSuccessRate', hasActivity ? successRate + '%' : '—');
-  setText('sBanRisk', hasActivity ? banLevel : '—');
-  setStyle('sBanRisk', 'color', hasActivity ? banColor : 'var(--text-3)');
+  if (readyState) {
+    readyState.className = 'overview-status-pill ' + (missing.length ? 'warn' : 'ready');
+    readyState.textContent = missing.length ? 'Needs setup' : 'Ready';
+  }
+  if (readyNote) {
+    readyNote.textContent = missing.length
+      ? `Before posting: ${missing.join(' and ')}.`
+      : 'Profiles and groups are ready.';
+  }
+
   setText('navCount', posts.length);
   setText('dashProfilesCount', profileCount);
   setText('dashGroupsCount', savedGroupCount);
   setText('dashScheduledCount', active);
 
-  // 7-day chart from real job data
-  const days7 = [];
-  for (let i = 6; i >= 0; i--) {
-    const d = new Date(); d.setDate(d.getDate() - i);
-    const dStr = d.toDateString();
-    const entry = dayMap[dStr] || { ok: 0, fail: 0 };
-    days7.push({ label: DAYS[d.getDay()], ok: entry.ok, fail: entry.fail, total: entry.ok + entry.fail });
-  }
-  const maxVal = Math.max(...days7.map(d => d.total), 1);
-  setHtml('chart7day', days7.map(d => {
-    const okH = (d.ok / maxVal) * 100;
-    const failH = (d.fail / maxVal) * 100;
-    return `<div class="chart-col">
-      <div style="width:100%;display:flex;flex-direction:column;justify-content:flex-end;height:100px;">
-        <div class="chart-bar-fill red" style="height:${failH}%;min-height:${d.fail > 0 ? '4px' : '0'};" title="${d.fail} failed"></div>
-        <div class="chart-bar-fill green" style="height:${okH}%;min-height:${d.ok > 0 ? '4px' : '0'};" title="${d.ok} success"></div>
-      </div>
-      <div class="chart-label">${d.label}</div>
-    </div>`;
-  }).join(''));
-
-  // Upcoming
-  const upcoming = posts.filter(p => p.enabled).slice(0, 5);
+  const upcoming = posts.filter(p => p.enabled).slice(0, 3);
   setHtml('dashUpcoming', upcoming.length === 0
     ? '<div class="empty"><p>No scheduled posts</p></div>'
     : upcoming.map(p => {
@@ -993,55 +899,11 @@ async function loadDashboard() {
         const spin = hasSpintax(p.text) ? ' <span class="spin-badge">SPIN</span>' : '';
         return `<div class="overview-upcoming-item">
           <div style="min-width:0;flex:1;">
-            <div class="overview-upcoming-title">${esc(p.text.substring(0, 64))}${p.text.length > 64 ? '...' : ''}${spin}</div>
+            <div class="overview-upcoming-title">${esc(p.text.substring(0, 72))}${p.text.length > 72 ? '...' : ''}${spin}</div>
             <div class="overview-upcoming-meta">${esc(p.schedule?.time || 'Not set')} • ${days} • ${scheduledEventGroups(p).length} groups</div>
           </div>
-          <button class="btn btn-primary btn-xs" onclick="firePost('${p.id}')">Post</button>
         </div>`;
       }).join(''));
-
-  // Top groups from real extension jobs plus legacy logs
-  const groupStats = {};
-  (jobs || []).filter(j => !isSystemJob(j)).forEach(j => {
-    const refs = Array.isArray(j.groups) ? j.groups : [];
-    const { ok: jobOk, fail: jobFail } = jobResultCounts(j);
-    refs.forEach(ref => {
-      const key = normalizeGroupRef(ref);
-      if (!key) return;
-      if (!groupStats[key]) groupStats[key] = { ok: 0, fail: 0, name: resolveGroupRefName(key) };
-      if (j.status === 'done') groupStats[key].ok += 1;
-      else if (j.status === 'failed') groupStats[key].fail += 1;
-    });
-    if (!refs.length && (jobOk || jobFail)) {
-      const key = 'Unknown group';
-      if (!groupStats[key]) groupStats[key] = { ok: 0, fail: 0, name: key };
-      groupStats[key].ok += jobOk;
-      groupStats[key].fail += jobFail;
-    }
-  });
-  (logs || []).forEach(l => {
-    (l.results || []).forEach(r => {
-      const key = normalizeGroupRef(r.group);
-      if (!key) return;
-      if (!groupStats[key]) groupStats[key] = { ok: 0, fail: 0, name: resolveGroupRefName(key) };
-      if (r.success) groupStats[key].ok++; else groupStats[key].fail++;
-    });
-  });
-  const topGroups = Object.values(groupStats)
-    .map(s => ({ rate: s.ok + s.fail > 0 ? Math.round(s.ok / (s.ok + s.fail) * 100) : 0, ...s }))
-    .sort((a, b) => (b.ok + b.fail) - (a.ok + a.fail) || b.ok - a.ok).slice(0, 5);
-  setHtml('dashTopGroups', topGroups.length === 0
-    ? '<div style="text-align:center;color:var(--text-3);font-size:13px;padding:12px;">No post attempts yet</div>'
-    : topGroups.map(g => `
-      <div class="overview-group-row">
-        <span class="overview-group-name">${esc(g.name)}</span>
-        <div class="overview-group-meter">
-          <span>${g.ok}/${g.ok + g.fail}</span>
-          <div style="width:50px;height:6px;background:var(--surface-2);border-radius:3px;overflow:hidden;">
-            <div style="width:${g.rate}%;height:100%;background:${g.rate > 80 ? 'var(--green)' : g.rate > 50 ? 'var(--yellow)' : 'var(--red)'};"></div>
-          </div>
-        </div>
-      </div>`).join(''));
 
   await Promise.all([
     refreshGroupSyncStatus(),
