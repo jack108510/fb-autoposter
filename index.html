@@ -112,7 +112,7 @@
       background: linear-gradient(180deg, rgba(255,255,255,.08), rgba(255,255,255,.03));
       box-shadow: 0 30px 90px rgba(0,0,0,.45), 0 0 80px rgba(79,70,229,.18);
     }
-    .product-shot img { width: 100%; display: block; border-radius: 16px; border: 1px solid rgba(0,0,0,.25); }
+    .product-shot img, .product-shot video { width: 100%; display: block; border-radius: 16px; border: 1px solid rgba(0,0,0,.25); background:#f6f7fb; }
     .product-caption { margin-top: 14px; font-size: 12px; color: var(--text-3); text-align: center; }
 
     /* ─── Sections ─── */
@@ -238,12 +238,12 @@
         <a href="#how" class="btn-lg btn-outline">See how it works</a>
       </div>
 
-      <!-- Real product screenshot -->
+      <!-- Real product demo -->
       <div class="hero-visual">
         <div class="product-shot">
-          <img src="assets/reachr-dashboard-screenshot.png?v=2" alt="Reachr dashboard screen for choosing which Facebook groups a post should be sent to" loading="eager">
+          <video src="assets/reachr-demo.mp4?v=1" poster="assets/reachr-dashboard-screenshot.png?v=2" autoplay muted loop playsinline controls preload="metadata" aria-label="Reachr demo showing profile selection, post writing, group selection, delivery choice, and queued result"></video>
         </div>
-        <div class="product-caption">Actual group-selection screen with sanitized demo data.</div>
+        <div class="product-caption">14-second demo using the actual dashboard with sanitized demo data.</div>
       </div>
     </div>
   </div>
@@ -419,6 +419,13 @@
       document.querySelectorAll('.faq-item').forEach(f => f.classList.remove('open'));
       if (!wasOpen) item.classList.add('open');
     }
+
+    window.addEventListener('DOMContentLoaded', () => {
+      const demo = document.querySelector('.product-shot video');
+      if (!demo) return;
+      demo.muted = true;
+      demo.play().catch(() => {});
+    });
   </script>
 </body>
 </html>
