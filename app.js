@@ -22,6 +22,8 @@ let connected = false;
 let cachedData = { posts: [], logs: [], groups: [], settings: {}, postingIdentities: [] };
 let selDays = [1, 2, 3, 4, 5];
 let editingPostId = null;
+let subscriptionEditId = null;
+let subscriptionEditSelectedGroups = new Set();
 let groupCount = 0;
 let historyFilter = 'posts';
 let schedChecker = null;
@@ -1741,55 +1743,176 @@ async function delPost(id) {
   toast('Deleted');
 }
 
+function subscriptionEditGroupOptions(identity) {
+  return (cachedData.groups || []).filter(g => groupBelongsToIdentity(identity, g));
+}
+
+function groupRefKey(group) {
+  return groupRefUrl(group) || group?.name || group?.group_name || '';
+}
+
+function renderSubscriptionEditGroups(identity, selectedGroups = []) {
+  const el = document.getElementById('subscriptionEditGroups');
+  const countEl = document.getElementById('subscriptionEditGroupCount');
+  if (!el) return;
+  const available = subscriptionEditGroupOptions(identity);
+  const selectedKeys = new Set([...subscriptionEditSelectedGroups]);
+  if (countEl) countEl.textContent = `${selectedKeys.size} selected`;
+  if (!identity) {
+    el.innerHTML = '<div class="empty" style="padding:18px;text-align:center;"><p style="color:var(--text-3);font-size:13px;">Choose a profile first.</p></div>';
+    return;
+  }
+  if (!available.length) {
+    el.innerHTML = `<div class="empty" style="padding:18px;text-align:center;"><p style="color:var(--text-3);font-size:13px;">No groups linked to ${esc(identity.name)}.</p></div>`;
+    return;
+  }
+  el.innerHTML = available.map(group => {
+    const key = groupRefKey(group);
+    const name = groupDisplayName(group);
+    const url = groupRefUrl(group);
+    return `<label class="edit-group-option">
+      <input type="checkbox" value="${esc(key)}" ${selectedKeys.has(key) ? 'checked' : ''} onchange="toggleSubscriptionEditGroup(this.value, this.checked)">
+      <div style="min-width:0;">
+        <div class="edit-group-name">${esc(name)}</div>
+        <div class="edit-group-url">${esc(url || 'Linked group')}</div>
+      </div>
+    </label>`;
+  }).join('');
+}
+
+function toggleSubscriptionEditGroup(key, checked) {
+  if (checked) subscriptionEditSelectedGroups.add(key);
+  else subscriptionEditSelectedGroups.delete(key);
+  const countEl = document.getElementById('subscriptionEditGroupCount');
+  if (countEl) countEl.textContent = `${subscriptionEditSelectedGroups.size} selected`;
+}
+
+function updateSubscriptionEditImagePreview() {
+  const url = document.getElementById('subscriptionEditImage')?.value.trim() || '';
+  const wrap = document.getElementById('subscriptionEditImagePreview');
+  const img = document.getElementById('subscriptionEditImagePreviewImg');
+  if (!wrap || !img) return;
+  if (!url) {
+    wrap.style.display = 'none';
+    img.removeAttribute('src');
+    return;
+  }
+  img.src = url;
+  wrap.style.display = 'block';
+}
+
+function changeSubscriptionEditProfile(key) {
+  const select = document.getElementById('subscriptionEditProfile');
+  if (select && select.value !== key) select.value = key;
+  const identities = sanitizePostingIdentities(cachedData.postingIdentities || []);
+  const identity = identities.find(i => identityKey(i) === key) || null;
+  subscriptionEditSelectedGroups = new Set();
+  renderSubscriptionEditGroups(identity);
+}
+
 async function editPost(id) {
   const p = (cachedData.posts || []).find(x => x.id === id);
   if (!p) return;
+  subscriptionEditId = id;
 
-  await nav('create');
-  if (!(cachedData.posts || []).some(x => x.id === id)) {
-    cachedData.posts = [...(cachedData.posts || []), p];
-  }
-
+  const identities = sanitizePostingIdentities(cachedData.postingIdentities || []);
+  cachedData.postingIdentities = identities;
   const savedGroups = scheduledEventGroups(p);
+  const knownUrls = new Set((cachedData.groups || []).map(g => groupRefUrl(g)).filter(Boolean));
+  const missingSavedGroups = savedGroups.filter(g => groupRefUrl(g) && !knownUrls.has(groupRefUrl(g)));
+  if (missingSavedGroups.length) cachedData.groups = [...(cachedData.groups || []), ...missingSavedGroups];
   const identityName = scheduledEventIdentityName(p);
-  const identity = findIdentityForGroups(savedGroups) || findPostingIdentityByName(identityName);
-  if (identity) setSelectedPostingIdentity(identityKey(identity));
+  const identity = findIdentityForGroups(savedGroups) || findPostingIdentityByName(identityName) || identities[0] || null;
+  const linkedGroups = identity ? savedGroups.filter(g => groupBelongsToIdentity(identity, g)) : savedGroups;
+  subscriptionEditSelectedGroups = new Set(linkedGroups.map(groupRefKey).filter(Boolean));
 
-  const textEl = document.getElementById('createText');
-  if (textEl) { textEl.value = scheduledEventText(p); textEl.dispatchEvent(new Event('input')); }
+  const body = document.getElementById('subscriptionEditBody');
+  if (!body) return;
+  body.innerHTML = `
+    <div class="edit-setting-row">
+      <div>
+        <div class="edit-setting-label">Profile</div>
+        <div class="edit-setting-help">Changing this resets groups to only groups linked to the new profile.</div>
+      </div>
+      <div class="edit-setting-field">
+        <select id="subscriptionEditProfile" class="edit-setting-select" onchange="changeSubscriptionEditProfile(this.value)">
+          ${identities.map(i => `<option value="${esc(identityKey(i))}" ${identity && identityKey(i) === identityKey(identity) ? 'selected' : ''}>${esc(i.name || 'Unnamed profile')}</option>`).join('')}
+        </select>
+      </div>
+    </div>
+    <div class="edit-setting-row">
+      <div>
+        <div class="edit-setting-label">Groups <span id="subscriptionEditGroupCount" style="color:var(--text-3);font-weight:700;">0 selected</span></div>
+        <div class="edit-setting-help">Only groups connected to the selected profile are shown.</div>
+      </div>
+      <div class="edit-setting-field"><div class="edit-group-list" id="subscriptionEditGroups"></div></div>
+    </div>
+    <div class="edit-setting-row">
+      <div>
+        <div class="edit-setting-label">Text</div>
+        <div class="edit-setting-help">Click in the box to edit the post copy.</div>
+      </div>
+      <div class="edit-setting-field"><textarea id="subscriptionEditText" class="edit-setting-textarea">${esc(scheduledEventText(p))}</textarea></div>
+    </div>
+    <div class="edit-setting-row">
+      <div>
+        <div class="edit-setting-label">Image</div>
+        <div class="edit-setting-help">Paste an image URL. Click the preview to open it.</div>
+      </div>
+      <div class="edit-setting-field">
+        <input id="subscriptionEditImage" class="edit-setting-input" value="${esc(scheduledEventImage(p))}" placeholder="No image" oninput="updateSubscriptionEditImagePreview()">
+        <div class="edit-image-preview" id="subscriptionEditImagePreview"><img id="subscriptionEditImagePreviewImg" alt="Post image" onclick="window.open(this.src,'_blank')"></div>
+      </div>
+    </div>`;
+  renderSubscriptionEditGroups(identity, linkedGroups);
+  updateSubscriptionEditImagePreview();
+  document.getElementById('subscriptionEditModal')?.classList.add('show');
+}
 
-  const imgEl = document.getElementById('createImageUrl');
-  if (imgEl) { imgEl.value = scheduledEventImage(p); imgEl.dispatchEvent(new Event('input')); }
+function closeSubscriptionEditModal() {
+  document.getElementById('subscriptionEditModal')?.classList.remove('show');
+  subscriptionEditId = null;
+  subscriptionEditSelectedGroups = new Set();
+}
 
-  const fcEl = document.getElementById('createFirstComment');
-  if (fcEl) fcEl.value = p.firstComment || p.first_comment || '';
+async function saveSubscriptionEditSettings() {
+  const id = subscriptionEditId;
+  const existing = (cachedData.posts || []).find(p => p.id === id);
+  if (!id || !existing) return;
+  const identities = sanitizePostingIdentities(cachedData.postingIdentities || []);
+  const identityKeyValue = document.getElementById('subscriptionEditProfile')?.value || '';
+  const identity = identities.find(i => identityKey(i) === identityKeyValue) || null;
+  if (!identity) return toast('Choose a profile first');
 
-  const timeEl = document.getElementById('createTime');
-  if (timeEl) timeEl.value = p.schedule?.time || '09:00';
+  const available = subscriptionEditGroupOptions(identity);
+  const selected = available.filter(g => subscriptionEditSelectedGroups.has(groupRefKey(g)));
+  if (!selected.length) return toast('Select at least one group');
+  const text = document.getElementById('subscriptionEditText')?.value.trim() || '';
+  if (!text) return toast('Write something first');
+  const imageUrl = document.getElementById('subscriptionEditImage')?.value.trim() || '';
 
-  selDays = [...(p.schedule?.days || [])];
-  renderDays();
-  setDeliveryMode('schedule', false);
-
-  const maxRunsEl = document.getElementById('scheduleMaxRuns');
-  if (maxRunsEl) maxRunsEl.value = p.schedule?.maxRuns || '';
-  const weeksEl = document.getElementById('scheduleWeeks');
-  if (weeksEl) weeksEl.value = '';
-
-  const aiToggle = document.getElementById('aiToggle');
-  if (aiToggle) aiToggle.classList.toggle('on', !!(p.aiEnabled ?? p.ai_enabled));
-
-  const groupSearch = document.getElementById('createGroupSearch');
-  if (groupSearch) groupSearch.value = '';
-  filterGroupsForSelectedIdentity();
-  selectCreateGroupsByUrl(savedGroups);
-
-  updateNextFire();
-  updateCreateWizardSummary();
-  goCreateStep(3, false);
-
-  editingPostId = id;
-  toast('Editing subscription — update profile/groups, then save');
+  const groups = selected.map(g => ({
+    ...g,
+    url: groupRefUrl(g),
+    name: groupDisplayName(g),
+    group_name: groupDisplayName(g),
+    identity_name: identity.name,
+    identity_key: identityKey(identity)
+  }));
+  const post = {
+    ...existing,
+    text,
+    imageUrl,
+    groups,
+    identityName: identity.name,
+    updatedAt: new Date().toISOString(),
+  };
+  cachedData.posts = (cachedData.posts || []).map(p => p.id === id ? post : p);
+  const err = await sbSet('posts', cachedData.posts);
+  if (err) return toast('Error: ' + err.message);
+  closeSubscriptionEditModal();
+  toast('Schedule updated');
+  loadScheduled();
 }
 
 // ═══ GROUPS ═══
@@ -3145,16 +3268,21 @@ function selectedProfileGroupTags() {
   return [name, name.replace(/\s+/g, '-'), name.replace(/\s+/g, '_')];
 }
 
-function groupBelongsToSelectedProfile(group) {
-  const identity = getSelectedPostingIdentity();
-  const profileTags = selectedProfileGroupTags();
-  if (!identity || !profileTags.length) return false;
+function groupBelongsToIdentity(identity, group) {
+  if (!identity || !group) return false;
+  const name = (identity.name || '').toLowerCase().trim();
+  if (!name) return false;
+  const profileTags = [name, name.replace(/\s+/g, '-'), name.replace(/\s+/g, '_')];
   const tags = (group.tags || []).map(t => String(t).toLowerCase());
   const owner = String(group.identity_name || group.identityName || group.profile_name || group.profileName || group.page_name || group.pageName || '').toLowerCase().trim();
   const groupProfileKey = String(group.identity_key || group.identityKey || group.profile_key || group.profileKey || '').trim();
   if (groupProfileKey && groupProfileKey === identityKey(identity)) return true;
   if (owner && profileTags.includes(owner)) return true;
   return tags.some(t => profileTags.includes(t));
+}
+
+function groupBelongsToSelectedProfile(group) {
+  return groupBelongsToIdentity(getSelectedPostingIdentity(), group);
 }
 
 function filterGroupsForSelectedIdentity() {
