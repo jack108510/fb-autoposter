@@ -865,50 +865,41 @@ function pollIdentitySyncJob(jobId) {
 // ═══ DASHBOARD ═══
 async function loadDashboard() {
   cachedData = await fetchAll();
-  const posts = cachedData.posts || [];
-  const active = posts.filter(p => p.enabled).length;
+  const { logs } = cachedData;
   const profileCount = (cachedData.postingIdentities || []).length;
-  const savedGroupCount = (cachedData.groups || []).length;
+  const groupCount = (cachedData.groups || []).length;
 
-  const readyState = document.getElementById('overviewReadyState');
-  const readyNote = document.getElementById('overviewPrimaryNote');
-  const missing = [];
-  if (!profileCount) missing.push('connect a profile');
-  if (!savedGroupCount) missing.push('import groups');
+  const { data: jobs } = await sb.from('jsw_post_jobs')
+    .select('status, groups, created_at, completed_at')
+    .eq('user_id', user.id)
+    .order('created_at', { ascending: false })
+    .limit(500);
 
-  if (readyState) {
-    readyState.className = 'overview-status-pill ' + (missing.length ? 'warn' : 'ready');
-    readyState.textContent = missing.length ? 'Needs setup' : 'Ready';
-  }
-  if (readyNote) {
-    readyNote.textContent = missing.length
-      ? `Before posting: ${missing.join(' and ')}.`
-      : 'Profiles and groups are ready.';
-  }
+  let successfulPosts = 0;
+  let failedPosts = 0;
 
-  setText('navCount', posts.length);
+  (jobs || []).filter(j => !isSystemJob(j)).forEach(j => {
+    const groupRefs = Array.isArray(j.groups) ? j.groups : [];
+    const count = groupRefs.length || 1;
+    if (j.status === 'done') successfulPosts += count;
+    if (j.status === 'failed') failedPosts += count;
+  });
+
+  (logs || []).forEach(log => {
+    (log.results || []).forEach(result => {
+      if (result.success) successfulPosts += 1;
+      else failedPosts += 1;
+    });
+  });
+
+  const totalPostsMade = successfulPosts + failedPosts;
+  const successRate = totalPostsMade ? Math.round((successfulPosts / totalPostsMade) * 100) + '%' : '—';
+
+  setText('navCount', (cachedData.posts || []).length);
   setText('dashProfilesCount', profileCount);
-  setText('dashGroupsCount', savedGroupCount);
-  setText('dashScheduledCount', active);
-
-  const upcoming = posts.filter(p => p.enabled).slice(0, 3);
-  setHtml('dashUpcoming', upcoming.length === 0
-    ? '<div class="empty"><p>No scheduled posts</p></div>'
-    : upcoming.map(p => {
-        const days = (Array.isArray(p.schedule?.days) ? p.schedule.days : []).map(d => DAYS[d]).filter(Boolean).join(', ') || 'Not set';
-        const spin = hasSpintax(p.text) ? ' <span class="spin-badge">SPIN</span>' : '';
-        return `<div class="overview-upcoming-item">
-          <div style="min-width:0;flex:1;">
-            <div class="overview-upcoming-title">${esc(p.text.substring(0, 72))}${p.text.length > 72 ? '...' : ''}${spin}</div>
-            <div class="overview-upcoming-meta">${esc(p.schedule?.time || 'Not set')} • ${days} • ${scheduledEventGroups(p).length} groups</div>
-          </div>
-        </div>`;
-      }).join(''));
-
-  await Promise.all([
-    refreshGroupSyncStatus(),
-    refreshIdentitySyncStatus()
-  ]);
+  setText('dashPostsMadeCount', totalPostsMade);
+  setText('dashGroupsCount', groupCount);
+  setText('dashSuccessRate', successRate);
 }
 
 // ═══ CREATE ═══

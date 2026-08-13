@@ -852,39 +852,17 @@
     .group-entry, .log-row { padding-top: 14px; padding-bottom: 14px; }
     .badge { border-radius: 999px; padding: 4px 11px; }
 
-    .overview-shell { max-width:820px; display:flex; flex-direction:column; gap:18px; }
-    .overview-main-card {
-      background:var(--surface); border:1px solid var(--border); border-radius:26px; padding:28px;
-      box-shadow:var(--shadow);
+    .overview-shell { max-width:980px; }
+    .analytics-grid { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:16px; }
+    .analytics-card {
+      background:var(--surface); border:1px solid var(--border); border-radius:24px; padding:24px;
+      box-shadow:var(--shadow); min-height:150px; display:flex; flex-direction:column; justify-content:space-between;
     }
-    .overview-main-head { display:flex; align-items:flex-start; justify-content:space-between; gap:18px; margin-bottom:22px; }
-    .overview-main-card h2 { margin:0 0 6px; font-size:28px; letter-spacing:-.06em; }
-    .overview-main-card p { margin:0; color:var(--text-2); font-size:14px; line-height:1.55; max-width:560px; }
-    .overview-status-pill { display:inline-flex; align-items:center; gap:7px; border-radius:999px; padding:8px 12px; background:var(--surface-2); color:var(--text-2); font-size:12px; font-weight:850; white-space:nowrap; }
-    .overview-status-pill::before { content:''; width:8px; height:8px; border-radius:999px; background:var(--text-3); }
-    .overview-status-pill.ready { color:var(--green); background:var(--green-light); }
-    .overview-status-pill.ready::before { background:var(--green); }
-    .overview-status-pill.warn { color:var(--yellow); background:var(--yellow-light); }
-    .overview-status-pill.warn::before { background:var(--yellow); }
-    .overview-status-pill.stop { color:var(--red); background:var(--red-light); }
-    .overview-status-pill.stop::before { background:var(--red); }
-    .overview-check-list { border-top:1px solid var(--border); border-bottom:1px solid var(--border); margin:0 0 22px; }
-    .overview-check-row { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:16px; align-items:center; padding:15px 0; border-bottom:1px solid var(--border); }
-    .overview-check-row:last-child { border-bottom:0; }
-    .overview-check-row strong { display:block; font-size:14px; letter-spacing:-.02em; }
-    .overview-check-row span { display:block; margin-top:3px; color:var(--text-3); font-size:12px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-    .overview-check-value { font-size:22px; font-weight:900; letter-spacing:-.06em; color:var(--text); }
-    .overview-actions { display:flex; gap:10px; flex-wrap:wrap; }
-    .overview-upcoming-card { background:var(--surface); border:1px solid var(--border); border-radius:22px; padding:22px; box-shadow:var(--shadow); }
-    .overview-upcoming-item { display:flex; justify-content:space-between; align-items:center; gap:16px; padding:13px 0; border-bottom:1px solid var(--border); }
-    .overview-upcoming-item:last-child { border-bottom:0; }
-    .overview-upcoming-title { font-weight:800; font-size:13px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:560px; }
-    .overview-upcoming-meta { color:var(--text-3); font-size:11px; margin-top:4px; }
-    @media (max-width: 760px) {
-      .overview-main-head { flex-direction:column; }
-      .overview-check-row { grid-template-columns:1fr; gap:8px; }
-      .overview-check-value { justify-content:space-between; }
-    }
+    .analytics-label { color:var(--text-3); font-size:12px; font-weight:850; text-transform:uppercase; letter-spacing:.1em; }
+    .analytics-value { font-size:42px; line-height:1; font-weight:900; letter-spacing:-.07em; color:var(--text); margin-top:22px; }
+    .analytics-note { color:var(--text-3); font-size:12px; line-height:1.35; margin-top:10px; }
+    @media (max-width: 1000px) { .analytics-grid { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+    @media (max-width: 620px) { .analytics-grid { grid-template-columns:1fr; } }
 
     @media (max-width: 900px) {
       .sidebar { width: var(--sidebar-width); }
@@ -996,43 +974,38 @@
       <!-- ═══ OVERVIEW ═══ -->
       <div class="page" id="page-dashboard">
         <div class="page-title">Overview</div>
-        <div class="page-subtitle">Posting status.</div>
+        <div class="page-subtitle">Totals.</div>
 
         <div class="overview-shell">
-          <div class="overview-main-card">
-            <div class="overview-main-head">
+          <div class="analytics-grid">
+            <div class="analytics-card">
               <div>
-                <h2>Ready to post?</h2>
-                <p id="overviewPrimaryNote">Checking profiles, groups, and upcoming posts.</p>
+                <div class="analytics-label">Profiles</div>
+                <div class="analytics-value" id="dashProfilesCount">—</div>
               </div>
-              <div class="overview-status-pill" id="overviewReadyState">Checking</div>
+              <div class="analytics-note">Connected accounts</div>
             </div>
-
-            <div class="overview-check-list">
-              <div class="overview-check-row">
-                <div><strong>Profiles</strong><span id="dashIdentitySyncStatus" class="identity-sync-status">Checking profiles...</span></div>
-                <div class="overview-check-value" id="dashProfilesCount">—</div>
+            <div class="analytics-card">
+              <div>
+                <div class="analytics-label">Posts</div>
+                <div class="analytics-value" id="dashPostsMadeCount">—</div>
               </div>
-              <div class="overview-check-row">
-                <div><strong>Groups</strong><span id="dashGroupSyncStatus" class="group-sync-status">Checking groups...</span></div>
-                <div class="overview-check-value" id="dashGroupsCount">—</div>
+              <div class="analytics-note">Posts made</div>
+            </div>
+            <div class="analytics-card">
+              <div>
+                <div class="analytics-label">Groups</div>
+                <div class="analytics-value" id="dashGroupsCount">—</div>
               </div>
-              <div class="overview-check-row">
-                <div><strong>Upcoming</strong><span>Active scheduled posts</span></div>
-                <div class="overview-check-value" id="dashScheduledCount">—</div>
+              <div class="analytics-note">Imported groups</div>
+            </div>
+            <div class="analytics-card">
+              <div>
+                <div class="analytics-label">Success Rate</div>
+                <div class="analytics-value" id="dashSuccessRate">—</div>
               </div>
+              <div class="analytics-note">Posts that succeeded</div>
             </div>
-
-            <div class="overview-actions">
-              <button class="btn btn-primary" onclick="nav('create')">Create Post</button>
-            </div>
-          </div>
-
-          <div class="overview-upcoming-card">
-            <div class="card-header">
-              <div class="card-title">Next posts</div>
-            </div>
-            <div id="dashUpcoming"></div>
           </div>
         </div>
       </div>
@@ -1496,6 +1469,6 @@ Example: Quick reminder for clinic owners — if your fee schedule is outdated, 
       }
     }, 1200);
   </script>
-  <script src="app.js?v=59"></script>
+  <script src="app.js?v=60"></script>
 </body>
 </html>
