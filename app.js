@@ -1907,12 +1907,12 @@ async function editPost(id) {
   const identities = sanitizePostingIdentities(cachedData.postingIdentities || []);
   cachedData.postingIdentities = identities;
   const savedGroups = scheduledEventGroups(p);
-  const knownUrls = new Set((cachedData.groups || []).map(g => groupRefUrl(g)).filter(Boolean));
-  const missingSavedGroups = savedGroups.filter(g => groupRefUrl(g) && !knownUrls.has(groupRefUrl(g)));
-  if (missingSavedGroups.length) cachedData.groups = [...(cachedData.groups || []), ...missingSavedGroups];
   const identityName = scheduledEventIdentityName(p);
   const identity = findIdentityForGroups(savedGroups) || findPostingIdentityByName(identityName) || identities[0] || null;
-  const linkedGroups = identity ? savedGroups.filter(g => groupBelongsToIdentity(identity, g)) : savedGroups;
+  const availableForIdentity = identity ? subscriptionEditGroupOptions(identity) : [];
+  const savedUrls = new Set(savedGroups.map(groupRefUrl).filter(Boolean));
+  const linkedGroups = availableForIdentity.filter(g => savedUrls.has(groupRefUrl(g)));
+  const omittedSavedCount = savedGroups.filter(g => groupRefUrl(g) && !linkedGroups.some(x => groupRefUrl(x) === groupRefUrl(g))).length;
   subscriptionEditSelectedGroups = new Set(linkedGroups.map(groupRefKey).filter(Boolean));
   const schedule = p.schedule || {};
   subscriptionEditSelectedDays = (Array.isArray(schedule.days) && schedule.days.length ? schedule.days : [new Date().getDay()]).map(Number).filter(d => d >= 0 && d <= 6).sort((a, b) => a - b);
@@ -1938,6 +1938,13 @@ async function editPost(id) {
       </div>
       <div class="edit-setting-field"><div class="edit-group-list" id="subscriptionEditGroups"></div></div>
     </div>
+    ${omittedSavedCount ? `<div class="edit-setting-row" style="border-color:rgba(245,158,11,.35);background:rgba(245,158,11,.08);">
+      <div>
+        <div class="edit-setting-label">Group needs review</div>
+        <div class="edit-setting-help">${omittedSavedCount} saved group${omittedSavedCount === 1 ? '' : 's'} on this schedule are not currently tied to ${esc(identity?.name || 'this profile')} and were hidden.</div>
+      </div>
+      <div class="edit-setting-field" style="font-size:12px;color:var(--text-2);">Pick a current group for this profile before saving.</div>
+    </div>` : ''}
     <div class="edit-setting-row">
       <div>
         <div class="edit-setting-label">Frequency</div>
@@ -2445,11 +2452,6 @@ function groupAssignmentProfileForGroup(group = {}, identities = sanitizePosting
     return name && tags.includes(`profile:${name}`);
   });
   if (byTag) return byTag;
-  const scheduledNames = postIdentityNamesForGroup(group);
-  for (const name of scheduledNames) {
-    const match = identities.find(identity => profileBucketKeyForName(identity.name) === profileBucketKeyForName(name));
-    if (match) return match;
-  }
   return null;
 }
 
@@ -2469,19 +2471,10 @@ function buildGroupProfileBuckets(groups = []) {
     identities.forEach(identity => {
       if (groupMatchesIdentity(group, identity)) attached.add(identityKey(identity));
     });
-    postIdentityNamesForGroup(group).forEach(name => {
-      const matched = identities.find(identity => profileBucketKeyForName(identity.name) === profileBucketKeyForName(name));
-      if (matched) attached.add(identityKey(matched));
-      else if (name) {
-        const key = `name:${profileBucketKeyForName(name)}`;
-        ensure(key, { name, type: 'Saved schedule profile' });
-        attached.add(key);
-      }
-    });
     if (!attached.size) {
       const ownerName = groupOwnerName(group) || groupOwnerKey(group) || 'Facebook profile';
-      const key = groupOwnerKey(group) || `owner:${profileBucketKeyForName(ownerName)}`;
-      ensure(key, { name: ownerName, type: 'Saved profile/page owner' });
+      const key = groupOwnerKey(group) || '__legacy__';
+      ensure(key, { name: key === '__legacy__' ? 'Legacy / needs resync' : ownerName, type: key === '__legacy__' ? 'Not tied to a current profile' : 'Saved profile/page owner' });
       attached.add(key);
     }
     attached.forEach(key => ensure(key, buckets.get(key)?.profile || { name: key }).groups.push(group));
