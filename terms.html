@@ -7,22 +7,53 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <style>
+    * { box-sizing:border-box; }
     body { margin:0; font-family:Inter,-apple-system,BlinkMacSystemFont,sans-serif; background:#0a0a0f; color:#f0f0f5; line-height:1.65; }
-    main { max-width:760px; margin:0 auto; padding:72px 24px; }
+    main { max-width:820px; margin:0 auto; padding:72px 24px; }
     a { color:#a5b4fc; text-decoration:none; }
     .back { color:#9999b0; font-size:13px; }
-    h1 { font-size:38px; letter-spacing:-.04em; margin:28px 0 10px; }
+    .eyebrow { display:inline-flex; margin-top:32px; padding:5px 12px; border-radius:999px; background:rgba(79,70,229,.14); color:#a5b4fc; font-size:11px; font-weight:800; text-transform:uppercase; letter-spacing:.08em; }
+    h1 { font-size:40px; letter-spacing:-.045em; margin:16px 0 10px; line-height:1.05; }
+    h2 { font-size:18px; margin:28px 0 8px; color:#fff; }
     p, li { color:#b8b8c8; }
+    .lede { font-size:16px; color:#d8d8e6; max-width:680px; }
     .card { margin-top:24px; border:1px solid #252535; background:#12121a; border-radius:18px; padding:24px; }
+    ul { padding-left:20px; }
+    .notice { border:1px solid rgba(245,158,11,.26); background:rgba(245,158,11,.08); color:#fef3c7; border-radius:14px; padding:14px 16px; margin-top:24px; font-size:14px; }
+    @media (max-width:700px){ h1{font-size:32px;} }
   </style>
 </head>
 <body>
   <main>
     <a class="back" href="index.html">← Back to Reachr</a>
+    <div class="eyebrow">Beta terms summary</div>
     <h1>Terms of Service</h1>
-    <p><strong>Beta placeholder.</strong> Jack is preparing the final legal version before Chrome Web Store submission. This page exists so the product has a stable legal link location.</p>
+    <p class="lede">Reachr is currently a beta tool for organizing and scheduling Facebook group posting from your own browser session.</p>
+
+    <div class="notice">Use Reachr responsibly. Automation can affect account trust if abused. Follow Facebook rules, group rules, and applicable laws.</div>
+
     <div class="card">
-      <p>Use Reachr responsibly and follow Facebook rules, group rules, and applicable laws. Final terms will be published before paid access or public Chrome Web Store launch.</p>
+      <h2>Beta access</h2>
+      <p>Reachr is offered during beta for testing and feedback. Features, limits, availability, and pricing may change before public launch.</p>
+
+      <h2>Your responsibility</h2>
+      <ul>
+        <li>You are responsible for the posts, links, claims, and comments you publish.</li>
+        <li>You must follow Facebook's terms, group rules, and applicable marketing/spam laws.</li>
+        <li>You should use cooldowns, rest days, group limits, and stop conditions instead of blasting every group at once.</li>
+      </ul>
+
+      <h2>Account access</h2>
+      <p>Reachr does not store your Facebook password. Posting depends on your own Chrome browser session and the extension connection.</p>
+
+      <h2>No guarantee of results</h2>
+      <p>Reachr helps organize posting workflows, but it does not guarantee reach, approvals, engagement, sales, or that every group will allow a post.</p>
+
+      <h2>Acceptable use</h2>
+      <p>Do not use Reachr for illegal content, deception, harassment, malware, phishing, spam, or activity that violates platform or group rules.</p>
+
+      <h2>Updates</h2>
+      <p>Final legal terms may be updated before paid access or Chrome Web Store launch.</p>
     </div>
   </main>
 </body>

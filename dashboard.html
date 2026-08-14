@@ -70,6 +70,36 @@
       -webkit-font-smoothing: antialiased;
       transition: background .2s, color .2s;
     }
+    .auth-screen { display:flex; position:fixed; inset:0; z-index:9999; background: radial-gradient(circle at 50% 0%, rgba(79,70,229,.12), transparent 36%), #F4F4F7; align-items:flex-start; justify-content:center; padding: 16px 0; overflow-y:auto; }
+    .auth-shell { width:100%; max-width:428px; padding:0 24px 22px; }
+    .auth-logo { display:flex; align-items:center; justify-content:center; gap:10px; margin-bottom:16px; }
+    .auth-logo-img { width:36px; height:36px; border-radius:11px; overflow:hidden; background:#000; box-shadow:0 10px 28px rgba(12,12,22,.12); }
+    .auth-logo-img img { width:100%; height:100%; object-fit:cover; }
+    .auth-logo-text { font-size:19px; font-weight:800; color:#0C0C16; letter-spacing:-.02em; }
+    .auth-card { background:#fff; border-radius:18px; padding:24px 28px; box-shadow:0 18px 48px rgba(12,12,22,.10), 0 2px 8px rgba(12,12,22,.05); border:1px solid #E4E4EC; }
+    .auth-eyebrow { display:inline-flex; align-items:center; gap:7px; font-size:11px; font-weight:800; color:#4338CA; background:#EEEEFF; border:1px solid #DDD6FE; border-radius:999px; padding:5px 10px; margin-bottom:12px; text-transform:uppercase; letter-spacing:.05em; }
+    .auth-eyebrow::before { content:''; width:6px; height:6px; border-radius:50%; background:#10b981; box-shadow:0 0 0 3px rgba(16,185,129,.16); }
+    .auth-title { font-size:22px; font-weight:800; color:#0C0C16; margin-bottom:6px; letter-spacing:-.03em; }
+    .auth-subtitle { font-size:13px; color:#52526A; margin-bottom:18px; line-height:1.5; }
+    .auth-error { display:none; background:#FEF2F2; border:1px solid #FECACA; border-radius:10px; padding:10px 14px; font-size:13px; color:#DC2626; margin-bottom:16px; }
+    .auth-field { margin-bottom:14px; }
+    .auth-field.password { margin-bottom:20px; }
+    .auth-field label { display:block; font-size:12px; font-weight:700; color:#52526A; margin-bottom:6px; letter-spacing:.01em; }
+    .auth-input { width:100%; padding:10px 14px; border:1.5px solid #E4E4EC; border-radius:10px; font-size:14px; background:#F8F8FC; color:#0C0C16; font-family:inherit; outline:none; transition:border .15s,box-shadow .15s,background .15s; }
+    .auth-input:focus { border-color:#4F46E5; box-shadow:0 0 0 3px #EEEEFF; background:#fff; }
+    .auth-submit { width:100%; padding:12px; border:none; border-radius:10px; font-size:14px; font-weight:800; cursor:pointer; font-family:inherit; background:#4F46E5; color:white; letter-spacing:-.01em; transition:background .15s,transform .1s,box-shadow .15s; }
+    .auth-submit:hover { background:#4338CA; box-shadow:0 8px 24px rgba(79,70,229,.34); transform:translateY(-1px); }
+    .auth-submit:disabled { opacity:.72; cursor:not-allowed; transform:none; }
+    .auth-trust { margin-top:14px; padding:12px; border:1px solid #E4E4EC; border-radius:14px; background:#FAFAFD; display:grid; gap:8px; }
+    .auth-trust-row { display:flex; gap:9px; align-items:flex-start; font-size:12px; color:#52526A; line-height:1.45; }
+    .auth-trust-row strong { color:#0C0C16; }
+    .auth-check { width:17px; height:17px; border-radius:50%; background:#ECFDF5; color:#059669; display:flex; align-items:center; justify-content:center; flex:0 0 17px; font-size:11px; font-weight:900; margin-top:1px; }
+    .auth-link-row { text-align:center; margin-top:14px; font-size:12px; }
+    .auth-link-row a, .auth-toggle a { color:#4F46E5; font-weight:700; cursor:pointer; text-decoration:none; }
+    .auth-toggle { text-align:center; margin-top:16px; font-size:13px; color:#52526A; }
+    .auth-footer { text-align:center; margin-top:12px; font-size:12px; color:#8585A0; }
+    .auth-footer a { color:#8585A0; text-decoration:none; }
+    .auth-footer-outer { display:none; }
     
     /* ─── Connection Bar ─── */
     .conn-bar {
@@ -929,42 +959,50 @@
   </div>
 
   <!-- Auth Screen -->
-  <div id="authScreen" style="display:flex;position:fixed;inset:0;z-index:9999;background:#F4F4F7;align-items:center;justify-content:center;">
-    <div style="width:100%;max-width:400px;padding:0 24px;">
+  <div id="authScreen" class="auth-screen">
+    <div class="auth-shell">
       <!-- Logo -->
-      <div style="display:flex;align-items:center;justify-content:center;gap:10px;margin-bottom:40px;">
-        <div style="width:44px;height:44px;border-radius:12px;overflow:hidden;background:#000;">
-          <img src="logo.jpg" style="width:100%;height:100%;object-fit:cover;" alt="Reachr">
+      <div class="auth-logo">
+        <div class="auth-logo-img">
+          <img src="logo.jpg" alt="Reachr">
         </div>
-        <span style="font-size:20px;font-weight:700;color:#0C0C16;font-family:'Inter',sans-serif;letter-spacing:-.02em;">Reachr</span>
+        <span class="auth-logo-text">Reachr</span>
       </div>
       <!-- Card -->
-      <div style="background:#fff;border-radius:16px;padding:36px;box-shadow:0 4px 24px rgba(0,0,0,.08),0 1px 4px rgba(0,0,0,.04);border:1px solid #E4E4EC;">
-        <h1 style="font-size:20px;font-weight:700;color:#0C0C16;margin-bottom:4px;font-family:'Inter',sans-serif;letter-spacing:-.02em;" id="authTitle">Welcome back</h1>
-        <p style="font-size:13px;color:#9898B4;margin-bottom:24px;font-family:'Inter',sans-serif;" id="authSubtitle">Sign in to your dashboard.</p>
-        <div id="authError" style="display:none;background:#FEF2F2;border:1px solid #FECACA;border-radius:8px;padding:10px 14px;font-size:13px;color:#DC2626;margin-bottom:16px;font-family:'Inter',sans-serif;"></div>
+      <div class="auth-card">
+        <div class="auth-eyebrow">Private beta</div>
+        <h1 class="auth-title" id="authTitle">Welcome back</h1>
+        <p class="auth-subtitle" id="authSubtitle">Sign in to plan, rewrite, schedule, and review your Facebook group posts.</p>
+        <div id="authError" class="auth-error"></div>
         <form id="authForm" onsubmit="handleAuth(event)">
-          <div style="margin-bottom:14px;">
-            <label style="display:block;font-size:12px;font-weight:600;color:#52526A;margin-bottom:6px;font-family:'Inter',sans-serif;letter-spacing:.01em;">Email</label>
-            <input type="email" id="authEmail" placeholder="you@example.com" autocomplete="email" required style="width:100%;padding:11px 14px;border:1.5px solid #E4E4EC;border-radius:9px;font-size:14px;background:#F8F8FC;color:#0C0C16;font-family:'Inter',sans-serif;outline:none;transition:border .15s,box-shadow .15s;" onfocus="this.style.borderColor='#4F46E5';this.style.boxShadow='0 0 0 3px #EEEEFF'" onblur="this.style.borderColor='#E4E4EC';this.style.boxShadow='none'">
+          <div class="auth-field">
+            <label>Email</label>
+            <input class="auth-input" type="email" id="authEmail" placeholder="you@example.com" autocomplete="email" required>
           </div>
-          <div style="margin-bottom:22px;">
-            <label style="display:block;font-size:12px;font-weight:600;color:#52526A;margin-bottom:6px;font-family:'Inter',sans-serif;letter-spacing:.01em;">Password</label>
-            <input type="password" id="authPassword" placeholder="Min 6 characters" autocomplete="current-password" required style="width:100%;padding:11px 14px;border:1.5px solid #E4E4EC;border-radius:9px;font-size:14px;background:#F8F8FC;color:#0C0C16;font-family:'Inter',sans-serif;outline:none;transition:border .15s,box-shadow .15s;" onfocus="this.style.borderColor='#4F46E5';this.style.boxShadow='0 0 0 3px #EEEEFF'" onblur="this.style.borderColor='#E4E4EC';this.style.boxShadow='none'">
+          <div class="auth-field password">
+            <label>Password</label>
+            <input class="auth-input" type="password" id="authPassword" placeholder="Min 6 characters" autocomplete="current-password" required>
           </div>
-          <button type="submit" id="authSubmit" style="width:100%;padding:13px;border:none;border-radius:9px;font-size:14px;font-weight:700;cursor:pointer;font-family:'Inter',sans-serif;background:#4F46E5;color:white;letter-spacing:-.01em;transition:background .15s,transform .1s,box-shadow .15s;" onmouseover="this.style.background='#4338CA';this.style.boxShadow='0 6px 20px rgba(79,70,229,.35)'" onmouseout="this.style.background='#4F46E5';this.style.boxShadow='none'">
+          <button type="submit" id="authSubmit" class="auth-submit">
             <span id="authBtnText">Sign In</span>
           </button>
         </form>
-        <div id="forgotPasswordRow" style="text-align:center;margin-top:14px;font-size:12px;font-family:'Inter',sans-serif;">
-          <a onclick="sendPasswordReset()" style="color:#4F46E5;font-weight:600;cursor:pointer;text-decoration:none;">Forgot password?</a>
+        <div class="auth-trust" aria-label="Reachr privacy and safety notes">
+          <div class="auth-trust-row"><span class="auth-check">✓</span><span><strong>No Facebook password stored.</strong> Reachr uses your own Chrome browser session.</span></div>
+          <div class="auth-trust-row"><span class="auth-check">✓</span><span><strong>Controlled posting.</strong> Cooldowns, rest days, limits, and group selection stay in your hands.</span></div>
         </div>
-        <div style="text-align:center;margin-top:20px;font-size:13px;color:#9898B4;font-family:'Inter',sans-serif;" id="authToggleText">
-          Don't have an account? <a onclick="toggleAuthMode()" style="color:#4F46E5;font-weight:600;cursor:pointer;text-decoration:none;">Create one</a>
+        <div id="forgotPasswordRow" class="auth-link-row">
+          <a onclick="sendPasswordReset()">Forgot password?</a>
+        </div>
+        <div class="auth-toggle" id="authToggleText">
+          New here? <a onclick="toggleAuthMode()">Create your free beta account</a>
+        </div>
+        <div class="auth-footer">
+          <a href="index.html">← Back to home</a> · <a href="terms.html">Terms</a> · <a href="privacy.html">Privacy</a>
         </div>
       </div>
-      <div style="text-align:center;margin-top:16px;font-size:12px;color:#B0B0C8;font-family:'Inter',sans-serif;">
-        <a href="index.html" style="color:#B0B0C8;text-decoration:none;">← Back to home</a> · <a href="terms.html" style="color:#B0B0C8;text-decoration:none;">Terms</a> · <a href="privacy.html" style="color:#B0B0C8;text-decoration:none;">Privacy</a>
+      <div class="auth-footer auth-footer-outer">
+        <a href="index.html">← Back to home</a> · <a href="terms.html">Terms</a> · <a href="privacy.html">Privacy</a>
       </div>
     </div>
   </div>
@@ -1401,11 +1439,11 @@ Example: Quick reminder for clinic owners — if your fee schedule is outdated, 
       authMode = authMode === 'signin' ? 'signup' : 'signin';
       const isSignup = authMode === 'signup';
       document.getElementById('authTitle').textContent = isSignup ? 'Create your account' : 'Welcome back';
-      document.getElementById('authSubtitle').textContent = isSignup ? 'Start posting to 50+ groups on autopilot.' : 'Sign in to your dashboard.';
+      document.getElementById('authSubtitle').textContent = isSignup ? 'Create a free beta account, then connect the Chrome extension to import your groups.' : 'Sign in to plan, rewrite, schedule, and review your Facebook group posts.';
       document.getElementById('authBtnText').textContent = isSignup ? 'Create Account' : 'Sign In';
       document.getElementById('authToggleText').innerHTML = isSignup
-        ? 'Already have an account? <a onclick="toggleAuthMode()" style="color:#5B6FE8;font-weight:600;cursor:pointer;text-decoration:none;">Sign in</a>'
-        : 'Don\'t have an account? <a onclick="toggleAuthMode()" style="color:#5B6FE8;font-weight:600;cursor:pointer;text-decoration:none;">Create one</a>';
+        ? 'Already have an account? <a onclick="toggleAuthMode()">Sign in</a>'
+        : 'New here? <a onclick="toggleAuthMode()">Create your free beta account</a>';
       document.getElementById('authError').style.display = 'none';
     }
 
@@ -1483,7 +1521,8 @@ Example: Quick reminder for clinic owners — if your fee schedule is outdated, 
         }
         throw new Error('No session returned from Supabase. Please try again.');
       } catch (err) {
-        showAuthError(err.message || 'Authentication failed');
+        const message = err.message === 'Invalid login credentials' ? 'Email or password is incorrect.' : (err.message || 'Authentication failed');
+        showAuthError(message);
       } finally {
         btn.disabled = false;
         btnText.textContent = oldText;

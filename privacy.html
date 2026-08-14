@@ -7,22 +7,59 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <style>
+    * { box-sizing:border-box; }
     body { margin:0; font-family:Inter,-apple-system,BlinkMacSystemFont,sans-serif; background:#0a0a0f; color:#f0f0f5; line-height:1.65; }
-    main { max-width:760px; margin:0 auto; padding:72px 24px; }
+    main { max-width:820px; margin:0 auto; padding:72px 24px; }
     a { color:#a5b4fc; text-decoration:none; }
     .back { color:#9999b0; font-size:13px; }
-    h1 { font-size:38px; letter-spacing:-.04em; margin:28px 0 10px; }
+    .eyebrow { display:inline-flex; margin-top:32px; padding:5px 12px; border-radius:999px; background:rgba(79,70,229,.14); color:#a5b4fc; font-size:11px; font-weight:800; text-transform:uppercase; letter-spacing:.08em; }
+    h1 { font-size:40px; letter-spacing:-.045em; margin:16px 0 10px; line-height:1.05; }
+    h2 { font-size:18px; margin:28px 0 8px; color:#fff; }
     p, li { color:#b8b8c8; }
+    .lede { font-size:16px; color:#d8d8e6; max-width:680px; }
     .card { margin-top:24px; border:1px solid #252535; background:#12121a; border-radius:18px; padding:24px; }
+    .grid { display:grid; grid-template-columns:repeat(2,1fr); gap:14px; margin:24px 0; }
+    .mini { border:1px solid #252535; background:#101018; border-radius:14px; padding:16px; }
+    .mini strong { display:block; color:#fff; margin-bottom:4px; }
+    .mini span { display:block; color:#9999b0; font-size:13px; line-height:1.5; }
+    ul { padding-left:20px; }
+    @media (max-width:700px){ .grid{grid-template-columns:1fr;} h1{font-size:32px;} }
   </style>
 </head>
 <body>
   <main>
     <a class="back" href="index.html">← Back to Reachr</a>
+    <div class="eyebrow">Beta privacy summary</div>
     <h1>Privacy Policy</h1>
-    <p><strong>Beta placeholder.</strong> Jack is preparing the final legal version before Chrome Web Store submission. This page exists so the product has a stable legal link location.</p>
+    <p class="lede">Reachr is a Chrome-based Facebook group posting dashboard. This page explains the practical privacy boundaries while the product is in beta.</p>
+
+    <div class="grid">
+      <div class="mini"><strong>No Facebook password storage</strong><span>Reachr does not ask for, store, or transmit your Facebook password.</span></div>
+      <div class="mini"><strong>Your browser session is used</strong><span>Posting actions run through your own Chrome browser and active Facebook session.</span></div>
+      <div class="mini"><strong>You control campaigns</strong><span>You choose the groups, copy, schedule, first comment, cooldowns, and limits.</span></div>
+      <div class="mini"><strong>Beta product</strong><span>Final legal language may be updated before paid access or Chrome Web Store launch.</span></div>
+    </div>
+
     <div class="card">
-      <p>Reachr does not ask for or store your Facebook password. Final privacy details will be published before paid access or public Chrome Web Store launch.</p>
+      <h2>Information Reachr may store</h2>
+      <ul>
+        <li>Your Reachr account email and authentication records.</li>
+        <li>Facebook group names/URLs you import into the dashboard.</li>
+        <li>Draft posts, scheduled posts, campaign settings, tags, cooldowns, and posting history.</li>
+        <li>Optional AI rewrite settings or prompts you configure.</li>
+      </ul>
+
+      <h2>Facebook credentials</h2>
+      <p>Reachr does not store your Facebook password. The product is designed to work from your active Chrome session, so you stay logged in directly with Facebook in your own browser.</p>
+
+      <h2>AI rewriting</h2>
+      <p>If you enable AI paraphrasing, the post text you provide may be sent to the configured AI provider to create rewritten versions. Do not put sensitive personal information in prompts or post drafts.</p>
+
+      <h2>Responsible use</h2>
+      <p>Reachr includes guardrails such as cooldowns, group limits, rest days, and stop conditions. You are responsible for following Facebook rules, group rules, and applicable laws.</p>
+
+      <h2>Deletion or questions</h2>
+      <p>Contact the Reachr operator to request account/data deletion or privacy clarification while the product is in beta.</p>
     </div>
   </main>
 </body>
