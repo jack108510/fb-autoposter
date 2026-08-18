@@ -759,6 +759,7 @@ function renderPostingProfilesList(identities = cachedData.postingIdentities || 
   el.innerHTML = identities.map(identity => {
     const name = esc(identity.name || 'Unnamed profile');
     const type = esc(identity.type || 'Facebook profile');
+    const testKey = esc(identityKey(identity));
     const active = identity.is_active ? '<span style="font-size:11px;color:var(--green);font-weight:700;margin-left:6px;">active</span>' : '';
     const avatar = identityAvatarHtml(identity, 'profile-avatar-sm');
     return `<div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border);">
@@ -767,8 +768,126 @@ function renderPostingProfilesList(identities = cachedData.postingIdentities || 
         <div style="font-size:13px;font-weight:700;color:var(--text);">${name}${active}</div>
         <div style="font-size:12px;color:var(--text-3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${type}${identity.url ? ' · ' + esc(identity.url) : ''}</div>
       </div>
+      <button class="btn btn-secondary btn-sm identity-switch-test-btn" onclick="testPostingIdentitySwitch(this.dataset.identityKey)" data-identity-key="${testKey}" title="Verify this is the Facebook identity the helper can switch to before posting">Test switch</button>
     </div>`;
   }).join('');
+}
+
+function setIdentitySwitchTestStatus(message, color = 'var(--text-3)') {
+  const el = document.getElementById('identitySwitchTestStatus');
+  if (!el) return;
+  el.textContent = message;
+  el.style.color = color;
+}
+
+function setIdentitySwitchTestButtons(disabled) {
+  document.querySelectorAll('.identity-switch-test-btn').forEach(btn => {
+    btn.disabled = !!disabled;
+    if (disabled) btn.dataset.originalText = btn.textContent;
+    btn.textContent = disabled ? 'Testing…' : (btn.dataset.originalText || 'Test switch');
+  });
+}
+
+function identitySwitchTestResult(job, expectedName) {
+  const result = jobResult(job);
+  const tested = Array.isArray(result.results) ? result.results.find(item => {
+    const name = String(item.identity_name || '').trim().toLowerCase();
+    return name && name === String(expectedName || '').trim().toLowerCase();
+  }) || result.results[0] : null;
+  const verified = job.status === 'done' && tested?.success === true;
+  const observed = tested?.verified_home_identity || tested?.active_identity || null;
+  const detail = tested?.error || result.error || job.error || null;
+  return { verified, observed, detail };
+}
+
+async function pollIdentitySwitchTestJob(jobId, identityName) {
+  const started = Date.now();
+  const timer = setInterval(async () => {
+    try {
+      const { data } = await sb.from('jsw_post_jobs')
+        .select('id,status,result,error,created_at,started_at,completed_at')
+        .eq('id', jobId)
+        .eq('user_id', user.id)
+        .maybeSingle();
+      if (!data) return;
+      if (['done', 'failed', 'cancelled'].includes(data.status)) {
+        clearInterval(timer);
+        setIdentitySwitchTestButtons(false);
+        const outcome = identitySwitchTestResult(data, identityName);
+        if (outcome.verified) {
+          setIdentitySwitchTestStatus(`✓ ${identityName} verified. Facebook switched to ${outcome.observed || identityName}. No post was created.`, 'var(--green)');
+          toast(`${identityName} switch verified`);
+        } else {
+          const shown = outcome.observed ? ` Facebook showed ${outcome.observed}.` : '';
+          setIdentitySwitchTestStatus(`✕ ${identityName} was not verified.${shown}${outcome.detail ? ' ' + outcome.detail : ''} No post was created.`, 'var(--red)');
+          toast(`${identityName} switch was not verified`);
+        }
+        return;
+      }
+      const result = jobResult(data);
+      setIdentitySwitchTestStatus(result.text || `Testing ${identityName} in the Chrome helper…`, 'var(--yellow)');
+      if (Date.now() - started > 180000) {
+        clearInterval(timer);
+        setIdentitySwitchTestButtons(false);
+        setIdentitySwitchTestStatus(`The ${identityName} test is still waiting for the Chrome helper. No post was created.`, 'var(--yellow)');
+      }
+    } catch (e) {
+      clearInterval(timer);
+      setIdentitySwitchTestButtons(false);
+      setIdentitySwitchTestStatus(`Could not read the test result: ${e.message}. No post was created.`, 'var(--red)');
+    }
+  }, 2500);
+}
+
+async function testPostingIdentitySwitch(key) {
+  if (!user) return;
+  const identity = (cachedData.postingIdentities || []).find(item => identityKey(item) === key);
+  if (!identity?.name || !isValidPostingIdentity(identity)) {
+    setIdentitySwitchTestStatus('Choose a valid synced Facebook profile or Page before testing.', 'var(--red)');
+    return;
+  }
+  if (!confirm(`Test switching Facebook to ${identity.name}? This opens Facebook in the connected Chrome helper and verifies the active identity. It will not create a post.`)) return;
+
+  try {
+    setIdentitySwitchTestButtons(true);
+    setIdentitySwitchTestStatus(`Queueing a non-posting switch test for ${identity.name}…`, 'var(--yellow)');
+    const { data: existing } = await sb.from('jsw_post_jobs')
+      .select('id,status,result,error,created_at,started_at,completed_at')
+      .eq('user_id', user.id)
+      .eq('message', '__probe_global_identity_switch__')
+      .in('status', ['pending', 'processing'])
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (existing) {
+      setIdentitySwitchTestStatus(`A Page switch test is already running. Waiting for the Chrome helper…`, 'var(--yellow)');
+      pollIdentitySwitchTestJob(existing.id, identity.name);
+      return;
+    }
+
+    const { error, data } = await sb.from('jsw_post_jobs').insert({
+      user_id: user.id,
+      message: '__probe_global_identity_switch__',
+      groups: [{
+        identity_name: identity.name,
+        identity_key: identityKey(identity),
+        identity_type: identity.type || 'Facebook identity',
+        identity_url: identity.url || null
+      }],
+      status: 'pending',
+      result: { text: `Switch test waiting. The Chrome helper will verify ${identity.name}; no post will be created.` },
+      delay: 0,
+      ai_enabled: false,
+      scheduled_for: null
+    }).select('id,status,result,error,created_at,started_at,completed_at').single();
+    if (error) throw new Error(error.message);
+    setIdentitySwitchTestStatus(`Waiting for the Chrome helper to test ${identity.name}…`, 'var(--yellow)');
+    pollIdentitySwitchTestJob(data.id, identity.name);
+    checkConn().catch(() => {});
+  } catch (e) {
+    setIdentitySwitchTestButtons(false);
+    setIdentitySwitchTestStatus(`Could not start the switch test: ${e.message}. No post was created.`, 'var(--red)');
+  }
 }
 
 async function latestIdentitySyncJob() {
