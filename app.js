@@ -3214,6 +3214,144 @@ async function loadSettings() {
   if (aiKeyEl) aiKeyEl.value = '';
   const aiPromptEl = document.getElementById('setAiPrompt');
   if (aiPromptEl && s.ai_prompt) aiPromptEl.value = s.ai_prompt;
+  loadApiKeys().catch(e => console.warn('[Reachr] API key list load failed', e));
+}
+
+function setApiKeyStatus(message, color = 'var(--text-3)') {
+  const el = document.getElementById('apiKeyStatus');
+  if (!el) return;
+  el.textContent = message;
+  el.style.color = color;
+}
+
+function apiKeyDate(value) {
+  if (!value) return 'Never';
+  const date = new Date(value);
+  return Number.isFinite(date.getTime()) ? date.toLocaleString() : 'Unknown';
+}
+
+function renderApiKeys(keys = []) {
+  const el = document.getElementById('apiKeysList');
+  if (!el) return;
+  const active = keys.filter(key => !key.revoked_at);
+  if (!active.length) {
+    el.innerHTML = '<div class="settings-muted" style="padding:8px 0;">No active API keys. Generate one only when an external integration needs it.</div>';
+    return;
+  }
+  el.innerHTML = active.map(key => {
+    const scopes = Array.isArray(key.scopes) && key.scopes.length ? key.scopes : [];
+    const scopeHtml = scopes.map(scope => `<span style="display:inline-block;margin:3px 4px 0 0;padding:2px 6px;border-radius:999px;background:var(--surface-2);color:var(--text-2);font-size:10px;font-weight:700;">${esc(scope)}</span>`).join('');
+    return `<div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-top:1px solid var(--border);">
+      <div style="flex:1;min-width:0;">
+        <div style="display:flex;align-items:center;gap:7px;flex-wrap:wrap;"><span style="font-weight:800;color:var(--text);">${esc(key.name || 'Unnamed key')}</span><code style="font-family:ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--text-3);font-size:11px;">${esc(key.key_preview || 'Hidden')}</code></div>
+        <div style="margin-top:3px;">${scopeHtml}</div>
+        <div class="settings-muted" style="font-size:11px;margin-top:5px;">Created ${esc(apiKeyDate(key.created_at))} · Last used ${esc(apiKeyDate(key.last_used_at))}</div>
+      </div>
+      <button class="btn btn-danger btn-sm" onclick="revokeApiKey(this.dataset.keyId, this.dataset.keyName)" data-key-id="${esc(key.id)}" data-key-name="${esc(key.name || 'this key')}">Revoke</button>
+    </div>`;
+  }).join('');
+}
+
+async function loadApiKeys() {
+  if (!user) return;
+  setApiKeyStatus('Loading API keys...');
+  const { data, error } = await sb.from('jsw_api_keys')
+    .select('id,name,key_preview,scopes,rate_limit,last_used_at,created_at,revoked_at')
+    .eq('user_id', user.id)
+    .order('created_at', { ascending: false });
+  if (error) {
+    const message = /does not exist|schema cache|relation/i.test(error.message || '')
+      ? 'API-key support is not available in this database yet. Apply the API migration first.'
+      : `Could not load API keys: ${error.message}`;
+    setApiKeyStatus(message, 'var(--red)');
+    const el = document.getElementById('apiKeysList');
+    if (el) el.innerHTML = '';
+    return;
+  }
+  const active = (data || []).filter(key => !key.revoked_at);
+  setApiKeyStatus(active.length ? `${active.length} active API key${active.length === 1 ? '' : 's'}. Raw key values are never shown again.` : 'No active API keys.', active.length ? 'var(--green)' : 'var(--text-3)');
+  renderApiKeys(data || []);
+}
+
+function selectedApiKeyScopes() {
+  const scopes = ['jobs:read'];
+  if (document.getElementById('apiScopeGroupsRead')?.checked) scopes.push('groups:read');
+  if (document.getElementById('apiScopeJobsWrite')?.checked) scopes.push('jobs:write');
+  return scopes;
+}
+
+function hideGeneratedApiKey() {
+  const reveal = document.getElementById('apiKeyReveal');
+  const raw = document.getElementById('apiKeyRaw');
+  if (raw) raw.value = '';
+  if (reveal) reveal.style.display = 'none';
+}
+
+async function copyGeneratedApiKey() {
+  const raw = document.getElementById('apiKeyRaw')?.value || '';
+  if (!raw) return toast('No generated key to copy');
+  try {
+    await navigator.clipboard.writeText(raw);
+    toast('API key copied');
+  } catch (_) {
+    const input = document.getElementById('apiKeyRaw');
+    input?.select();
+    document.execCommand('copy');
+    toast('API key copied');
+  }
+}
+
+async function generateApiKey() {
+  if (!user) return;
+  const name = document.getElementById('apiKeyName')?.value.trim() || 'Default';
+  const scopes = selectedApiKeyScopes();
+  const canCreateJobs = scopes.includes('jobs:write');
+  if (canCreateJobs && !confirm('This key can create normal Facebook post jobs as well as diagnostic jobs. Give it only to an integration you trust. Generate it?')) return;
+
+  const button = document.getElementById('generateApiKeyBtn');
+  if (button) { button.disabled = true; button.textContent = 'Generating…'; }
+  hideGeneratedApiKey();
+  setApiKeyStatus('Generating a new API key...');
+  try {
+    const { data, error } = await sb.rpc('amplr_create_api_key', {
+      p_user_id: user.id,
+      p_name: name.slice(0, 80),
+      p_scopes: scopes,
+      p_rate_limit: 30
+    });
+    if (error) throw new Error(error.message);
+    const issued = Array.isArray(data) ? data[0] : data;
+    if (!issued?.api_key) throw new Error('The server created no key value. Check the API migration and function permissions.');
+    const raw = document.getElementById('apiKeyRaw');
+    const reveal = document.getElementById('apiKeyReveal');
+    if (raw) raw.value = issued.api_key;
+    if (reveal) reveal.style.display = 'block';
+    await loadApiKeys();
+    setApiKeyStatus(`Created ${name}. Copy the full value now; only its preview will remain visible later.`, 'var(--green)');
+  } catch (e) {
+    const hint = /function|rpc|does not exist|schema cache|permission/i.test(e.message || '')
+      ? ' The API-key database migration may not be installed for this project.'
+      : '';
+    setApiKeyStatus(`Could not generate API key: ${e.message}.${hint}`, 'var(--red)');
+  } finally {
+    if (button) { button.disabled = false; button.textContent = 'Generate key'; }
+  }
+}
+
+async function revokeApiKey(keyId, keyName = 'this key') {
+  if (!keyId || !user) return;
+  if (!confirm(`Revoke ${keyName}? Any integration using it will stop working immediately.`)) return;
+  try {
+    const { error } = await sb.from('jsw_api_keys')
+      .update({ revoked_at: new Date().toISOString() })
+      .eq('id', keyId)
+      .eq('user_id', user.id);
+    if (error) throw new Error(error.message);
+    setApiKeyStatus(`${keyName} revoked.`, 'var(--green)');
+    await loadApiKeys();
+  } catch (e) {
+    setApiKeyStatus(`Could not revoke API key: ${e.message}`, 'var(--red)');
+  }
 }
 
 async function saveSettings() {

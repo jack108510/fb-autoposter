@@ -1375,6 +1375,38 @@ Example: Quick reminder for clinic owners — if your fee schedule is outdated, 
               <button class="btn btn-primary" onclick="saveSettings()">Save AI settings</button>
             </div>
 
+            <!-- API keys -->
+            <div class="card">
+              <div class="card-title" style="margin-bottom:4px;">API keys</div>
+              <p class="settings-muted" style="margin-bottom:16px;">Create an external key for diagnostics or automation. The full value is shown once only. Keep it private.</p>
+
+              <div class="row" style="margin-bottom:14px;align-items:end;">
+                <div class="form-group" style="margin:0;">
+                  <label for="apiKeyName">Key name</label>
+                  <input type="text" id="apiKeyName" value="Diagnostics access" maxlength="80" placeholder="e.g. Mac mini diagnostics">
+                </div>
+                <button class="btn btn-primary btn-sm" id="generateApiKeyBtn" onclick="generateApiKey()">Generate key</button>
+              </div>
+
+              <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:14px;">
+                <label style="display:flex;align-items:center;gap:7px;font-size:12px;color:var(--text-2);cursor:pointer;"><input type="checkbox" id="apiScopeJobsRead" checked disabled> Read jobs</label>
+                <label style="display:flex;align-items:center;gap:7px;font-size:12px;color:var(--text-2);cursor:pointer;"><input type="checkbox" id="apiScopeGroupsRead"> Read groups</label>
+                <label style="display:flex;align-items:center;gap:7px;font-size:12px;color:var(--text-2);cursor:pointer;"><input type="checkbox" id="apiScopeJobsWrite"> Create jobs</label>
+              </div>
+              <div class="settings-muted" style="font-size:12px;margin-bottom:14px;">Creating jobs also permits normal post jobs. Enable it only for an integration you trust; the current API does not yet offer a diagnostics-only write scope.</div>
+
+              <div id="apiKeyReveal" style="display:none;margin:0 0 14px;padding:12px;border:1px solid rgba(16,185,129,.3);background:rgba(16,185,129,.06);border-radius:10px;">
+                <div style="font-size:12px;font-weight:800;color:var(--green);margin-bottom:7px;">Copy this key now — it will not be shown again.</div>
+                <div style="display:flex;gap:8px;align-items:center;">
+                  <input type="text" id="apiKeyRaw" readonly aria-label="New API key" style="font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;">
+                  <button class="btn btn-secondary btn-sm" onclick="copyGeneratedApiKey()">Copy</button>
+                </div>
+              </div>
+
+              <div id="apiKeyStatus" class="settings-muted" style="margin-bottom:10px;">Loading API keys...</div>
+              <div id="apiKeysList" style="font-size:12px;"><div class="settings-muted">No API keys loaded yet.</div></div>
+            </div>
+
             <!-- Chrome helper activity -->
             <div class="card">
               <div class="card-header" style="margin-bottom:12px;">
