@@ -587,6 +587,7 @@ function identityAvatarCandidates(identity={}) {
     .map(v => String(v || '').trim())
     .filter(Boolean)
     .filter(v => /^(https?:|data:image\/)/i.test(v))
+    .filter(v => !(/\/v\/t39\.30808-6\//i.test(v) && /(?:cstp=mx720|ctp=s720|dst-jpg_tt6)/i.test(v)))
     .filter(v => {
       if (seen.has(v)) return false;
       seen.add(v);
