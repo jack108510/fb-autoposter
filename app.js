@@ -515,12 +515,16 @@ function jobResult(j) {
 function isValidPostingIdentity(identity) {
   const name = (identity?.name || '').trim().replace(/\s+/g, ' ');
   if (!name) return false;
-  if (/^(quick switch profiles?|see all profiles?|see all pages?|settings(?: & privacy)?|help(?: & support)?|report a problem|give feedback|meta verified|meta business suite|display & accessibility|privacy|terms|privacy policy|advertising|ad choices|cookies|more|active|log out)$/i.test(name)) return false;
+  if (name.length > 90) return false;
+  if (/^(quick switch profiles?|see all profiles?|see all pages?|settings(?:\s*(?:&|and)?\s*privacy)?|help(?:\s*(?:&|and)?\s*support)?|report a problem|give feedback|meta verified|meta business suite|display & accessibility|privacy|terms|privacy policy|advertising|ad choices|cookies|more|active|edit|manage|back to previous(?: page)?|select an option|available voices?,?\s*switch|unread chats?|chatsallhas new content.*|log out)$/i.test(name)) return false;
   if (/^(?:[A-Z]\s*){1,3}$/i.test(name.replace(/\./g, ''))) return false;
-  if (/^(facebook|meta|pages?|profiles?|home|watch|marketplace|groups?|notifications?|menu)$/i.test(name)) return false;
+  if (/^\d+$/.test(name)) return false;
+  if (/^(facebook|facebook menu|meta|pages?|profiles?|home|watch|marketplace|groups?|notifications?|menu|account controls(?: and settings)?|account)$/i.test(name)) return false;
+  if (/\b(number of unread notifications|new notification|notifications?|unread chats?|chat history is missing|available voices|privacy shortcuts|professional dashboard|ad center|create post|composer|search facebook|view all)\b/i.test(name)) return false;
   if (/^https?:\/\//i.test(name)) return false;
   const url = identity?.url || '';
-  return !/(\/settings|\/help|\/privacy|\/policies|\/business|\/ads|\/ad_|\/groups\/|\/marketplace|\/events)/i.test(url);
+  if (/(\/settings|\/help|\/privacy|\/policies|\/business|\/ads|\/ad_|\/groups\/|\/marketplace|\/events|\/friends|\/messages|\/notifications)/i.test(url)) return false;
+  return true;
 }
 
 function sanitizePostingIdentities(identities) {
