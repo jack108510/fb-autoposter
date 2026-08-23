@@ -1,0 +1,4 @@
+project_id = "xacehhtgvubcqdoltazg"
+
+[functions.reachr-mcp]
+verify_jwt = false
