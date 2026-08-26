@@ -32,6 +32,7 @@ let checkConnRunning = false;
 let schedulerBusy = false;
 const HEARTBEAT_STALE_MS = 90000;
 const SCHEDULE_FIRE_WINDOW_MS = 2 * 60 * 1000;
+const REACHR_LOCAL_SNAPSHOT_KEY = 'reachr_local_campaign_snapshot';
 
 // ─── Init ───
 document.addEventListener('DOMContentLoaded', () => {
@@ -425,13 +426,15 @@ async function fetchAll() {
       imported_by: r.imported_by || null,
       imported_by_key: r.imported_by_key || null,
     })).filter(g => groupOwnerKey(g) && !isLegacyGroupAssignment(g));
-    return {
+    const data = {
       posts: postsRes || [],
       logs: logs || [],
       groups,
       settings: settings || {},
       postingIdentities: sanitizePostingIdentities(Array.isArray(postingIdentitiesRes) ? postingIdentitiesRes : (postingIdentitiesRes?.identities || [])),
     };
+    persistReachrLocalSnapshot(data);
+    return data;
   } catch (e) {
     return cachedData;
   }
@@ -501,6 +504,42 @@ function jobResultCounts(j) {
   if (j.status === 'done') return { ok: count, fail: 0 };
   if (j.status === 'failed') return { ok: 0, fail: count };
   return { ok: 0, fail: 0 };
+}
+
+function sanitizeReachrSnapshotValue(value) {
+  const secretKeys = new Set(['accessToken', 'access_token', 'refreshToken', 'refresh_token', 'token', 'password', 'secret', 'apiKey', 'api_key']);
+  if (Array.isArray(value)) return value.map(sanitizeReachrSnapshotValue);
+  if (value && typeof value === 'object') {
+    const clean = {};
+    Object.entries(value).forEach(([key, val]) => {
+      const lower = key.toLowerCase();
+      if (secretKeys.has(key) || lower.includes('token') || lower.includes('password') || lower.includes('secret') || lower.includes('apikey') || lower.includes('api_key')) return;
+      clean[key] = sanitizeReachrSnapshotValue(val);
+    });
+    return clean;
+  }
+  return value;
+}
+
+function persistReachrLocalSnapshot(data) {
+  try {
+    const snapshot = sanitizeReachrSnapshotValue({
+      schema: 'reachr.dashboard.local-snapshot.v1',
+      created_at: new Date().toISOString(),
+      user: user ? { id: user.id, email: user.email } : null,
+      posts: data?.posts || [],
+      groups: data?.groups || [],
+      settings: data?.settings || {},
+      postingIdentities: data?.postingIdentities || [],
+      source: location.href,
+      notes: 'Local campaign snapshot for Reachr operations during Supabase/Auth outages. No auth tokens are stored.'
+    });
+    localStorage.setItem(REACHR_LOCAL_SNAPSHOT_KEY, JSON.stringify(snapshot));
+    return snapshot;
+  } catch (e) {
+    console.warn('[Reachr] local snapshot skipped', e);
+    return null;
+  }
 }
 
 function jobResult(j) {
