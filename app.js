@@ -1584,7 +1584,15 @@ function subscriptionPatternKey(item) {
 }
 
 function jobGroupKey(job) {
-  return subscriptionPatternKey(job);
+  const days = Array.isArray(job.repeat_days) ? [...job.repeat_days].sort((a, b) => a - b).join(',') : '';
+  const text = scheduledEventText(job).replace(/\s+/g, ' ').trim();
+  const firstComment = (job.first_comment || '').replace(/\s+/g, ' ').trim();
+  return [
+    scheduledEventIdentityName(job),
+    simpleHash(text),
+    simpleHash(firstComment),
+    days || localDateKey(new Date(job.scheduled_for || Date.now()))
+  ].join('||');
 }
 
 function simpleHash(value) {
@@ -1604,32 +1612,45 @@ function queuedJobSubscriptionRows(jobs = []) {
         id: `jobs-${simpleHash(key)}`,
         kind: 'job_group',
         jobIds: [],
-        postCount: 0,
+        batchCount: 0,
         previews: [],
         text: scheduledEventText(job),
         imageUrl: scheduledEventImage(job),
         identityName: scheduledEventIdentityName(job),
-        groups: scheduledEventGroups(job),
+        groups: [],
+        groupUrlSet: new Set(),
         enabled: true,
         schedule: {
           time: normalizeTimeValue(`${String(when.getHours()).padStart(2, '0')}:${String(when.getMinutes()).padStart(2, '0')}`),
           days: []
         },
-        nextDate: when
+        nextDate: when,
+        lastDate: when
       });
     }
     const row = grouped.get(key);
     row.jobIds.push(job.id);
-    row.postCount += 1;
+    row.batchCount += 1;
+    scheduledEventGroups(job).forEach(group => {
+      const key = group.url || group.group_url || groupDisplayName(group);
+      if (!key || row.groupUrlSet.has(key)) return;
+      row.groupUrlSet.add(key);
+      row.groups.push(group);
+    });
     const preview = scheduledEventText(job).replace(/\s+/g, ' ').trim();
     if (preview && !row.previews.includes(preview)) row.previews.push(preview);
     if (!row.imageUrl && scheduledEventImage(job)) row.imageUrl = scheduledEventImage(job);
     const day = when.getDay();
     if (!row.schedule.days.includes(day)) row.schedule.days.push(day);
-    if (when < row.nextDate) row.nextDate = when;
+    if (when < row.nextDate) {
+      row.nextDate = when;
+      row.schedule.time = normalizeTimeValue(`${String(when.getHours()).padStart(2, '0')}:${String(when.getMinutes()).padStart(2, '0')}`);
+    }
+    if (when > row.lastDate) row.lastDate = when;
   });
   return [...grouped.values()].map(row => {
     row.schedule.days.sort((a, b) => a - b);
+    delete row.groupUrlSet;
     return row;
   });
 }
@@ -1693,14 +1714,14 @@ function renderSubscriptionsTable(posts = [], jobs = []) {
         ? post.previews[0]
         : (scheduledEventText(post).replace(/\s+/g, ' ').trim() || 'No post text saved');
       const postMeta = isQueued
-        ? `${post.postCount || post.jobIds?.length || 0} scheduled post${(post.postCount || post.jobIds?.length || 0) === 1 ? '' : 's'}${post.previews?.length > 1 ? ` · ${post.previews.length} versions` : ''}`
+        ? `${post.batchCount || post.jobIds?.length || 0} batch${(post.batchCount || post.jobIds?.length || 0) === 1 ? '' : 'es'} · ${groupCount} group${groupCount === 1 ? '' : 's'}${post.previews?.length > 1 ? ` · ${post.previews.length} versions` : ''}`
         : (scheduledEventImage(post) ? 'Includes image' : '');
       const groupNames = groups.map(groupDisplayName).filter(Boolean);
       const groupLabel = groupCount
         ? `${groupCount} group${groupCount === 1 ? '' : 's'}${groupNames.length ? ` · ${groupNames.slice(0, 2).join(', ')}${groupNames.length > 2 ? ` +${groupNames.length - 2}` : ''}` : ''}`
         : 'No groups selected';
       const frequency = frequencyLabel(post);
-      const nextLabel = isQueued && post.nextDate ? `${post.nextDate.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })} · ${displayTime(post.schedule?.time || '09:00')}` : (post.enabled ? nextRunLabel(post) : 'Paused');
+      const nextLabel = isQueued && post.nextDate ? `${post.nextDate.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })} · ${displayTime(post.schedule?.time || '09:00')}${post.lastDate && post.lastDate > post.nextDate ? `–${displayTime(`${String(post.lastDate.getHours()).padStart(2, '0')}:${String(post.lastDate.getMinutes()).padStart(2, '0')}`)}` : ''}` : (post.enabled ? nextRunLabel(post) : 'Paused');
       const statusLabel = isQueued ? 'Scheduled' : (post.enabled ? 'Active' : 'Paused');
       const statusClass = (isQueued || post.enabled) ? 'badge-green' : 'badge-gray';
       const eyeIcon = '<svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M1.5 8s2.3-4 6.5-4 6.5 4 6.5 4-2.3 4-6.5 4-6.5-4-6.5-4Z"/><circle cx="8" cy="8" r="2"/></svg>';
