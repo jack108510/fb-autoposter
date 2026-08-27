@@ -1539,9 +1539,65 @@ function scheduledWeekEvents(legacyPosts, scheduledJobs, weekDays) {
   return events.sort((a, b) => a.time.localeCompare(b.time));
 }
 
-function upcomingAvatarHtml(item) {
-  return identityAvatarHtml(item.identity, 'week-post-avatar')
-    .replace('<div ', `<div role="button" tabindex="0" title="${esc(item.title)}" onclick="openUpcomingPostDetail('${esc(item.id)}')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openUpcomingPostDetail('${esc(item.id)}')}" `);
+function groupRefForUpcoming(group) {
+  if (!group) return '';
+  if (typeof group === 'string') return group;
+  return group.url || group.group_url || group.id || groupDisplayName(group);
+}
+
+function groupedUpcomingDayProfiles(events = []) {
+  const grouped = new Map();
+  events.forEach(event => {
+    const identityName = event.identityName || 'Facebook profile';
+    const key = [event.dateKey, identityName].join('|');
+    if (!grouped.has(key)) {
+      grouped.set(key, {
+        id: `day-profile-${simpleHash(key)}`,
+        dateKey: event.dateKey,
+        dateLabel: event.dateLabel,
+        identity: event.identity || findPostingIdentityByName(identityName),
+        identityName,
+        text: event.text || '',
+        imageUrl: event.imageUrl || '',
+        groups: [],
+        groupKeys: new Set(),
+        times: [],
+        eventIds: [],
+        batchCount: 0,
+        title: identityName
+      });
+    }
+    const row = grouped.get(key);
+    row.eventIds.push(event.id);
+    row.batchCount += 1;
+    if (event.text && !row.text) row.text = event.text;
+    if (event.imageUrl && !row.imageUrl) row.imageUrl = event.imageUrl;
+    if (event.time && !row.times.includes(event.time)) row.times.push(event.time);
+    scheduledEventGroups(event).forEach(group => {
+      const groupKey = groupRefForUpcoming(group);
+      if (!groupKey || row.groupKeys.has(groupKey)) return;
+      row.groupKeys.add(groupKey);
+      row.groups.push(group);
+    });
+  });
+  return [...grouped.values()].map(row => {
+    row.times.sort();
+    row.time = row.times[0] || '09:00';
+    row.title = `${row.identityName || 'Facebook profile'} · ${row.groups.length || 0} group${(row.groups.length || 0) === 1 ? '' : 's'} · ${row.times.length} time${row.times.length === 1 ? '' : 's'}`;
+    delete row.groupKeys;
+    return row;
+  }).sort((a, b) => (a.dateKey + a.identityName).localeCompare(b.dateKey + b.identityName));
+}
+
+function upcomingProfileCardHtml(item) {
+  const groupCount = item.groups?.length || 0;
+  const timeLabel = item.times?.length
+    ? `${displayTime(item.times[0])}${item.times.length > 1 ? ` +${item.times.length - 1}` : ''}`
+    : '';
+  return `<button class="week-profile-card" title="${esc(item.title)}" onclick="openUpcomingPostDetail('${esc(item.id)}')">
+    ${identityAvatarHtml(item.identity, 'week-post-avatar')}
+    <span class="week-profile-copy"><span class="week-profile-name">${esc(item.identityName || item.identity?.name || 'Profile')}</span><span class="week-profile-meta">${esc(`${groupCount} group${groupCount === 1 ? '' : 's'}${timeLabel ? ` · ${timeLabel}` : ''}`)}</span></span>
+  </button>`;
 }
 
 function frequencyLabel(post) {
@@ -1800,33 +1856,30 @@ async function loadScheduled() {
     return;
   }
 
-  const times = [...new Set(events.map(e => e.time))].sort();
+  const dayProfiles = groupedUpcomingDayProfiles(events);
+  upcomingPostDetails = Object.fromEntries(dayProfiles.map(e => [e.id, e]));
   const eventMap = new Map();
-  events.forEach(e => {
-    const key = `${e.dateKey}|${e.time}`;
-    if (!eventMap.has(key)) eventMap.set(key, []);
-    eventMap.get(key).push(e);
+  dayProfiles.forEach(item => {
+    if (!eventMap.has(item.dateKey)) eventMap.set(item.dateKey, []);
+    eventMap.get(item.dateKey).push(item);
   });
 
-  const header = `<div class="week-grid">
-    <div class="week-head-cell"></div>
-    ${weekDays.map((day, i) => `<div class="week-head-cell ${i === 0 ? 'today' : ''}"><div class="week-day-name">${day.toLocaleDateString('en-US', { weekday: 'short' })}</div><div class="week-day-date">${day.getDate()}</div></div>`).join('')}
-  </div>`;
-
-  const rows = times.map(time => `<div class="week-grid">
-    <div class="week-time-label">${displayTime(time)}</div>
-    ${weekDays.map(day => {
-      const items = eventMap.get(`${localDateKey(day)}|${time}`) || [];
-      return `<div class="week-cell ${items.length ? 'has-post' : ''}">${items.length ? `<div class="week-avatar-stack">${items.map(upcomingAvatarHtml).join('')}</div>` : ''}</div>`;
+  const days = `<div class="week-days-grid">
+    ${weekDays.map((day, i) => {
+      const items = eventMap.get(localDateKey(day)) || [];
+      return `<div class="week-day-column ${i === 0 ? 'today' : ''} ${items.length ? 'has-post' : ''}">
+        <div class="week-day-header"><div class="week-day-name">${day.toLocaleDateString('en-US', { weekday: 'short' })}</div><div class="week-day-date">${day.getDate()}</div></div>
+        <div class="week-day-posts">${items.length ? items.map(upcomingProfileCardHtml).join('') : '<div class="week-day-empty">No posts</div>'}</div>
+      </div>`;
     }).join('')}
-  </div>`).join('');
+  </div>`;
 
   el.innerHTML = `<div class="upcoming-week-card">
     <div class="upcoming-week-top">
       <div><div class="upcoming-week-title">This week</div><div class="upcoming-week-range">${weekDays[0].toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – ${weekDays[6].toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</div></div>
       <button class="btn btn-primary btn-sm" onclick="nav('create')">Schedule a post</button>
     </div>
-    <div class="week-scroll"><div class="week-calendar">${header}${rows}</div></div>
+    <div class="week-scroll"><div class="week-calendar">${days}</div></div>
   </div>${renderSubscriptionsTable(cachedData.posts || [], scheduledJobs || [])}`;
 }
 
@@ -1847,10 +1900,13 @@ function openUpcomingPostDetailFromItem(item) {
   const groupList = scheduledEventGroups(item).map(groupDisplayName).filter(Boolean);
   const identity = item.identity || findPostingIdentityByName(item.identityName || scheduledEventIdentityName(item));
   const time = item.time || item.schedule?.time || '09:00';
+  const times = Array.isArray(item.times) && item.times.length ? item.times : [time];
+  const timeList = times.map(displayTime).join(', ');
+  const batchLabel = item.batchCount ? ` · ${item.batchCount} batch${item.batchCount === 1 ? '' : 'es'}` : '';
 
   if (avatar) avatar.innerHTML = identityAvatarHtml(identity, '');
   if (title) title.textContent = item.identityName || identity?.name || 'Facebook profile';
-  if (meta) meta.textContent = `${item.dateLabel || ''} · ${displayTime(time)}${groupList.length ? ` · ${groupList.length} group${groupList.length === 1 ? '' : 's'}` : ''}`;
+  if (meta) meta.textContent = `${item.dateLabel || ''} · ${timeList}${groupList.length ? ` · ${groupList.length} group${groupList.length === 1 ? '' : 's'}` : ''}${batchLabel}`;
   if (text) text.textContent = item.text || 'No post text saved.';
   if (image) {
     if (item.imageUrl) {
@@ -1862,7 +1918,7 @@ function openUpcomingPostDetailFromItem(item) {
     }
   }
   if (groups) {
-    groups.innerHTML = groupList.length ? groupList.slice(0, 12).map((name, i) => `<span class="group-tag"><div class="dot" style="background:${GCOLORS[i % GCOLORS.length]}"></div>${esc(name)}</span>`).join('') : '';
+    groups.innerHTML = groupList.length ? groupList.map((name, i) => `<span class="group-tag"><div class="dot" style="background:${GCOLORS[i % GCOLORS.length]}"></div>${esc(name)}</span>`).join('') : '';
   }
   modal?.classList.add('show');
 }
