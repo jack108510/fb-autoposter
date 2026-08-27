@@ -1473,7 +1473,10 @@ function scheduledEventIdentityName(item) {
 }
 
 function scheduledEventGroups(item) {
-  return Array.isArray(item.groups) ? item.groups : [];
+  if (Array.isArray(item.groups)) return item.groups;
+  if (Array.isArray(item.selectedGroups)) return item.selectedGroups;
+  if (Array.isArray(item.selectedGroupUrls)) return item.selectedGroupUrls.map(url => ({ url, name: resolveGroupRefName(url) || url }));
+  return [];
 }
 
 function scheduledEventText(item) {
@@ -1743,6 +1746,180 @@ function nextRunDate(post, from = new Date()) {
   return null;
 }
 
+function reachrHealthGroupUrls(item = {}) {
+  return scheduledEventGroups(item)
+    .map(g => typeof g === 'string' ? g : (g?.url || g?.group_url || ''))
+    .filter(Boolean)
+    .map(u => String(u).trim().replace(/\/$/, '').toLowerCase())
+    .sort();
+}
+
+function reachrHealthCampaignKey(post = {}) {
+  const identity = scheduledEventIdentityName(post).replace(/\s+/g, ' ').trim().toLowerCase();
+  const text = scheduledEventText(post).replace(/\s+/g, ' ').trim().toLowerCase();
+  const image = scheduledEventImage(post).trim().toLowerCase();
+  const groups = reachrHealthGroupUrls(post).join('|');
+  const days = (post.schedule?.days || post.daysOfWeek || []).slice().sort((a, b) => a - b).join(',');
+  const time = normalizeTimeValue(post.schedule?.time || post.time || '');
+  return [identity, simpleHash(text), simpleHash(image), groups, days, time].join('||');
+}
+
+function reachrHealthCampaignName(post = {}) {
+  return post.name || post.title || post.campaignName || post.identityName || post.identity_name || 'Campaign';
+}
+
+function reachrHealthCampaignScore(post = {}) {
+  let score = 0;
+  const name = reachrHealthCampaignName(post).trim().toLowerCase();
+  const identity = scheduledEventIdentityName(post).trim().toLowerCase();
+  if (name && name !== identity) score += 4;
+  if (post.firstComment || post.first_comment) score += 3;
+  if (post.schedule?.time && Array.isArray(post.schedule?.days)) score += 2;
+  if (Array.isArray(post.selectedGroupUrls) && post.selectedGroupUrls.length) score += 1;
+  if (post.updatedAt) score += Math.min(Date.parse(post.updatedAt) || 0, Date.now()) / 1e15;
+  return score;
+}
+
+function analyzeReachrHealth(posts = [], healthJobs = []) {
+  const issues = [];
+  const enabledPosts = (posts || []).filter(p => p && p.enabled !== false);
+  const byKey = new Map();
+  enabledPosts.forEach(post => {
+    const key = reachrHealthCampaignKey(post);
+    if (!byKey.has(key)) byKey.set(key, []);
+    byKey.get(key).push(post);
+  });
+  [...byKey.values()].filter(rows => rows.length > 1).forEach(rows => {
+    const keep = [...rows].sort((a, b) => reachrHealthCampaignScore(b) - reachrHealthCampaignScore(a))[0];
+    issues.push({
+      type: 'duplicate_campaigns',
+      level: 'warn',
+      title: 'Duplicate campaigns',
+      detail: `${rows.length} matching campaigns for ${scheduledEventIdentityName(keep) || 'one actor'}; Reachr will keep ${reachrHealthCampaignName(keep)}.`,
+      autoFix: true,
+      keepId: keep.id,
+      removeIds: rows.filter(p => p.id !== keep.id).map(p => p.id)
+    });
+  });
+  enabledPosts.forEach(post => {
+    const hasSchedule = !!(post.schedule?.time || post.time || post.scheduleEnabled);
+    const endsAt = post.schedule?.endsAt || post.campaignEndsAt;
+    const maxRuns = post.schedule?.maxRuns;
+    if (hasSchedule && !endsAt && (maxRuns == null || maxRuns === '')) {
+      issues.push({
+        type: 'infinite_campaign',
+        level: 'warn',
+        title: 'No stop date',
+        detail: `${reachrHealthCampaignName(post)} has no end date or run cap; Reachr will set a 7-day stop date.`,
+        autoFix: true,
+        postId: post.id
+      });
+    }
+    if (!scheduledEventIdentityName(post) || !isValidPostingIdentity({ name: scheduledEventIdentityName(post) })) {
+      issues.push({
+        type: 'missing_actor',
+        level: 'danger',
+        title: 'Missing posting actor',
+        detail: `${reachrHealthCampaignName(post)} has no valid Facebook profile/Page; Reachr will pause it instead of risking the wrong actor.`,
+        autoFix: true,
+        postId: post.id
+      });
+    }
+    if (reachrHealthGroupUrls(post).length === 0) {
+      issues.push({
+        type: 'empty_groups',
+        level: 'danger',
+        title: 'No target groups',
+        detail: `${reachrHealthCampaignName(post)} has no groups selected; Reachr will pause it.`,
+        autoFix: true,
+        postId: post.id
+      });
+    }
+  });
+  const repeatRows = (healthJobs || []).filter(j => Array.isArray(j.repeat_days) && j.repeat_days.length && ['pending', 'processing'].includes(j.status));
+  if (repeatRows.length) {
+    issues.push({
+      type: 'repeat_rows',
+      level: 'warn',
+      title: 'Hidden repeat rows',
+      detail: `${repeatRows.length} queued/processing row${repeatRows.length === 1 ? '' : 's'} can requeue independently; Reachr will clear repeat fields.`,
+      autoFix: true,
+      jobIds: repeatRows.map(j => j.id)
+    });
+  }
+  return { ok: issues.length === 0, issues };
+}
+
+async function autoFixReachrHealth(posts = [], healthJobs = []) {
+  const health = analyzeReachrHealth(posts, healthJobs);
+  const fixes = [];
+  let nextPosts = [...(posts || [])];
+  const now = new Date();
+  const defaultEndsAt = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString();
+
+  const duplicateRemoveIds = new Set(health.issues.filter(i => i.type === 'duplicate_campaigns').flatMap(i => i.removeIds || []));
+  if (duplicateRemoveIds.size) {
+    nextPosts = nextPosts.filter(p => !duplicateRemoveIds.has(p.id));
+    fixes.push(`Removed ${duplicateRemoveIds.size} duplicate campaign${duplicateRemoveIds.size === 1 ? '' : 's'}.`);
+  }
+
+  const infiniteIds = new Set(health.issues.filter(i => i.type === 'infinite_campaign').map(i => i.postId));
+  const pauseIds = new Set(health.issues.filter(i => ['missing_actor', 'empty_groups'].includes(i.type)).map(i => i.postId));
+  if (infiniteIds.size || pauseIds.size) {
+    nextPosts = nextPosts.map(post => {
+      if (!post || !post.id) return post;
+      let next = post;
+      if (infiniteIds.has(post.id)) {
+        next = { ...next, schedule: { ...(next.schedule || {}) }, campaignEndsAt: defaultEndsAt, campaignDurationDays: 7, updatedAt: now.toISOString() };
+        next.schedule.endsAt = defaultEndsAt;
+      }
+      if (pauseIds.has(post.id)) {
+        next = { ...next, enabled: false, updatedAt: now.toISOString() };
+      }
+      return next;
+    });
+    if (infiniteIds.size) fixes.push(`Added 7-day stop date to ${infiniteIds.size} campaign${infiniteIds.size === 1 ? '' : 's'}.`);
+    if (pauseIds.size) fixes.push(`Paused ${pauseIds.size} unsafe campaign${pauseIds.size === 1 ? '' : 's'}.`);
+  }
+
+  if (fixes.length) {
+    const err = await sbSet('posts', nextPosts);
+    if (err) throw new Error(err.message || 'Could not save campaign health fixes');
+    cachedData.posts = nextPosts;
+    persistReachrLocalSnapshot({ ...(cachedData || {}), posts: nextPosts });
+  }
+
+  const repeatJobIds = health.issues.filter(i => i.type === 'repeat_rows').flatMap(i => i.jobIds || []);
+  if (repeatJobIds.length) {
+    const { error } = await sb.from('jsw_post_jobs')
+      .update({ repeat_days: null, repeat_time: null, result: { reachr_health_autofix: true, text: 'Repeat disabled by automatic health check; dashboard campaign controls scheduling.' } })
+      .eq('user_id', user.id)
+      .in('id', repeatJobIds);
+    if (error) throw new Error(error.message);
+    fixes.push(`Cleared hidden repeat settings on ${repeatJobIds.length} job row${repeatJobIds.length === 1 ? '' : 's'}.`);
+  }
+
+  return { fixed: fixes.length > 0, fixes, posts: nextPosts };
+}
+
+function renderReachrHealthPanel(health, fixes = []) {
+  const el = document.getElementById('reachrHealthPanel');
+  if (!el) return;
+  const issues = health?.issues || [];
+  const worst = issues.some(i => i.level === 'danger') ? 'danger' : issues.length ? 'warn' : 'ok';
+  const label = worst === 'ok' ? 'Healthy' : worst === 'danger' ? 'Protected' : 'Auto-fixed';
+  const issueHtml = issues.length ? `<div class="reachr-health-list">${issues.slice(0, 6).map(i => `<div class="reachr-health-item"><div class="reachr-health-item-main"><div class="reachr-health-item-title">${esc(i.title)}</div><div class="reachr-health-item-detail">${esc(i.detail)}</div></div><div class="reachr-health-item-status">${i.autoFix ? 'auto' : 'review'}</div></div>`).join('')}</div>` : '';
+  const fixHtml = fixes.length ? `<div class="reachr-health-fixlog">${fixes.map(f => `✓ ${esc(f)}`).join('<br>')}</div>` : '';
+  el.innerHTML = `<div class="reachr-health-card">
+    <div class="reachr-health-top">
+      <div><div class="reachr-health-title">Campaign health check</div><div class="reachr-health-subtitle">Runs automatically when Upcoming loads. Duplicates, endless repeats, missing actors, and empty-group campaigns are handled before they can break the queue.</div></div>
+      <span class="reachr-health-pill ${worst}">${esc(label)}</span>
+    </div>
+    ${issueHtml || `<div class="reachr-health-subtitle" style="margin-top:12px;">No campaign problems found.</div>`}
+    ${fixHtml}
+  </div>`;
+}
+
 function renderSubscriptionsTable(posts = [], jobs = []) {
   const subscriptions = mergedSubscriptionRows(posts, jobs);
   if (!subscriptions.length) {
@@ -1832,7 +2009,7 @@ async function loadScheduled() {
   const weekDays = Array.from({ length: 7 }, (_, i) => addDays(today, i));
   const weekEnd = addDays(today, 7);
 
-  const { data: scheduledJobs } = await sb.from('jsw_post_jobs')
+  let { data: scheduledJobs } = await sb.from('jsw_post_jobs')
     .select('*')
     .eq('user_id', user.id)
     .eq('status', 'pending')
@@ -1840,6 +2017,37 @@ async function loadScheduled() {
     .gte('scheduled_for', today.toISOString())
     .lt('scheduled_for', weekEnd.toISOString())
     .order('scheduled_for', { ascending: true });
+
+  const { data: healthJobs } = await sb.from('jsw_post_jobs')
+    .select('id,status,scheduled_for,repeat_days,repeat_time,groups,message')
+    .eq('user_id', user.id)
+    .in('status', ['pending', 'processing'])
+    .limit(500);
+
+  let health = analyzeReachrHealth(cachedData.posts || [], healthJobs || []);
+  let healthFixes = [];
+  if (health.issues.some(i => i.autoFix)) {
+    try {
+      const fixed = await autoFixReachrHealth(cachedData.posts || [], healthJobs || []);
+      healthFixes = fixed.fixes || [];
+      if (fixed.fixed) {
+        cachedData.posts = fixed.posts || cachedData.posts || [];
+        const refreshed = await sb.from('jsw_post_jobs')
+          .select('*')
+          .eq('user_id', user.id)
+          .eq('status', 'pending')
+          .not('scheduled_for', 'is', null)
+          .gte('scheduled_for', today.toISOString())
+          .lt('scheduled_for', weekEnd.toISOString())
+          .order('scheduled_for', { ascending: true });
+        scheduledJobs = refreshed.data || [];
+      }
+    } catch (e) {
+      healthFixes = [`Health auto-fix needs review: ${e.message}`];
+    }
+    health = analyzeReachrHealth(cachedData.posts || [], []);
+  }
+  renderReachrHealthPanel(health, healthFixes);
 
   const events = scheduledWeekEvents(cachedData.posts || [], scheduledJobs || [], weekDays);
   upcomingPostDetails = Object.fromEntries(events.map(e => [e.id, e]));

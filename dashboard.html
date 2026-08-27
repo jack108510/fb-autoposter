@@ -908,6 +908,21 @@
     .settings-topline { display:flex; align-items:flex-start; justify-content:space-between; gap:16px; flex-wrap:wrap; }
     .settings-muted { font-size:13px; color:var(--text-3); line-height:1.55; }
     .settings-status-card { background:var(--surface); }
+    .reachr-health-card { border:1px solid var(--border); border-radius:22px; background:var(--surface); box-shadow:var(--shadow); padding:18px 20px; margin-bottom:16px; }
+    .reachr-health-top { display:flex; align-items:flex-start; justify-content:space-between; gap:14px; flex-wrap:wrap; }
+    .reachr-health-title { font-size:14px; font-weight:950; letter-spacing:-.02em; color:var(--text); }
+    .reachr-health-subtitle { margin-top:4px; color:var(--text-3); font-size:12px; line-height:1.4; }
+    .reachr-health-pill { display:inline-flex; align-items:center; gap:6px; border-radius:999px; padding:5px 10px; font-size:11px; font-weight:950; text-transform:uppercase; letter-spacing:.06em; }
+    .reachr-health-pill.ok { background:var(--green-light); color:var(--green); }
+    .reachr-health-pill.warn { background:var(--yellow-light); color:var(--yellow); }
+    .reachr-health-pill.danger { background:var(--red-light); color:var(--red); }
+    .reachr-health-list { display:grid; gap:8px; margin-top:14px; }
+    .reachr-health-item { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; padding:10px 12px; border-radius:14px; background:var(--bg); border:1px solid var(--border); }
+    .reachr-health-item-main { min-width:0; }
+    .reachr-health-item-title { font-size:12px; font-weight:900; color:var(--text); }
+    .reachr-health-item-detail { margin-top:2px; font-size:12px; color:var(--text-3); line-height:1.35; }
+    .reachr-health-item-status { flex:0 0 auto; font-size:11px; font-weight:950; color:var(--text-3); }
+    .reachr-health-fixlog { margin-top:10px; font-size:12px; color:var(--green); line-height:1.45; }
     .posting-defaults-grid { display:grid!important; grid-template-columns:repeat(4,minmax(120px,1fr)); gap:14px; }
     .settings-advanced { border:1px solid var(--border); border-radius:22px; background:var(--surface); overflow:hidden; }
     .settings-advanced > summary { list-style:none; cursor:pointer; padding:18px 22px; display:flex; align-items:center; justify-content:space-between; gap:16px; font-weight:900; color:var(--text); }
@@ -1225,6 +1240,7 @@ Example: Quick reminder for clinic owners — if your fee schedule is outdated, 
       <div class="page" id="page-scheduled">
         <div class="page-title">Upcoming Posts</div>
         <div class="page-subtitle">Next 7 days.</div>
+        <div id="reachrHealthPanel"></div>
         <div id="scheduledList"></div>
       </div>
 
