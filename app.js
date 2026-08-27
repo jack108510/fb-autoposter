@@ -2527,14 +2527,17 @@ function groupRiskLevel(g) {
 function updateGroupsStats(groups = [], filtered = groups) {
   const set = (id, value) => { const el = document.getElementById(id); if (el) el.textContent = value; };
   const identities = sanitizePostingIdentities(cachedData.postingIdentities || []);
-  const activeProfiles = buildGroupProfileBuckets(groups).filter(b => !['__all__'].includes(b.key) && b.groups.length > 0).length;
-  set('groupsTotalStat', groups.length);
+  const buckets = buildGroupProfileBuckets(groups);
+  const allBucket = buckets.find(b => b.key === '__all__');
+  const displayTotal = displayGroupCountForBucket(allBucket || { groups });
+  const activeProfiles = buckets.filter(b => !['__all__'].includes(b.key) && displayGroupCountForBucket(b) > 0).length;
+  set('groupsTotalStat', displayTotal);
   set('groupsTaggedStat', identities.length);
   set('groupsCooldownStat', activeProfiles);
   set('groupsRiskStat', groups.filter(g => groupRiskLevel(g)).length);
   const sub = document.getElementById('groupsLibrarySub');
   if (sub) {
-    const base = `${filtered.length} of ${groups.length} group${groups.length === 1 ? '' : 's'}`;
+    const base = `${filtered.length} saved row${filtered.length === 1 ? '' : 's'} · ${displayTotal} Facebook-verified group${displayTotal === 1 ? '' : 's'}`;
     sub.textContent = `${base} organized by ${identities.length || 0} Facebook profile${identities.length === 1 ? '' : 's'}/Pages.`;
   }
 }
@@ -2619,11 +2622,52 @@ function groupAssignmentProfileForGroup(group = {}, identities = sanitizePosting
   return null;
 }
 
+const FACEBOOK_VERIFIED_GROUP_COUNTS = Object.freeze({
+  'wildrose automations': {
+    count: 109,
+    verifiedAt: '2026-08-26',
+    source: 'Facebook joined-groups page while acting as Wildrose Automations'
+  },
+  'empty slot': {
+    count: 100,
+    verifiedAt: '2026-08-26',
+    source: 'Facebook joined-groups page while acting as Empty Slot'
+  }
+});
+
+function normalizedIdentityName(value) {
+  return String(value || '').trim().replace(/\s+/g, ' ').toLowerCase();
+}
+
+function verifiedGroupCountForProfile(profile = {}) {
+  const entry = FACEBOOK_VERIFIED_GROUP_COUNTS[normalizedIdentityName(profile.name)];
+  return Number.isFinite(entry?.count) ? entry.count : null;
+}
+
+function displayGroupCountForBucket(bucket = {}) {
+  if (bucket.key === '__all__') return bucket.liveCount ?? bucket.groups?.length ?? 0;
+  const verified = verifiedGroupCountForProfile(bucket.profile || {});
+  return verified ?? bucket.groups?.length ?? 0;
+}
+
+function groupCountLabel(bucket = {}) {
+  const displayCount = displayGroupCountForBucket(bucket);
+  const savedCount = bucket.groups?.length ?? 0;
+  const verified = bucket.key !== '__all__' && verifiedGroupCountForProfile(bucket.profile || {}) !== null;
+  return {
+    displayCount,
+    savedCount,
+    verified,
+    label: verified && displayCount !== savedCount ? `${displayCount} live · ${savedCount} saved` : String(displayCount),
+    description: verified ? `Facebook verified ${displayCount}; Reachr has ${savedCount} saved row${savedCount === 1 ? '' : 's'}.` : `${displayCount} group${displayCount === 1 ? '' : 's'}`
+  };
+}
+
 function buildGroupProfileBuckets(groups = []) {
   const identities = sanitizePostingIdentities(cachedData.postingIdentities || []);
   const buckets = new Map();
   const ensure = (key, profile, label = '') => {
-    if (!buckets.has(key)) buckets.set(key, { key, profile, label, groups: [] });
+    if (!buckets.has(key)) buckets.set(key, { key, profile, label, groups: [], liveCount: null });
     return buckets.get(key);
   };
   const all = ensure('__all__', { name: 'All profiles', type: 'Everything Reachr knows about' }, 'Every group across every profile/page.');
@@ -2643,6 +2687,19 @@ function buildGroupProfileBuckets(groups = []) {
     }
     attached.forEach(key => ensure(key, buckets.get(key)?.profile || { name: key }).groups.push(group));
   });
+
+  let verifiedTotal = 0;
+  let savedForVerifiedProfiles = 0;
+  buckets.forEach(bucket => {
+    if (bucket.key === '__all__') return;
+    const verified = verifiedGroupCountForProfile(bucket.profile || {});
+    if (verified !== null) {
+      bucket.liveCount = verified;
+      verifiedTotal += verified;
+      savedForVerifiedProfiles += bucket.groups.length;
+    }
+  });
+  all.liveCount = verifiedTotal + Math.max(0, all.groups.length - savedForVerifiedProfiles);
 
   return [...buckets.values()].sort((a, b) => {
     if (a.key === '__all__') return -1;
@@ -2701,7 +2758,9 @@ function renderGroupsList(groups) {
   const empty = document.getElementById('groupsEmpty');
   if (!list) return;
   const countEl = document.getElementById('groupCount');
-  if (countEl) countEl.textContent = `(${groups.length})`;
+  const currentBuckets = buildGroupProfileBuckets(groups);
+  const currentAllBucket = currentBuckets.find(b => b.key === '__all__');
+  if (countEl) countEl.textContent = `(${displayGroupCountForBucket(currentAllBucket || { groups })})`;
 
   const filtered = groups;
 
@@ -2730,27 +2789,29 @@ function renderGroupsList(groups) {
   const rail = `<aside class="groups-profile-rail">
     ${buckets.map(bucket => {
       const profile = bucket.profile || { name: 'Facebook profile' };
+      const count = groupCountLabel(bucket);
       const avatar = bucket.key === '__all__'
         ? '<div class="profile-avatar profile-avatar-sm avatar-fallback">All</div>'
         : identityAvatarHtml(profile, 'profile-avatar-sm');
-      return `<button type="button" class="groups-profile-tab ${bucket.key === selectedGroupProfileKey ? 'active' : ''}" data-group-profile-key="${esc(bucket.key)}">
+      return `<button type="button" class="groups-profile-tab ${bucket.key === selectedGroupProfileKey ? 'active' : ''}" data-group-profile-key="${esc(bucket.key)}" title="${esc(count.description)}">
         ${avatar}
         <div class="groups-profile-tab-main">
           <div class="groups-profile-name">${esc(profile.name || 'Facebook profile')}</div>
           <div class="groups-profile-type">${esc(bucket.label || profile.type || 'Facebook profile')}</div>
         </div>
-        <div class="groups-profile-count">${bucket.groups.length}</div>
+        <div class="groups-profile-count">${esc(count.label)}</div>
       </button>`;
     }).join('')}
   </aside>`;
 
   const profile = selectedBucket.profile || { name: 'Facebook profile' };
+  const selectedCount = groupCountLabel(selectedBucket);
   const workspaceAvatar = selectedBucket.key === '__all__'
     ? '<div class="profile-avatar avatar-fallback">All</div>'
     : identityAvatarHtml(profile, '');
   const cards = selectedBucket.groups.length
     ? `<div class="groups-card-grid">${selectedBucket.groups.map(g => renderGroupCard(g, postCounts, colors[(cardIndex++) % colors.length])).join('')}</div>`
-    : `<div class="groups-empty-profile">No groups found for this profile yet.</div>`;
+    : `<div class="groups-empty-profile">No saved group rows found for this profile yet.</div>`;
 
   list.innerHTML = `${rail}<main class="groups-workspace">
     <div class="groups-workspace-head">
@@ -2758,7 +2819,7 @@ function renderGroupsList(groups) {
         ${workspaceAvatar}
         <div style="min-width:0;">
           <h3>${esc(profile.name || 'Facebook profile')}</h3>
-          <p>${esc(selectedBucket.label || profile.type || 'Facebook profile')} · ${selectedBucket.groups.length} group${selectedBucket.groups.length === 1 ? '' : 's'}</p>
+          <p>${esc(selectedBucket.label || profile.type || 'Facebook profile')} · ${esc(selectedCount.description)}</p>
         </div>
       </div>
       <div class="groups-workspace-actions">
@@ -2883,7 +2944,8 @@ async function loadGroups() {
   cachedData = await fetchAll();
   const groups = cachedData.groups || [];
   const countEl = document.getElementById('groupCount');
-  if (countEl) countEl.textContent = `(${groups.length})`;
+  const allBucket = buildGroupProfileBuckets(groups).find(b => b.key === '__all__');
+  if (countEl) countEl.textContent = `(${displayGroupCountForBucket(allBucket || { groups })})`;
 
   renderGroupTagBar(groups);
   renderGroupsList(groups);
