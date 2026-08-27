@@ -3302,6 +3302,7 @@ async function loadSettings() {
 
   if (s.delay) document.getElementById('setDelay').value = s.delay;
   if (s.maxGroups) document.getElementById('setMaxGroups').value = s.maxGroups;
+  if (s.daily_post_cap) document.getElementById('setDailyCap').value = s.daily_post_cap;
   if (s.jitter) document.getElementById('setJitter').value = s.jitter;
   if (s.cooldown_days != null) {
     const el = document.getElementById('setCooldown');
@@ -3471,8 +3472,9 @@ async function saveSettings() {
   const settings = {
     ...(cachedData.settings || {}),
     delay: Math.max(parseInt(document.getElementById('setDelay').value) || 90, 90),
-    maxGroups: parseInt(document.getElementById('setMaxGroups').value) || 10,
-    jitter: parseInt(document.getElementById('setJitter').value) || 5,
+    maxGroups: Math.max(parseInt(document.getElementById('setMaxGroups').value) || 8, 1),
+    daily_post_cap: Math.max(parseInt(document.getElementById('setDailyCap')?.value) || 120, 1),
+    jitter: Math.max(parseInt(document.getElementById('setJitter').value) || 75, 0),
     cooldown_days: parseInt(document.getElementById('setCooldown')?.value ?? 2),
     ai_enabled: aiEnabled,
     ai_provider: aiProvider,

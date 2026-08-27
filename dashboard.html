@@ -1320,11 +1320,15 @@ Example: Quick reminder for clinic owners — if your fee schedule is outdated, 
             </div>
             <div class="form-group" style="margin:0;">
               <label>Groups per run</label>
-              <input type="number" id="setMaxGroups" value="10" min="1" max="50" />
+              <input type="number" id="setMaxGroups" value="8" min="1" max="100" />
+            </div>
+            <div class="form-group" style="margin:0;">
+              <label>Daily post cap</label>
+              <input type="number" id="setDailyCap" value="120" min="1" max="200" />
             </div>
             <div class="form-group" style="margin:0;">
               <label>Randomness</label>
-              <input type="number" id="setJitter" value="5" min="0" max="30" />
+              <input type="number" id="setJitter" value="75" min="0" max="180" />
             </div>
             <div class="form-group" style="margin:0;">
               <label>Rest days</label>
@@ -1607,6 +1611,6 @@ Example: Quick reminder for clinic owners — if your fee schedule is outdated, 
       }
     }, 1200);
   </script>
-  <script src="app.js?v=72"></script>
+  <script src="app.js?v=73"></script>
 </body>
 </html>
