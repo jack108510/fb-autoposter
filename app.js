@@ -1671,8 +1671,8 @@ function renderSubscriptionsTable(posts = [], jobs = []) {
   if (!subscriptions.length) {
     return `<div class="subscription-card">
       <div class="subscription-top">
-        <div><div class="subscription-title">Subscriptions</div><div class="subscription-subtitle">Recurring and queued scheduled posts.</div></div>
-        <button class="btn btn-secondary btn-sm" onclick="nav('create')">Add subscription</button>
+        <div><div class="subscription-title">Campaigns</div><div class="subscription-subtitle">Recurring and queued scheduled posts.</div></div>
+        <button class="btn btn-secondary btn-sm" onclick="nav('create')">Add campaign</button>
       </div>
       <div class="subscription-empty">No recurring or queued scheduled posts yet.</div>
     </div>`;
@@ -1680,8 +1680,8 @@ function renderSubscriptionsTable(posts = [], jobs = []) {
 
   return `<div class="subscription-card">
     <div class="subscription-top">
-      <div><div class="subscription-title">Subscriptions</div><div class="subscription-subtitle">Recurring and queued scheduled posts.</div></div>
-      <button class="btn btn-secondary btn-sm" onclick="nav('create')">Add subscription</button>
+      <div><div class="subscription-title">Campaigns</div><div class="subscription-subtitle">Recurring and queued scheduled posts.</div></div>
+      <button class="btn btn-secondary btn-sm" onclick="nav('create')">Add campaign</button>
     </div>
     <div class="subscription-list">${subscriptions.map(post => {
       const identityName = scheduledEventIdentityName(post);
@@ -1708,14 +1708,14 @@ function renderSubscriptionsTable(posts = [], jobs = []) {
       const trashIcon = '<svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M2 4h12"/><path d="M6 4V2.8h4V4"/><path d="M5 6v6"/><path d="M8 6v6"/><path d="M11 6v6"/><path d="M3.5 4l.7 10h7.6l.7-10"/></svg>';
       const actions = isQueued
         ? `<button class="btn btn-secondary btn-sm icon-action-btn" onclick="openQueuedJobDetail('${esc(post.id)}')" title="View" aria-label="View queued post">${eyeIcon}</button><button class="btn btn-secondary btn-sm icon-action-btn" onclick="editQueuedSubscription('${esc(post.id)}')" title="Edit" aria-label="Edit queued post">${pencilIcon}</button><button class="btn btn-secondary btn-sm icon-action-btn danger" onclick="deleteQueuedSubscription('${esc(post.id)}')" title="Delete" aria-label="Delete queued post">${trashIcon}</button>`
-        : `<button class="btn btn-secondary btn-sm icon-action-btn" onclick="openUpcomingPostDetailFromItem(cachedData.posts.find(p => p.id === '${esc(post.id)}'))" title="View" aria-label="View subscription">${eyeIcon}</button><button class="btn btn-secondary btn-sm icon-action-btn" onclick="editPost('${esc(post.id)}')" title="Edit" aria-label="Edit subscription">${pencilIcon}</button><button class="btn btn-secondary btn-sm icon-action-btn danger" onclick="delPost('${esc(post.id)}')" title="Delete" aria-label="Delete subscription">${trashIcon}</button>`;
+        : `<button class="btn btn-secondary btn-sm icon-action-btn" onclick="openUpcomingPostDetailFromItem(cachedData.posts.find(p => p.id === '${esc(post.id)}'))" title="View" aria-label="View campaign">${eyeIcon}</button><button class="btn btn-secondary btn-sm icon-action-btn" onclick="editPost('${esc(post.id)}')" title="Edit" aria-label="Edit campaign">${pencilIcon}</button><button class="btn btn-secondary btn-sm icon-action-btn danger" onclick="delPost('${esc(post.id)}')" title="Delete" aria-label="Delete campaign">${trashIcon}</button>`;
       return `<div class="subscription-item">
         <div class="subscription-item-top">
           <div class="subscription-profile">
             ${identityAvatarHtml(identity, '')}
             <div style="min-width:0;">
               <div class="subscription-profile-name">${esc(identityName || identity?.name || 'Facebook profile')}</div>
-              <div class="subscription-muted">${esc(isQueued ? 'Queued schedule' : 'Saved subscription')}</div>
+              <div class="subscription-muted">${esc(isQueued ? 'Queued campaign' : 'Saved campaign')}</div>
             </div>
           </div>
           <div class="subscription-actions-wrap">
