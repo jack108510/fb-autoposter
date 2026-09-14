@@ -456,7 +456,6 @@ async function createJob(post) {
     message: post.text,
     image_url: post.imageUrl || null,
     groups: groups,
-    identity_name: identityName,
     delay: minDelay,
     ai_enabled: !!aiEnabled,
     ai_prompt: settings.ai_prompt || null,
@@ -1286,7 +1285,6 @@ async function postNow() {
   const identity = getSelectedPostingIdentity();
   if (!text) return toast('Write something first');
   if (!identity?.name || !isValidPostingIdentity(identity)) return toast('Update and select a Facebook profile before posting');
-  const identityName = identity.name;
   if (groups.length === 0) return toast('Select at least one group');
   if (groups.length > 3 && !confirm(`Post this now to ${groups.length} groups?`)) return;
   const imageUrl = getCreateImageUrl();
@@ -1300,7 +1298,6 @@ async function postNow() {
       message: text,
       image_url: imageUrl || null,
       groups: groups,
-      identity_name: identityName,
       delay: Math.max(parseInt(cachedData.settings?.delay, 10) || 90, 90),
       status: 'pending',
       first_comment: document.getElementById('createFirstComment')?.value.trim() || null,
