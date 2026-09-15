@@ -381,7 +381,7 @@ async function pollGroupNames() {
   } catch (e) { /* silent */ }
 }
 
-async function fetchAll() {
+async function fetchAll({ persistSnapshot = true } = {}) {
   try {
     const fetchGroups = async () => {
       // Use select('*') so the dashboard stays compatible with whichever jsw_groups
@@ -433,7 +433,7 @@ async function fetchAll() {
       settings: settings || {},
       postingIdentities: sanitizePostingIdentities(Array.isArray(postingIdentitiesRes) ? postingIdentitiesRes : (postingIdentitiesRes?.identities || [])),
     };
-    persistReachrLocalSnapshot(data);
+    if (persistSnapshot) persistReachrLocalSnapshot(data);
     return data;
   } catch (e) {
     return cachedData;
@@ -1791,9 +1791,9 @@ function analyzeReachrHealth(posts = [], healthJobs = []) {
     issues.push({
       type: 'duplicate_campaigns',
       level: 'warn',
-      title: 'Duplicate campaigns',
-      detail: `${rows.length} matching campaigns for ${scheduledEventIdentityName(keep) || 'one actor'}; Reachr will keep ${reachrHealthCampaignName(keep)}.`,
-      autoFix: true,
+      title: 'Possible duplicate campaigns',
+      detail: `${rows.length} similar campaigns for ${scheduledEventIdentityName(keep) || 'one actor'}; review their IDs, comments, and settings before deleting any.`,
+      autoFix: false,
       keepId: keep.id,
       removeIds: rows.filter(p => p.id !== keep.id).map(p => p.id)
     });
@@ -1807,8 +1807,8 @@ function analyzeReachrHealth(posts = [], healthJobs = []) {
         type: 'infinite_campaign',
         level: 'warn',
         title: 'No stop date',
-        detail: `${reachrHealthCampaignName(post)} has no end date or run cap; Reachr will set a 7-day stop date.`,
-        autoFix: true,
+        detail: `${reachrHealthCampaignName(post)} has no end date or run cap; confirm that indefinite scheduling is intended.`,
+        autoFix: false,
         postId: post.id
       });
     }
@@ -1817,8 +1817,8 @@ function analyzeReachrHealth(posts = [], healthJobs = []) {
         type: 'missing_actor',
         level: 'danger',
         title: 'Missing posting actor',
-        detail: `${reachrHealthCampaignName(post)} has no valid Facebook profile/Page; Reachr will pause it instead of risking the wrong actor.`,
-        autoFix: true,
+        detail: `${reachrHealthCampaignName(post)} has no valid Facebook profile/Page; review the posting actor before running it. No changes have been made.`,
+        autoFix: false,
         postId: post.id
       });
     }
@@ -1827,8 +1827,8 @@ function analyzeReachrHealth(posts = [], healthJobs = []) {
         type: 'empty_groups',
         level: 'danger',
         title: 'No target groups',
-        detail: `${reachrHealthCampaignName(post)} has no groups selected; Reachr will pause it.`,
-        autoFix: true,
+        detail: `${reachrHealthCampaignName(post)} has no groups selected; review its targets. No changes have been made.`,
+        autoFix: false,
         postId: post.id
       });
     }
@@ -1839,64 +1839,12 @@ function analyzeReachrHealth(posts = [], healthJobs = []) {
       type: 'repeat_rows',
       level: 'warn',
       title: 'Hidden repeat rows',
-      detail: `${repeatRows.length} queued/processing row${repeatRows.length === 1 ? '' : 's'} can requeue independently; Reachr will clear repeat fields.`,
-      autoFix: true,
+      detail: `${repeatRows.length} queued/processing row${repeatRows.length === 1 ? '' : 's'} can requeue independently; verify scheduling ownership before changing repeat settings.`,
+      autoFix: false,
       jobIds: repeatRows.map(j => j.id)
     });
   }
   return { ok: issues.length === 0, issues };
-}
-
-async function autoFixReachrHealth(posts = [], healthJobs = []) {
-  const health = analyzeReachrHealth(posts, healthJobs);
-  const fixes = [];
-  let nextPosts = [...(posts || [])];
-  const now = new Date();
-  const defaultEndsAt = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString();
-
-  const duplicateRemoveIds = new Set(health.issues.filter(i => i.type === 'duplicate_campaigns').flatMap(i => i.removeIds || []));
-  if (duplicateRemoveIds.size) {
-    nextPosts = nextPosts.filter(p => !duplicateRemoveIds.has(p.id));
-    fixes.push(`Removed ${duplicateRemoveIds.size} duplicate campaign${duplicateRemoveIds.size === 1 ? '' : 's'}.`);
-  }
-
-  const infiniteIds = new Set(health.issues.filter(i => i.type === 'infinite_campaign').map(i => i.postId));
-  const pauseIds = new Set(health.issues.filter(i => ['missing_actor', 'empty_groups'].includes(i.type)).map(i => i.postId));
-  if (infiniteIds.size || pauseIds.size) {
-    nextPosts = nextPosts.map(post => {
-      if (!post || !post.id) return post;
-      let next = post;
-      if (infiniteIds.has(post.id)) {
-        next = { ...next, schedule: { ...(next.schedule || {}) }, campaignEndsAt: defaultEndsAt, campaignDurationDays: 7, updatedAt: now.toISOString() };
-        next.schedule.endsAt = defaultEndsAt;
-      }
-      if (pauseIds.has(post.id)) {
-        next = { ...next, enabled: false, updatedAt: now.toISOString() };
-      }
-      return next;
-    });
-    if (infiniteIds.size) fixes.push(`Added 7-day stop date to ${infiniteIds.size} campaign${infiniteIds.size === 1 ? '' : 's'}.`);
-    if (pauseIds.size) fixes.push(`Paused ${pauseIds.size} unsafe campaign${pauseIds.size === 1 ? '' : 's'}.`);
-  }
-
-  if (fixes.length) {
-    const err = await sbSet('posts', nextPosts);
-    if (err) throw new Error(err.message || 'Could not save campaign health fixes');
-    cachedData.posts = nextPosts;
-    persistReachrLocalSnapshot({ ...(cachedData || {}), posts: nextPosts });
-  }
-
-  const repeatJobIds = health.issues.filter(i => i.type === 'repeat_rows').flatMap(i => i.jobIds || []);
-  if (repeatJobIds.length) {
-    const { error } = await sb.from('jsw_post_jobs')
-      .update({ repeat_days: null, repeat_time: null, result: { reachr_health_autofix: true, text: 'Repeat disabled by automatic health check; dashboard campaign controls scheduling.' } })
-      .eq('user_id', user.id)
-      .in('id', repeatJobIds);
-    if (error) throw new Error(error.message);
-    fixes.push(`Cleared hidden repeat settings on ${repeatJobIds.length} job row${repeatJobIds.length === 1 ? '' : 's'}.`);
-  }
-
-  return { fixed: fixes.length > 0, fixes, posts: nextPosts };
 }
 
 function renderReachrHealthPanel(health, fixes = []) {
@@ -1904,12 +1852,12 @@ function renderReachrHealthPanel(health, fixes = []) {
   if (!el) return;
   const issues = health?.issues || [];
   const worst = issues.some(i => i.level === 'danger') ? 'danger' : issues.length ? 'warn' : 'ok';
-  const label = worst === 'ok' ? 'Healthy' : worst === 'danger' ? 'Protected' : 'Auto-fixed';
+  const label = worst === 'ok' ? 'Healthy' : 'Needs review';
   const issueHtml = issues.length ? `<div class="reachr-health-list">${issues.slice(0, 6).map(i => `<div class="reachr-health-item"><div class="reachr-health-item-main"><div class="reachr-health-item-title">${esc(i.title)}</div><div class="reachr-health-item-detail">${esc(i.detail)}</div></div><div class="reachr-health-item-status">${i.autoFix ? 'auto' : 'review'}</div></div>`).join('')}</div>` : '';
   const fixHtml = fixes.length ? `<div class="reachr-health-fixlog">${fixes.map(f => `✓ ${esc(f)}`).join('<br>')}</div>` : '';
   el.innerHTML = `<div class="reachr-health-card">
     <div class="reachr-health-top">
-      <div><div class="reachr-health-title">Campaign health check</div><div class="reachr-health-subtitle">Runs automatically when Upcoming loads. Duplicates, endless repeats, missing actors, and empty-group campaigns are handled before they can break the queue.</div></div>
+      <div><div class="reachr-health-title">Campaign health check</div><div class="reachr-health-subtitle">Read-only inspection when Upcoming loads. Campaigns and queued jobs are not changed. Review findings and use explicit campaign controls to make changes.</div></div>
       <span class="reachr-health-pill ${worst}">${esc(label)}</span>
     </div>
     ${issueHtml || `<div class="reachr-health-subtitle" style="margin-top:12px;">No campaign problems found.</div>`}
@@ -1998,7 +1946,8 @@ function renderSubscriptionsTable(posts = [], jobs = []) {
 }
 
 async function loadScheduled() {
-  cachedData = await fetchAll();
+  // Inspection must not change persisted campaigns, jobs, or local snapshots.
+  cachedData = await fetchAll({ persistSnapshot: false });
   const el = document.getElementById('scheduledList');
   if (!el) return;
 
@@ -2006,7 +1955,7 @@ async function loadScheduled() {
   const weekDays = Array.from({ length: 7 }, (_, i) => addDays(today, i));
   const weekEnd = addDays(today, 7);
 
-  let { data: scheduledJobs } = await sb.from('jsw_post_jobs')
+  const { data: scheduledJobs } = await sb.from('jsw_post_jobs')
     .select('*')
     .eq('user_id', user.id)
     .eq('status', 'pending')
@@ -2021,30 +1970,8 @@ async function loadScheduled() {
     .in('status', ['pending', 'processing'])
     .limit(500);
 
-  let health = analyzeReachrHealth(cachedData.posts || [], healthJobs || []);
-  let healthFixes = [];
-  if (health.issues.some(i => i.autoFix)) {
-    try {
-      const fixed = await autoFixReachrHealth(cachedData.posts || [], healthJobs || []);
-      healthFixes = fixed.fixes || [];
-      if (fixed.fixed) {
-        cachedData.posts = fixed.posts || cachedData.posts || [];
-        const refreshed = await sb.from('jsw_post_jobs')
-          .select('*')
-          .eq('user_id', user.id)
-          .eq('status', 'pending')
-          .not('scheduled_for', 'is', null)
-          .gte('scheduled_for', today.toISOString())
-          .lt('scheduled_for', weekEnd.toISOString())
-          .order('scheduled_for', { ascending: true });
-        scheduledJobs = refreshed.data || [];
-      }
-    } catch (e) {
-      healthFixes = [`Health auto-fix needs review: ${e.message}`];
-    }
-    health = analyzeReachrHealth(cachedData.posts || [], []);
-  }
-  renderReachrHealthPanel(health, healthFixes);
+  const health = analyzeReachrHealth(cachedData.posts || [], healthJobs || []);
+  renderReachrHealthPanel(health);
 
   const events = scheduledWeekEvents(cachedData.posts || [], scheduledJobs || [], weekDays);
   upcomingPostDetails = Object.fromEntries(events.map(e => [e.id, e]));
@@ -3837,6 +3764,8 @@ function startScheduleChecker() {
       const now = new Date();
       let changed = false;
       for (const post of posts) {
+        // Explicit migration marker only; never infer ownership from UI/open state.
+        if (post.schedule?.owner === 'durable-v1') continue;
         if (!post.enabled) continue;
         if (!post.schedule || !Array.isArray(post.schedule.days) || !post.schedule.time) continue;
         if (scheduleLimitReached(post, now)) {

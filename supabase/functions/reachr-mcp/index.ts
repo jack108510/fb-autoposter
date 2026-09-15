@@ -1,4 +1,4 @@
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.112.3";
 
 type JsonRpcRequest = {
   jsonrpc?: string;
@@ -193,24 +193,27 @@ function normalizeGroup(row: Record<string, any>) {
 async function authenticate(req: Request) {
   const url = Deno.env.get("SUPABASE_URL") ||
     "https://xacehhtgvubcqdoltazg.supabase.co";
-  const serviceKey = Deno.env.get("REACHR_SUPABASE_SERVICE_ROLE_KEY") ||
-    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-  const anonKey = Deno.env.get("SUPABASE_ANON_KEY") ||
-    Deno.env.get("SUPABASE_PUBLISHABLE_KEY");
+  const serviceKey = Deno.env.get("REACHR_SUPABASE_SECRET_KEY");
   const internalToken = Deno.env.get("REACHR_MCP_TOKEN");
   const internalUserId = Deno.env.get("REACHR_MCP_USER_ID");
 
-  if (!serviceKey && !anonKey) throw new Error("Missing Supabase key env");
+  if (!serviceKey?.startsWith("sb_secret_")) throw new Error("Missing modern Supabase server key");
   const authHeader = req.headers.get("authorization") || "";
   const bearer = authHeader.match(/^Bearer\s+(.+)$/i)?.[1] || "";
 
-  const supabase = createClient(url, serviceKey || anonKey!, {
+  const supabase = createClient(url, serviceKey, {
     global: {
+      fetch: (input, init) => {
+        const headers = new Headers((init as RequestInit | undefined)?.headers);
+        // Remove only the SDK's opaque-key default; retain the caller's JWT.
+        if (headers.get("Authorization") === `Bearer ${serviceKey}`) headers.delete("Authorization");
+        return fetch(input, { ...init, headers });
+      },
       headers: bearer && bearer !== internalToken
         ? { Authorization: `Bearer ${bearer}` }
         : {},
     },
-    auth: { persistSession: false },
+    auth: { persistSession: false, autoRefreshToken: false },
   });
 
   if (internalToken && internalUserId && bearer && bearer === internalToken) {
@@ -308,7 +311,6 @@ async function createPostCampaign(
       identity_name: identityName,
       identity_key: g.profile_key,
     })),
-    identity_name: identityName,
     delay,
     ai_enabled: Boolean(args.ai_enabled),
     status: "pending",
@@ -328,7 +330,7 @@ async function getPostHistory(
   const { data, error } = await ctx.supabase
     .from("jsw_post_jobs")
     .select(
-      "id,status,message,groups,result,error,created_at,started_at,completed_at,identity_name",
+      "id,status,message,groups,result,error,created_at,started_at,completed_at",
     )
     .eq("user_id", ctx.userId)
     .order("created_at", { ascending: false })
