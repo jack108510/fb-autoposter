@@ -71,6 +71,70 @@ class ReachrCtlTests(unittest.TestCase):
         self.assertEqual(reasons[rescue["url"]], "excluded_lost_pet_or_rescue")
         self.assertEqual(reasons[wrong_actor["url"]], "wrong_actor")
 
+    def test_wildrose_filter_uses_explicit_actor_or_playbook_not_generic_rose_substring(self):
+        group = {"name": "Calgary Pet Owners", "url": "https://facebook.com/groups/pets", "identity_name": "Other Actor"}
+        allowed, rejected = reachrctl.filter_groups_for_campaign([group], actor="Other Actor", campaign="primrose-partnerships")
+        self.assertEqual(allowed, [group])
+        self.assertEqual(rejected, [])
+
+        wildrose_group = {**group, "identity_name": "Wildrose Automations"}
+        allowed, rejected = reachrctl.filter_groups_for_campaign([wildrose_group], actor="Wildrose Automations", campaign="")
+        self.assertEqual(allowed, [])
+        self.assertEqual(rejected[0]["reason"], "excluded_non_business_group")
+
+    def test_queue_local_refuses_an_offset_that_leaves_no_groups(self):
+        with tempfile.TemporaryDirectory() as td:
+            store = reachrctl.SnapshotStore(Path(td))
+            store.save({
+                "created_at": "2026-01-01T00:00:00Z",
+                "user": {"id": "u1"},
+                "campaigns": [{
+                    "id": "campaign-1", "name": "Campaign", "identity_name": "Actor", "message": "A post",
+                    "groups": [{"name": "Business Group", "url": "https://facebook.com/groups/1", "identity_name": "Actor"}],
+                }],
+                "groups": [],
+            })
+            args = reachrctl.build_parser().parse_args([
+                "queue-local", "campaign-1", "--dir", td, "--offset-groups", "1",
+            ])
+            with self.assertRaisesRegex(SystemExit, "No safe groups remain after offset"):
+                reachrctl.cmd_queue_local(args)
+
+    def test_queue_local_requires_identity_type_when_snapshot_cannot_prove_it(self):
+        with tempfile.TemporaryDirectory() as td:
+            store = reachrctl.SnapshotStore(Path(td))
+            store.save({
+                "created_at": "2026-01-01T00:00:00Z", "user": {"id": "u1"},
+                "campaigns": [{
+                    "id": "campaign-identity", "name": "Campaign", "identity_name": "Actor", "message": "A post",
+                    "groups": [{"name": "Business Group", "url": "https://facebook.com/groups/1", "identity_name": "Actor"}],
+                }], "groups": [],
+            })
+            args = reachrctl.build_parser().parse_args(["queue-local", "campaign-identity", "--dir", td])
+            with self.assertRaisesRegex(SystemExit, "identity type"):
+                reachrctl.cmd_queue_local(args)
+
+    def test_normalize_group_preserves_only_dedicated_valid_identity_type(self):
+        normalized = reachrctl.normalize_group({
+            "url": "https://facebook.com/groups/1", "name": "Group", "identity_type": "Facebook Page", "type": "Facebook Group",
+        })
+        self.assertEqual(normalized["identity_type"], "Facebook Page")
+        self.assertNotIn("type", normalized)
+
+    def test_queue_local_rejects_generic_or_invalid_group_type_as_identity_proof(self):
+        for metadata in ({"type": "Facebook Group"}, {"identity_type": "Facebook Group"}):
+            with self.subTest(metadata=metadata), tempfile.TemporaryDirectory() as td:
+                store = reachrctl.SnapshotStore(Path(td))
+                store.save({
+                    "created_at": "2026-01-01T00:00:00Z", "user": {"id": "u1"},
+                    "campaigns": [{"id": "campaign-identity", "name": "Campaign", "identity_name": "Actor", "message": "A post",
+                        "groups": [{"name": "Business Group", "url": "https://facebook.com/groups/1", "identity_name": "Actor", **metadata}]}],
+                    "groups": [],
+                })
+                args = reachrctl.build_parser().parse_args(["queue-local", "campaign-identity", "--dir", td])
+                with self.assertRaisesRegex(SystemExit, "identity type"):
+                    reachrctl.cmd_queue_local(args)
+
     def test_snapshot_store_keeps_latest_pointer(self):
         with tempfile.TemporaryDirectory() as td:
             store = reachrctl.SnapshotStore(Path(td))

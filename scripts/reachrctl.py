@@ -39,6 +39,11 @@ EXCLUDED_EMPTY_SLOT_RE = re.compile(
     r"\b(lost|missing|found|rescue|adoption|adopt|shelter|rehom(?:e|ing)|breeder|buy\s*/?\s*sell)\b",
     re.I,
 )
+EXCLUDED_WILDROSE_RE = re.compile(
+    r"\b(pet|pets|dog|dogs|cat|cats|pupp(?:y|ies)|kitten|bird|reptile|animal|veterinar(?:ian|ians|y)|vet|lost|missing|found|rescue|adoption|adopt|shelter|rehom(?:e|ing)|breeder)\b",
+    re.I,
+)
+VALID_IDENTITY_TYPES = frozenset(("Facebook Page", "Facebook profile"))
 
 
 def utc_now() -> str:
@@ -118,12 +123,14 @@ def normalize_group(group: Any, fallback_identity: Optional[str] = None) -> Opti
     name = group.get("name") or group.get("group_name") or url
     if not url and not name:
         return None
+    identity_type = group.get("identity_type")
     return sanitize({
         "id": group.get("id"),
         "url": url,
         "name": name,
         "identity_name": group.get("identity_name") or group.get("profile_name") or group.get("page_name") or group.get("joined_as") or fallback_identity,
         "identity_key": group.get("identity_key") or group.get("profile_key") or group.get("page_key") or group.get("joined_as_key"),
+        "identity_type": identity_type if identity_type in VALID_IDENTITY_TYPES else None,
         "composerIdentityVerified": bool(group.get("composerIdentityVerified")),
         "tags": group.get("tags") if isinstance(group.get("tags"), list) else [],
     })
@@ -213,16 +220,25 @@ def filter_groups_for_campaign(groups: List[Dict[str, Any]], actor: str, campaig
             if EXCLUDED_EMPTY_SLOT_RE.search(haystack):
                 rejected.append({"group": g, "reason": "excluded_lost_pet_or_rescue"})
                 continue
+        # Apply the business-only heuristic only to the explicit Wildrose actor
+        # or a clearly named Wildrose playbook; unrelated names such as
+        # "primrose" must not silently inherit this restriction.
+        if campaign.lower() == "wildrose-business-outreach" or actor.lower() == "wildrose automations":
+            if EXCLUDED_WILDROSE_RE.search(haystack):
+                rejected.append({"group": g, "reason": "excluded_non_business_group"})
+                continue
         allowed.append(g)
     return allowed, rejected
 
 
-def build_local_fallback_job(campaign: Dict[str, Any], user_id: str, due_now: bool = True, max_groups: Optional[int] = None) -> Dict[str, Any]:
+def build_local_fallback_job(campaign: Dict[str, Any], user_id: str, due_now: bool = True, max_groups: Optional[int] = None, offset_groups: int = 0) -> Dict[str, Any]:
     identity = campaign.get("identity_name") or campaign.get("identityName")
     groups = [dict(g) for g in campaign.get("groups", [])]
     for g in groups:
         if identity and not g.get("identity_name"):
             g["identity_name"] = identity
+    if offset_groups:
+        groups = groups[offset_groups:]
     if max_groups is not None:
         groups = groups[:max_groups]
     now_ms = int(time.time() * 1000)
@@ -478,13 +494,29 @@ def cmd_queue_local(args: argparse.Namespace) -> int:
     allowed, rejected = filter_groups_for_campaign(campaign.get("groups", []), actor=actor, campaign=args.campaign or "")
     if not allowed:
         raise SystemExit(f"No safe groups remain after filtering. Rejected: {json.dumps(rejected[:5], indent=2)}")
+    selected_groups = allowed[max(0, args.offset_groups or 0):]
+    if args.max_groups is not None:
+        selected_groups = selected_groups[:args.max_groups]
+    if not selected_groups:
+        raise SystemExit("No safe groups remain after offset; lower --offset-groups or refresh the campaign snapshot.")
+    if args.identity_type:
+        for group in allowed:
+            if group.get("identity_type") not in VALID_IDENTITY_TYPES:
+                group["identity_type"] = args.identity_type
+    unknown_identity_type = [group.get("url") or group.get("name") for group in selected_groups if group.get("identity_type") not in VALID_IDENTITY_TYPES]
+    if unknown_identity_type:
+        raise SystemExit("Refusing to queue with an unknown identity type. Refresh verified identity metadata or pass --identity-type explicitly.")
     campaign = dict(campaign)
     campaign["identity_name"] = actor
-    campaign["groups"] = allowed[: args.max_groups]
+    # Keep the full filtered pool here. build_local_fallback_job applies
+    # offset/max exactly once so chunked fallback jobs walk through the list.
+    campaign["groups"] = allowed
     user_id = (snap.get("user") or {}).get("id") or args.user_id
     if not user_id:
         raise SystemExit("No user_id in snapshot. Pass --user-id.")
-    job = build_local_fallback_job(campaign, user_id=user_id, due_now=not args.future, max_groups=args.max_groups)
+    job = build_local_fallback_job(campaign, user_id=user_id, due_now=not args.future, max_groups=args.max_groups, offset_groups=max(0, args.offset_groups or 0))
+    if not job["groups"]:
+        raise SystemExit("No safe groups remain after offset; lower --offset-groups or refresh the campaign snapshot.")
     plan = {"ok": True, "dry_run": not args.execute, "job": {k: job[k] for k in ("id", "identity_name", "message", "status", "scheduled_for")}, "group_count": len(job["groups"]), "rejected": rejected}
     if not args.execute:
         print(json.dumps(plan, indent=2, sort_keys=True))
@@ -511,8 +543,10 @@ def build_parser() -> argparse.ArgumentParser:
     s = sub.add_parser("queue-local", help="Queue one campaign from latest snapshot into extension local fallback queue")
     s.add_argument("campaign_id", help="Campaign id or exact name from `reachrctl list`")
     s.add_argument("--actor", help="Required actor override/confirmation")
+    s.add_argument("--identity-type", choices=("Facebook Page", "Facebook profile"), help="Explicit identity type only when the verified snapshot lacks it")
     s.add_argument("--campaign", default="", help="Campaign playbook name for filters, e.g. empty-slot-pet-owner-groups")
     s.add_argument("--max-groups", type=int, default=5, help="Conservative group cap for local fallback")
+    s.add_argument("--offset-groups", type=int, default=0, help="Skip this many filtered groups before queueing")
     s.add_argument("--future", action="store_true", help="Preserve campaign scheduled_for instead of due-now")
     s.add_argument("--user-id", help="User id if latest snapshot does not contain one")
     s.add_argument("--execute", action="store_true", help="Actually inject into extension queue; otherwise dry-run")
