@@ -3798,6 +3798,8 @@ function startScheduleChecker() {
         // Explicit migration marker only; never infer ownership from UI/open state.
         if (post.schedule?.owner === 'durable-v1') continue;
         if (!post.enabled) continue;
+        // A stale enabled flag must never override an explicit campaign hold.
+        if (String(post.setupStatus || '').startsWith('held_') || /no publishing authorized/i.test(String(post.holdReason || ''))) continue;
         if (!post.schedule || !Array.isArray(post.schedule.days) || !post.schedule.time) continue;
         if (scheduleLimitReached(post, now)) {
           post.enabled = false;
