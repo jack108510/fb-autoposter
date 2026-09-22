@@ -440,7 +440,7 @@ async function fetchAll({ persistSnapshot = true } = {}) {
   }
 }
 
-// Create a posting job that the extension picks up
+// Create bounded posting jobs that the extension can safely execute.
 async function createJob(post) {
   const identity = getSelectedPostingIdentity();
   const identityName = post.identityName || post.identity_name || identity?.name || null;
@@ -448,20 +448,41 @@ async function createJob(post) {
     throw new Error('Update and select a Facebook profile before posting');
   }
   const groups = (post.groups || []).map(g => typeof g === 'string' ? { url: g, identity_name: identityName } : { ...g, identity_name: g.identity_name || identityName }).filter(g => g && g.url);
+  const campaignId = String(post.source_campaign_id || post.campaign_id || post.id || '').trim();
+  if (!campaignId) throw new Error('Campaign identity is required before posting');
   const settings = cachedData.settings || {};
   const minDelay = Math.max(parseInt(settings.delay, 10) || 90, 90);
   const aiEnabled = post.aiEnabled ?? post.ai_enabled ?? document.getElementById('aiToggle')?.classList.contains('on');
-  const { error } = await sb.from('jsw_post_jobs').insert({
+  const maxGroupsPerJob = 8;
+  const batchCount = Math.ceil(groups.length / maxGroupsPerJob);
+  const heldPolicy = post.schedule?.heldPolicy || {};
+  const excludedUncertainGroupUrls = Array.isArray(heldPolicy.excludedGroupUrls) ? heldPolicy.excludedGroupUrls.filter(Boolean) : [];
+  const explicitBoundedContinuation = heldPolicy.behavior === 'exclude-held-and-continue' && excludedUncertainGroupUrls.length > 0;
+  const jobs = Array.from({ length: batchCount }, (_, index) => ({
     user_id: user.id,
     message: post.text,
     image_url: post.imageUrl || null,
-    groups: groups,
+    groups: groups.slice(index * maxGroupsPerJob, (index + 1) * maxGroupsPerJob),
     delay: minDelay,
     ai_enabled: !!aiEnabled,
     ai_prompt: settings.ai_prompt || null,
     first_comment: post.firstComment || post.first_comment || null,
     status: 'pending',
-  });
+    identity_name: identityName,
+    identity_key: identityKey(identity) || identityName,
+    result: {
+      campaign_id: campaignId,
+      batch_index: index + 1,
+      batch_count: batchCount,
+      total_target_count: groups.length,
+      explicit_bounded_continuation: explicitBoundedContinuation,
+      continuation_without_replay: explicitBoundedContinuation,
+      excluded_uncertain_group_urls: excludedUncertainGroupUrls,
+      results: [],
+    },
+  }));
+  if (!jobs.length) throw new Error('Select at least one group');
+  const { error } = await sb.from('jsw_post_jobs').insert(jobs);
   if (error) throw new Error(error.message);
 }
 
