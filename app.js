@@ -389,12 +389,21 @@ async function fetchAll({ persistSnapshot = true } = {}) {
       // profile_key, page_key, joined_as, etc. may not exist in Supabase's live
       // schema/cache; requesting them explicitly makes PostgREST reject the whole
       // query and the Groups page renders 0 even though imports succeeded.
-      return sb.from('jsw_groups')
-        .select('*')
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: false });
+      const pageSize = 500;
+      const rows = [];
+      for (let start = 0; ; start += pageSize) {
+        const { data, error } = await sb.from('jsw_groups')
+          .select('*')
+          .eq('user_id', user.id)
+          .order('created_at', { ascending: false })
+          .order('id', { ascending: false })
+          .range(start, start + pageSize - 1);
+        if (error) throw error; // Never show a truncated inventory as if it were complete.
+        rows.push(...(data || []));
+        if (!data || data.length < pageSize) return rows;
+      }
     };
-    const [postsRes, groupsRes, settings, logs, postingIdentitiesRes] = await Promise.all([
+    const [postsRes, groupRows, settings, logs, postingIdentitiesRes] = await Promise.all([
       sbGet('posts'),
       // Groups always come from jsw_groups table (shared with extension)
       fetchGroups(),
@@ -402,7 +411,7 @@ async function fetchAll({ persistSnapshot = true } = {}) {
       sbGet('logs'),
       sbGet('posting_identities'),
     ]);
-    const groups = (groupsRes.data || []).map(r => ({
+    const groups = groupRows.map(r => ({
       url: r.group_url,
       name: r.group_name || r.group_url.split('/').filter(Boolean).pop(),
       group_avatar_url: r.group_avatar_url || null,

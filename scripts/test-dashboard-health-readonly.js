@@ -44,7 +44,7 @@ function harness(input = fixtures()) {
       const query = {
         select(value) { columns = value; reads.push({ table, columns }); return query; },
         eq() { return query; }, not() { return query; }, gte() { return query; },
-        lt() { return query; }, order() { return query; }, limit() { return query; },
+        lt() { return query; }, order() { return query; }, limit() { return query; }, range() { return query; },
         in() { return query; },
         then(resolve, reject) {
           if (mutation) {
