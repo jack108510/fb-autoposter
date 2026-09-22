@@ -451,8 +451,9 @@ async function fetchAll({ persistSnapshot = true } = {}) {
 
 // Create bounded posting jobs that the extension can safely execute.
 async function createJob(post) {
-  const identity = getSelectedPostingIdentity();
-  const identityName = post.identityName || post.identity_name || identity?.name || null;
+  const savedIdentityName = post.identityName || post.identity_name || null;
+  const identity = savedIdentityName ? findPostingIdentityByName(savedIdentityName) : getSelectedPostingIdentity();
+  const identityName = savedIdentityName || identity?.name || null;
   if (!identityName || !isValidPostingIdentity({ name: identityName })) {
     throw new Error('Update and select a Facebook profile before posting');
   }
