@@ -1255,6 +1255,10 @@ Example: Quick reminder for clinic owners — if your fee schedule is outdated, 
             <div class="groups-kicker">Profile-level management</div>
             <h2>Each profile gets its own group list.</h2>
             <p>Pick a Facebook profile or Page to review its saved records. A saved record does not confirm that the profile or Page is currently joined.</p>
+            <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;margin:18px 0;">
+              <button type="button" class="btn btn-primary group-sync-btn" onclick="syncFacebookGroups(false)">Import groups</button>
+              <div class="group-sync-status" role="status" aria-live="polite" style="font-size:13px;color:var(--text-3);">Checking latest group scan...</div>
+            </div>
             <div class="groups-stat-grid">
               <div class="groups-stat"><div class="groups-stat-num" id="groupsTotalStat">0</div><div class="groups-stat-label">Saved records</div></div>
               <div class="groups-stat"><div class="groups-stat-num" id="groupsTaggedStat">0</div><div class="groups-stat-label">Profiles</div></div>
