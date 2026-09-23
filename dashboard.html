@@ -1210,11 +1210,21 @@ Example: Quick reminder for clinic owners — if your fee schedule is outdated, 
                   </div>
                 </div>
                 <div id="schedulePanel" class="cp-delivery-panel">
+                  <div class="cp-section"><div class="cp-section-hd"><span class="cp-label">Campaign name</span></div><input type="text" id="createCampaignName" class="cp-url-input" maxlength="100" placeholder="Name this campaign" /></div>
                   <div class="cp-section"><div class="cp-section-hd"><span class="cp-label">Time</span></div><input type="time" id="createTime" class="cp-time" value="09:00" oninput="updateNextFire(); updateCreateWizardSummary();" /></div>
                   <div class="cp-section"><div class="cp-section-hd"><span class="cp-label">Repeat on</span></div><div class="days" id="createDays"></div><div id="nextFireIndicator" class="cp-next-fire" style="display:none;">Next: <strong id="nextFireText"></strong></div></div>
                   <div class="cp-section cp-schedule-limits">
                     <div><div class="cp-section-hd"><span class="cp-label">Stop after posts</span></div><input type="number" id="scheduleMaxRuns" class="cp-url-input" min="1" placeholder="No limit" oninput="updateCreateWizardSummary();" /></div>
                     <div><div class="cp-section-hd"><span class="cp-label">Stop after weeks</span></div><input type="number" id="scheduleWeeks" class="cp-url-input" min="1" placeholder="No limit" oninput="updateCreateWizardSummary();" /></div>
+                  </div>
+                  <div class="cp-section" style="display:grid;gap:10px;">
+                    <div class="cp-section-hd"><span class="cp-label">Approval for automatic posting</span></div>
+                    <p style="font-size:12px;color:var(--text-3);">A draft can be saved without approval. To activate, review the selected Page, groups, post, timing, and these details.</p>
+                    <input type="text" id="campaignOffer" class="cp-url-input" placeholder="Offer or purpose of this post" />
+                    <input type="text" id="campaignDisclosures" class="cp-url-input" placeholder="Required disclosures, or None" />
+                    <input type="text" id="campaignDestination" class="cp-url-input" placeholder="Destination or link, or No external link" />
+                    <input type="text" id="campaignApproverName" class="cp-url-input" placeholder="Your name for the approval record" />
+                    <label style="font-size:12px;display:flex;gap:8px;align-items:flex-start;"><input type="checkbox" id="campaignApprovalCheck" /> I approve this exact campaign to post automatically on its schedule.</label>
                   </div>
                 </div>
                 <div id="postWaiting" class="cp-waiting" style="display:none;"><div class="cp-spinner"></div><span>Sending to Reachr...</span></div>
@@ -1222,6 +1232,7 @@ Example: Quick reminder for clinic owners — if your fee schedule is outdated, 
 
               <div class="cp-nav">
                 <button class="btn btn-secondary" id="cpBackBtn" onclick="prevCreateStep()">Back</button>
+                <button class="btn btn-secondary" id="cpSaveDraftBtn" style="display:none;" onclick="savePost(false)">Save draft</button>
                 <button class="btn btn-primary" id="cpNextBtn" onclick="nextCreateStep()">Continue</button>
               </div>
             </div>
@@ -1635,6 +1646,6 @@ Example: Quick reminder for clinic owners — if your fee schedule is outdated, 
       }
     }, 1200);
   </script>
-  <script src="app.js?v=82"></script>
+  <script src="app.js?v=83"></script>
 </body>
 </html>
