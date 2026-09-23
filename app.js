@@ -2804,7 +2804,7 @@ function updateGroupsStats(groups = [], filtered = groups) {
   set('groupsRiskStat', groups.filter(g => groupRiskLevel(g)).length);
   const sub = document.getElementById('groupsLibrarySub');
   if (sub) {
-    const base = `${filtered.length} saved row${filtered.length === 1 ? '' : 's'} · ${displayTotal} Facebook-verified group${displayTotal === 1 ? '' : 's'}`;
+    const base = `${displayTotal} saved group record${displayTotal === 1 ? '' : 's'} · current Facebook membership is unverified`;
     sub.textContent = `${base} organized by ${identities.length || 0} Facebook profile${identities.length === 1 ? '' : 's'}/Pages.`;
   }
 }
@@ -2842,7 +2842,8 @@ function groupMatchesIdentity(group = {}, identity = {}) {
   const owner = groupOwnerName(group).toLowerCase();
   const groupProfileKey = groupOwnerKey(group);
   const tags = (group.tags || []).map(t => String(t).toLowerCase());
-  if (groupProfileKey && key && groupProfileKey === key) return true;
+  if (groupProfileKey && groupProfileKey !== '__legacy__') return !!key && groupProfileKey === key;
+  if (groupProfileKey === '__legacy__') return false;
   if (owner && owner === identityName) return true;
   return [...identityProfileTerms(identity), `profile:${identityName}`].some(term => tags.includes(term));
 }
@@ -2889,44 +2890,18 @@ function groupAssignmentProfileForGroup(group = {}, identities = sanitizePosting
   return null;
 }
 
-const FACEBOOK_VERIFIED_GROUP_COUNTS = Object.freeze({
-  'wildrose automations': {
-    count: 109,
-    verifiedAt: '2026-08-26',
-    source: 'Facebook joined-groups page while acting as Wildrose Automations'
-  },
-  'empty slot': {
-    count: 100,
-    verifiedAt: '2026-08-26',
-    source: 'Facebook joined-groups page while acting as Empty Slot'
-  }
-});
-
-function normalizedIdentityName(value) {
-  return String(value || '').trim().replace(/\s+/g, ' ').toLowerCase();
-}
-
-function verifiedGroupCountForProfile(profile = {}) {
-  const entry = FACEBOOK_VERIFIED_GROUP_COUNTS[normalizedIdentityName(profile.name)];
-  return Number.isFinite(entry?.count) ? entry.count : null;
-}
-
 function displayGroupCountForBucket(bucket = {}) {
-  if (bucket.key === '__all__') return bucket.liveCount ?? bucket.groups?.length ?? 0;
-  const verified = verifiedGroupCountForProfile(bucket.profile || {});
-  return verified ?? bucket.groups?.length ?? 0;
+  return bucket.groups?.length ?? 0;
 }
 
 function groupCountLabel(bucket = {}) {
-  const displayCount = displayGroupCountForBucket(bucket);
-  const savedCount = bucket.groups?.length ?? 0;
-  const verified = bucket.key !== '__all__' && verifiedGroupCountForProfile(bucket.profile || {}) !== null;
+  const count = displayGroupCountForBucket(bucket);
   return {
-    displayCount,
-    savedCount,
-    verified,
-    label: verified && displayCount !== savedCount ? `${displayCount} live · ${savedCount} saved` : String(displayCount),
-    description: verified ? `Facebook verified ${displayCount}; Reachr has ${savedCount} saved row${savedCount === 1 ? '' : 's'}.` : `${displayCount} group${displayCount === 1 ? '' : 's'}`
+    displayCount: count,
+    savedCount: count,
+    verified: false,
+    label: String(count),
+    description: `${count} saved group record${count === 1 ? '' : 's'}; membership has not been verified by a current scan.`
   };
 }
 
@@ -2934,7 +2909,7 @@ function buildGroupProfileBuckets(groups = []) {
   const identities = sanitizePostingIdentities(cachedData.postingIdentities || []);
   const buckets = new Map();
   const ensure = (key, profile, label = '') => {
-    if (!buckets.has(key)) buckets.set(key, { key, profile, label, groups: [], liveCount: null });
+    if (!buckets.has(key)) buckets.set(key, { key, profile, label, groups: [] });
     return buckets.get(key);
   };
   const all = ensure('__all__', { name: 'All profiles', type: 'Everything Reachr knows about' }, 'Every group across every profile/page.');
@@ -2954,19 +2929,6 @@ function buildGroupProfileBuckets(groups = []) {
     }
     attached.forEach(key => ensure(key, buckets.get(key)?.profile || { name: key }).groups.push(group));
   });
-
-  let verifiedTotal = 0;
-  let savedForVerifiedProfiles = 0;
-  buckets.forEach(bucket => {
-    if (bucket.key === '__all__') return;
-    const verified = verifiedGroupCountForProfile(bucket.profile || {});
-    if (verified !== null) {
-      bucket.liveCount = verified;
-      verifiedTotal += verified;
-      savedForVerifiedProfiles += bucket.groups.length;
-    }
-  });
-  all.liveCount = verifiedTotal + Math.max(0, all.groups.length - savedForVerifiedProfiles);
 
   return [...buckets.values()].sort((a, b) => {
     if (a.key === '__all__') return -1;
