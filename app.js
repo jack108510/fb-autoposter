@@ -240,6 +240,7 @@ async function checkConn() {
     const isOnline = hbAge < HEARTBEAT_STALE_MS;
     const activeJob = recentRes.data?.[0] || null;
     const extVersion = status?.version && status.version !== 'unknown' ? ` v${status.version}` : '';
+    const workerLabel = status?.worker_install_id ? ` · worker ${String(status.worker_install_id).slice(0, 8)}` : '';
     const lastSeen = hb ? ` · ${timeAgo(hb)}` : '';
 
     if (isOnline) {
@@ -251,9 +252,9 @@ async function checkConn() {
       } else if (activeJob?.status === 'pending') {
         label.textContent = activeJob.message === '__sync_identities__' ? 'Profile update waiting' : activeJob.message === '__import_groups__' ? 'Group import waiting' : 'Post waiting';
       } else {
-        label.textContent = `Connected${extVersion}${lastSeen}`;
+        label.textContent = `Connected${extVersion}${workerLabel}${lastSeen}`;
       }
-      label.title = `Chrome helper connected${extVersion}${hb ? ` · last seen ${new Date(hb).toLocaleString()}` : ''}`;
+      label.title = `Chrome helper connected${extVersion}${workerLabel}${hb ? ` · last seen ${new Date(hb).toLocaleString()}` : ''}`;
     } else {
       connected = false;
       bar.className = 'conn-bar disconnected';
@@ -1016,7 +1017,7 @@ function renderIdentitySyncStatus(job = null, identities = cachedData.postingIde
     if (stalePending) { text = 'Profile update was not picked up by the Chrome helper. Check its connection, then press Update profiles to retry.'; color = 'var(--yellow)'; }
     else if (active) { text = result.text || (job.status === 'pending' ? 'Waiting. Open Reachr in Chrome to continue.' : 'Reading your Facebook profiles...'); color = 'var(--yellow)'; }
     else if (job.status === 'done') { const count = result.count ?? identities.length; const photos = result.avatar_count ?? avatarCount; text = `Last update found ${count} Facebook profile${count === 1 ? '' : 's'} · ${photos} photo${photos === 1 ? '' : 's'} · ${rel}.`; color = 'var(--green)'; }
-    else if (job.status === 'failed') { text = `Profile update failed${rel ? ' · ' + rel : ''}: ${result.error || job.error || 'unknown error'}`; color = 'var(--red)'; }
+    else if (job.status === 'failed') { const worker = result.worker_install_id ? ` · worker ${String(result.worker_install_id).slice(0, 8)}` : ''; const version = result.extension_version ? ` · v${result.extension_version}` : ''; text = `Profile update failed${rel ? ' · ' + rel : ''}${version}${worker}: ${result.error || job.error || 'unknown error'}`; color = 'var(--red)'; }
   }
   statuses.forEach(el => { el.textContent = text; el.style.color = color; });
   renderPostingProfilesList(identities);
