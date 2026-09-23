@@ -1561,6 +1561,56 @@ function renderGroupChips() {
   updateSelectedCount();
 }
 
+function roseGroupRelevance(name = '') {
+  const value = String(name).toLowerCase();
+  if (/\b(dog|dogs|cat|cats|pet|pets|veterinar|pupp|horse|horses|child|children|parenting|buy and sell|garage sale)\b/i.test(value)) return 0;
+  let score = 0;
+  if (/\b(small business|business owners?|local business|business connect|business networking)\b/i.test(value)) score += 4;
+  if (/\b(entrepreneur|startup|founder|self.employed|freelanc|agency|marketing|business|networking)\b/i.test(value)) score += 2;
+  if (/\b(canada|canadian|alberta|ontario|calgary|red deer|edmonton)\b/i.test(value)) score += 1;
+  return score;
+}
+
+async function suggestRoseCampaignGroups() {
+  const identity = getSelectedPostingIdentity();
+  if (!identity || !/^Wildrose Automations$/i.test(String(identity.name || '').trim())) {
+    toast('Select Wildrose Automations first');
+    return;
+  }
+  const key = identityKey(identity);
+  const { data: jobs, error } = await sb.from('jsw_post_jobs')
+    .select('result,completed_at').eq('user_id', user.id)
+    .eq('message', '__import_groups__').eq('status', 'done')
+    .order('completed_at', { ascending: false }).limit(30);
+  if (error) { toast('Could not check Wildrose scan: ' + error.message); return; }
+  const job = (jobs || []).find(row => (row.result?.identities || []).some(item =>
+    String(item.identity_key) === String(key) && item.status === 'scanned'
+    && item.scan_complete === true && item.active_identity_verified === true
+    && item.group_scan_guard_version === 'fb-groups-scraper-v4' && Array.isArray(item.group_urls)));
+  const scanned = job?.result?.identities?.find(item => String(item.identity_key) === String(key) && item.status === 'scanned');
+  const age = Date.now() - Date.parse(job?.completed_at || '');
+  if (!scanned || !Number.isFinite(age) || age > 36 * 60 * 60 * 1000) {
+    toast('Run a complete Wildrose group scan before choosing campaign groups');
+    return;
+  }
+  const verifiedUrls = new Set(scanned.group_urls);
+  const seen = new Set();
+  const choices = createVisibleGroups()
+    .filter(group => verifiedUrls.has(groupRefUrl(group)))
+    .filter(group => { const url = groupRefUrl(group); if (seen.has(url)) return false; seen.add(url); return true; })
+    .map(group => ({ group, score: roseGroupRelevance(group.name || group.group_name) }))
+    .filter(item => item.score > 0)
+    .sort((a, b) => b.score - a.score || String(a.group.name || '').localeCompare(String(b.group.name || '')))
+    .slice(0, 100);
+  if (!choices.length) { toast('No relevant groups found in the verified Wildrose scan'); return; }
+  const selectedKeys = new Set(choices.map(item => groupChipKey(item.group)));
+  document.querySelectorAll('#createGroupSelect .group-chip').forEach(chip => {
+    chip.classList.toggle('selected', selectedKeys.has(chip.dataset.groupKey));
+  });
+  updateSelectedCount();
+  toast(`Suggested ${choices.length} Wildrose groups. Review the list and each group’s rules before saving the campaign.`);
+}
+
 function getSelectedGroups() {
   const visibleKeys = new Set(createVisibleGroups().map(groupChipKey));
   return [...document.querySelectorAll('#createGroupSelect .group-chip.selected')]
