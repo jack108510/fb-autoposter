@@ -2602,7 +2602,17 @@ function renderGroupSyncStatus(job, groups = cachedData.groups || [], heartbeat 
     const detail = groupScanDetailHtml(result);
     setStatus(`<div>${esc(baseText)}${suffix}</div>${detail}`, 'var(--green)', true);
   } else if (job.status === 'failed') {
-    setStatus(`Last import failed${rel ? ' · ' + rel : ''}: ${result.error || job.error || 'unknown error'}`, 'var(--red)');
+    const failures = Array.isArray(result.not_scanned) ? result.not_scanned : [];
+    if (failures.length) {
+      const details = failures.map(item => {
+        const name = esc(item.identity_name || item.identity_key || 'Profile/page');
+        const error = esc(String(item.raw_error || item.reason || 'Unknown scan error').slice(0, 500));
+        return `<div style="border-top:1px solid var(--border);padding-top:6px;"><strong>${name}</strong>: ${error}</div>`;
+      }).join('');
+      setStatus(`<div>Last import failed${rel ? ' · ' + esc(rel) : ''}. No saved groups were changed.</div><div style="margin-top:8px;display:grid;gap:6px;">${details}</div>`, 'var(--red)', true);
+    } else {
+      setStatus(`Last import failed${rel ? ' · ' + rel : ''}: ${result.error || job.error || 'unknown error'}`, 'var(--red)');
+    }
   } else if (job.status === 'cancelled') {
     setStatus(groups.length ? `Last loaded: ${groups.length} group${groups.length === 1 ? '' : 's'}.` : 'No active import request.', 'var(--text-3)');
   } else {
