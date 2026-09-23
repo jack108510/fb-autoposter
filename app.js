@@ -2602,7 +2602,7 @@ function renderGroupSyncStatus(job, groups = cachedData.groups || [], heartbeat 
     const baseText = result.text || `Last sync imported ${count} group${count === 1 ? '' : 's'}${rel ? ' · ' + rel : ''}.`;
     const suffix = rel ? ` · ${esc(rel)}` : '';
     const detail = groupScanDetailHtml(result);
-    setStatus(`<div>${esc(baseText)}${suffix}</div>${detail}`, 'var(--green)', true);
+    setStatus(`<div>${esc(baseText)}${suffix}</div>${detail}`, result.not_scanned_count ? 'var(--yellow)' : 'var(--green)', true);
   } else if (job.status === 'failed') {
     const failures = Array.isArray(result.not_scanned) ? result.not_scanned : [];
     if (failures.length) {
