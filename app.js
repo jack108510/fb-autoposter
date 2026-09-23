@@ -2539,13 +2539,15 @@ async function cancelStaleGroupSyncJob(job) {
 
 function groupScanDetailHtml(result = {}) {
   const identities = Array.isArray(result.identities) ? result.identities : [];
+  const failures = Array.isArray(result.not_scanned) ? result.not_scanned : [];
   if (!identities.length) return '';
   return `<div class="group-scan-detail" style="margin-top:8px;display:grid;gap:4px;">
     ${identities.map(item => {
       const name = item.identity_name || item.identity_key || 'Profile/page';
       const missed = item.status === 'not_scanned' || !!item.error;
+      const failure = failures.find(entry => String(entry.identity_key || '') === String(item.identity_key || ''));
       const detail = missed
-        ? `${esc(item.reason || 'No group list was available during this pass.')}`
+        ? `${esc(String(failure?.raw_error || item.reason || 'No group list was available during this pass.').slice(0, 500))}`
         : `${item.count || 0} observed · ${item.new_count || 0} new · ${item.removed_count || 0} removed · ${esc(item.reconciliation || 'saved')}`;
       return `<div style="display:flex;justify-content:space-between;gap:12px;border-top:1px solid var(--border);padding-top:4px;">
         <span>${esc(name)}</span>
