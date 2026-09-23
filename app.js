@@ -192,6 +192,48 @@ async function sbSet(key, value) {
   return error;
 }
 
+function durableCampaignToPost(row) {
+  return {
+    id: row.id,
+    source_campaign_id: row.source_campaign_id,
+    durable: true,
+    name: row.name || 'Campaign',
+    text: row.message,
+    imageUrl: row.image_url || '',
+    firstComment: row.first_comment || '',
+    groups: row.groups || [],
+    identityName: row.identity_name,
+    identityKey: row.identity_key,
+    aiEnabled: row.ai_enabled === true,
+    enabled: row.enabled === true,
+    campaignStatus: row.status,
+    missedCount: row.missed_count || 0,
+    schedule: {
+      owner: 'durable-v1',
+      time: String(row.local_time || '').slice(0, 5),
+      days: row.days || [],
+      timezone: row.timezone,
+      maxRuns: row.max_runs,
+      endsAt: row.ends_at,
+      firedCount: row.fired_count || 0,
+      nextAt: row.next_at,
+    },
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+async function cancelPendingCampaignJobs(campaignId) {
+  const { data, error } = await sb.from('jsw_post_jobs')
+    .update({ status: 'cancelled' })
+    .eq('user_id', user.id)
+    .eq('status', 'pending')
+    .filter('result->>campaign_id', 'eq', campaignId)
+    .select('id');
+  if (error) throw error;
+  return data?.length || 0;
+}
+
 async function getDashboardExtensionStatus() {
   const { data } = await sb.from('amplr_data')
     .select('value,updated_at')
@@ -404,14 +446,16 @@ async function fetchAll({ persistSnapshot = true } = {}) {
         if (!data || data.length < pageSize) return rows;
       }
     };
-    const [postsRes, groupRows, settings, logs, postingIdentitiesRes] = await Promise.all([
+    const [postsRes, groupRows, settings, logs, postingIdentitiesRes, campaignRes] = await Promise.all([
       sbGet('posts'),
       // Groups always come from jsw_groups table (shared with extension)
       fetchGroups(),
       sbGet('settings'),
       sbGet('logs'),
       sbGet('posting_identities'),
+      sb.from('reachr_campaign_schedules').select('*').eq('user_id', user.id).order('created_at', { ascending: false }),
     ]);
+    if (campaignRes.error && campaignRes.error.code !== '42P01' && campaignRes.error.code !== 'PGRST205') throw campaignRes.error;
     const groups = groupRows.map(r => ({
       url: r.group_url,
       name: r.group_name || r.group_url.split('/').filter(Boolean).pop(),
@@ -435,9 +479,12 @@ async function fetchAll({ persistSnapshot = true } = {}) {
       collected_by_key: r.collected_by_key || null,
       imported_by: r.imported_by || null,
       imported_by_key: r.imported_by_key || null,
-    })).filter(g => groupOwnerKey(g) && !isLegacyGroupAssignment(g));
+    }));
     const data = {
-      posts: postsRes || [],
+      posts: [
+        ...(campaignRes.data || []).filter(row => row.status !== 'archived').map(durableCampaignToPost),
+        ...(postsRes || []).filter(post => post.schedule?.owner !== 'durable-v1'),
+      ],
       logs: logs || [],
       groups,
       settings: settings || {},
@@ -1289,10 +1336,11 @@ document.addEventListener('input', (e) => {
   }
 });
 
-async function savePost() {
+async function savePost(activate = true) {
   const text = document.getElementById('createText').value.trim();
   const time = document.getElementById('createTime').value;
   if (!text) return toast('Write something first');
+  if (!normalizeTimeValue(time)) return toast('Choose a valid posting time');
   if (selDays.length === 0) return toast('Pick at least one day');
   const existing = editingPostId ? (cachedData.posts || []).find(p => p.id === editingPostId) : null;
   let groups = selectedGroupTargets();
@@ -1302,37 +1350,81 @@ async function savePost() {
   const fallbackIdentityName = existing ? scheduledEventIdentityName(existing) : '';
   if ((!identity?.name || !isValidPostingIdentity(identity)) && !isValidPostingIdentity({ name: fallbackIdentityName })) return toast('Update and select a Facebook profile before posting');
   const identityName = isValidPostingIdentity(identity) ? identity.name : fallbackIdentityName;
+  const selectedIdentityKey = identity && isValidPostingIdentity(identity) ? identityKey(identity) : existing?.identityKey;
+  if (!selectedIdentityKey || groups.some(group => group.identity_key && group.identity_key !== selectedIdentityKey)) {
+    return toast('The selected groups must belong to the selected Facebook identity');
+  }
   const imageUrl = getCreateImageUrl();
   const maxRuns = parsePositiveInt(document.getElementById('scheduleMaxRuns')?.value);
+  if (activate && maxRuns && Number(existing?.schedule?.firedCount || 0) >= maxRuns) {
+    return toast('This campaign has already reached its run limit');
+  }
   const weeks = parsePositiveInt(document.getElementById('scheduleWeeks')?.value);
   const endsAt = weeks ? new Date(Date.now() + weeks * 7 * 24 * 60 * 60 * 1000).toISOString() : (existing?.schedule?.endsAt || null);
-  const post = {
-    ...(existing || {}),
-    id: existing?.id || Date.now().toString(), text, imageUrl, groups, identityName,
-    firstComment: document.getElementById('createFirstComment')?.value.trim() || '',
-    aiEnabled: !!document.getElementById('aiToggle')?.classList.contains('on'),
-    schedule: {
-      ...(existing?.schedule || {}),
-      time,
-      days: [...selDays],
-      maxRuns,
-      endsAt,
-      firedCount: existing?.schedule?.firedCount || 0,
-    },
-    enabled: true,
-    createdAt: existing?.createdAt || new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-    hasSpintax: hasSpintax(text), variations: countVariations(text),
+  const selectedKey = selectedIdentityKey;
+  if (!selectedKey) return toast('Select a synced Facebook identity');
+  const timezone = existing?.schedule?.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone;
+  if (!timezone) return toast('Could not determine this computer’s time zone');
+  if (existing?.schedule?.timezone && existing.schedule.timezone !== Intl.DateTimeFormat().resolvedOptions().timeZone) {
+    return toast(`Edit this campaign in its ${existing.schedule.timezone} time zone to keep the selected hour accurate`);
+  }
+  const id = existing?.durable ? existing.id : crypto.randomUUID();
+  const schedule = { time, days: [...selDays], endsAt };
+  const nextAt = nextRunDate({ schedule });
+  if (activate && !nextAt) return toast('Choose a future run before activating');
+  const row = {
+    id, user_id: user.id, source_campaign_id: id,
+    name: document.getElementById('createCampaignName')?.value.trim() || `${identityName} campaign`,
+    message: text, image_url: imageUrl || null,
+    first_comment: document.getElementById('createFirstComment')?.value.trim() || null,
+    groups, identity_name: identityName, identity_key: selectedKey,
+    identity_type: identity?.type || null, identity_url: identity?.url || null,
+    delay: Math.max(parseInt(cachedData.settings?.delay, 10) || 90, 90),
+    ai_enabled: !!document.getElementById('aiToggle')?.classList.contains('on'),
+    ai_prompt: cachedData.settings?.ai_prompt || null,
+    timezone, local_time: time, days: [...selDays], max_runs: maxRuns,
+    ends_at: endsAt, next_at: nextAt?.toISOString() || null,
+    // Save or edit as a draft first. The approval RPC snapshots this exact row.
+    enabled: false, status: 'draft', updated_at: new Date().toISOString(),
   };
-  const posts = editingPostId
-    ? (cachedData.posts || []).map(p => p.id === editingPostId ? post : p)
-    : [...(cachedData.posts || []), post];
-  cachedData.posts = posts;
-  const err = await sbSet('posts', posts);
-  if (err) return toast('Error: ' + err.message);
+  const approval = {
+    offer: document.getElementById('campaignOffer')?.value.trim() || '',
+    disclosures: document.getElementById('campaignDisclosures')?.value.trim() || '',
+    destination: document.getElementById('campaignDestination')?.value.trim() || '',
+    approverName: document.getElementById('campaignApproverName')?.value.trim() || '',
+  };
+  if (activate && (!approval.offer || !approval.disclosures || !approval.destination || !approval.approverName
+    || !document.getElementById('campaignApprovalCheck')?.checked)) {
+    return toast('Complete the approval details and check the authorization box');
+  }
+  const { error: saveError } = await sb.from('reachr_campaign_schedules').upsert(row, { onConflict: 'id' });
+  if (saveError) return toast('Campaign save failed: ' + saveError.message);
+  if (existing?.durable) {
+    try { await cancelPendingCampaignJobs(id); }
+    catch (e) { return toast('Draft saved; old queued jobs need review: ' + e.message); }
+  }
+  if (activate) {
+    const { error: approvalError } = await sb.rpc('reachr_approve_campaign', {
+      p_schedule_id: id,
+      p_offer: approval.offer,
+      p_disclosures: approval.disclosures,
+      p_destination: approval.destination,
+      p_approver_name: approval.approverName,
+    });
+    if (approvalError) return toast('Draft saved, but approval failed: ' + approvalError.message);
+    const { data: activated, error: activateError } = await sb.from('reachr_campaign_schedules')
+      .update({ status: 'active', enabled: true, updated_at: new Date().toISOString() })
+      .eq('id', id).eq('user_id', user.id).eq('status', 'draft').select('id').maybeSingle();
+    if (activateError || !activated) return toast('Draft approved, but activation failed: ' + (activateError?.message || 'Campaign changed; reload and try again'));
+  }
+  if (existing && !existing.durable) {
+    const legacyPosts = (await sbGet('posts') || []).filter(p => p.id !== existing.id);
+    const legacyError = await sbSet('posts', legacyPosts);
+    if (legacyError) return toast('New campaign saved; old schedule still needs removal: ' + legacyError.message);
+  }
   const wasEdit = !!editingPostId;
   editingPostId = null;
-  toast(wasEdit ? 'Schedule updated' : 'Scheduled!');
+  toast(activate ? (wasEdit ? 'Campaign updated and activated' : 'Campaign activated') : 'Campaign draft saved');
   localStorage.removeItem('amplr_draft');
   clearCreateForm();
   nav('scheduled');
@@ -1352,17 +1444,11 @@ async function postNow() {
   if (waiting) waiting.style.display = 'block';
 
   try {
-    const { error } = await sb.from('jsw_post_jobs').insert({
-      user_id: user.id,
-      message: text,
-      image_url: imageUrl || null,
-      groups: groups,
-      delay: Math.max(parseInt(cachedData.settings?.delay, 10) || 90, 90),
-      status: 'pending',
-      first_comment: document.getElementById('createFirstComment')?.value.trim() || null,
-      ai_enabled: !!document.getElementById('aiToggle')?.classList.contains('on'),
+    await createJob({
+      id: crypto.randomUUID(), text, imageUrl, groups, identityName: identity.name,
+      firstComment: document.getElementById('createFirstComment')?.value.trim() || '',
+      aiEnabled: !!document.getElementById('aiToggle')?.classList.contains('on'),
     });
-    if (error) throw new Error(error.message);
 
     if (waiting) waiting.style.display = 'none';
     toast('Sent — Reachr will post it');
@@ -1958,22 +2044,28 @@ function renderSubscriptionsTable(posts = [], jobs = []) {
         ? `${groupCount} group${groupCount === 1 ? '' : 's'}${groupNames.length ? ` · ${groupNames.slice(0, 2).join(', ')}${groupNames.length > 2 ? ` +${groupNames.length - 2}` : ''}` : ''}`
         : 'No groups selected';
       const frequency = frequencyLabel(post);
-      const nextLabel = isQueued && post.nextDate ? `${post.nextDate.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })} · ${displayTime(post.schedule?.time || '09:00')}${post.lastDate && post.lastDate > post.nextDate ? `–${displayTime(`${String(post.lastDate.getHours()).padStart(2, '0')}:${String(post.lastDate.getMinutes()).padStart(2, '0')}`)}` : ''}` : (post.enabled ? nextRunLabel(post) : 'Paused');
-      const statusLabel = isQueued ? 'Scheduled' : (post.enabled ? 'Active' : 'Paused');
+      const nextLabel = isQueued && post.nextDate
+        ? `${post.nextDate.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })} · ${displayTime(post.schedule?.time || '09:00')}`
+        : post.enabled
+          ? (post.durable && post.schedule?.nextAt
+            ? new Date(post.schedule.nextAt).toLocaleString('en-US', { timeZone: post.schedule.timezone })
+            : nextRunLabel(post))
+          : '—';
+      const statusLabel = isQueued ? 'Scheduled' : (post.enabled ? 'Active' : post.durable && post.campaignStatus === 'draft' ? 'Draft' : 'Paused');
       const statusClass = (isQueued || post.enabled) ? 'badge-green' : 'badge-gray';
       const eyeIcon = '<svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M1.5 8s2.3-4 6.5-4 6.5 4 6.5 4-2.3 4-6.5 4-6.5-4-6.5-4Z"/><circle cx="8" cy="8" r="2"/></svg>';
       const pencilIcon = '<svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M11.8 2.2 13.8 4.2 5.8 12.2 2.5 13.5 3.8 10.2 11.8 2.2Z"/><path d="M10.5 3.5 12.5 5.5"/></svg>';
       const trashIcon = '<svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M2 4h12"/><path d="M6 4V2.8h4V4"/><path d="M5 6v6"/><path d="M8 6v6"/><path d="M11 6v6"/><path d="M3.5 4l.7 10h7.6l.7-10"/></svg>';
       const actions = isQueued
         ? `<button class="btn btn-secondary btn-sm icon-action-btn" onclick="openQueuedJobDetail('${esc(post.id)}')" title="View" aria-label="View queued post">${eyeIcon}</button><button class="btn btn-secondary btn-sm icon-action-btn" onclick="editQueuedSubscription('${esc(post.id)}')" title="Edit" aria-label="Edit queued post">${pencilIcon}</button><button class="btn btn-secondary btn-sm icon-action-btn danger" onclick="deleteQueuedSubscription('${esc(post.id)}')" title="Delete" aria-label="Delete queued post">${trashIcon}</button>`
-        : `<button class="btn btn-secondary btn-sm icon-action-btn" onclick="openUpcomingPostDetailFromItem(cachedData.posts.find(p => p.id === '${esc(post.id)}'))" title="View" aria-label="View campaign">${eyeIcon}</button><button class="btn btn-secondary btn-sm icon-action-btn" onclick="editPost('${esc(post.id)}')" title="Edit" aria-label="Edit campaign">${pencilIcon}</button><button class="btn btn-secondary btn-sm icon-action-btn danger" onclick="delPost('${esc(post.id)}')" title="Delete" aria-label="Delete campaign">${trashIcon}</button>`;
+        : `<button class="btn btn-secondary btn-sm icon-action-btn" onclick="openUpcomingPostDetailFromItem(cachedData.posts.find(p => p.id === '${esc(post.id)}'))" title="View" aria-label="View campaign">${eyeIcon}</button><button class="btn btn-secondary btn-sm icon-action-btn" onclick="editPost('${esc(post.id)}')" title="Edit" aria-label="Edit campaign">${pencilIcon}</button>${post.durable ? `<button class="btn btn-secondary btn-sm" onclick="togglePost('${esc(post.id)}')">${post.enabled ? 'Pause' : 'Activate'}</button>` : ''}<button class="btn btn-secondary btn-sm icon-action-btn danger" onclick="delPost('${esc(post.id)}')" title="Delete" aria-label="Delete campaign">${trashIcon}</button>`;
       return `<div class="subscription-item">
         <div class="subscription-item-top">
           <div class="subscription-profile">
             ${identityAvatarHtml(identity, '')}
             <div style="min-width:0;">
               <div class="subscription-profile-name">${esc(identityName || identity?.name || 'Facebook profile')}</div>
-              <div class="subscription-muted">${esc(isQueued ? 'Queued campaign' : 'Saved campaign')}</div>
+              <div class="subscription-muted">${esc(isQueued ? 'Queued campaign' : post.durable ? `${post.name || 'Saved campaign'}${post.missedCount ? ` · ${post.missedCount} missed` : ''}` : 'Legacy saved campaign')}</div>
             </div>
           </div>
           <div class="subscription-actions-wrap">
@@ -2031,6 +2123,11 @@ async function loadScheduled() {
 
   const health = analyzeReachrHealth(cachedData.posts || [], healthJobs || []);
   renderReachrHealthPanel(health);
+  const legacyActiveCount = (cachedData.posts || []).filter(p => !p.durable && p.enabled && p.schedule?.time).length;
+  if (legacyActiveCount) {
+    document.getElementById('reachrHealthPanel')?.insertAdjacentHTML('beforeend',
+      `<div class="subscription-empty" style="margin:12px 0;">${legacyActiveCount} older schedule${legacyActiveCount === 1 ? '' : 's'} still use the dashboard timer. Edit and save each as a durable campaign to run with the dashboard closed.</div>`);
+  }
 
   const events = scheduledWeekEvents(cachedData.posts || [], scheduledJobs || [], weekDays);
   upcomingPostDetails = Object.fromEntries(events.map(e => [e.id, e]));
@@ -2209,6 +2306,7 @@ async function firePost(id) {
   const p = (cachedData.posts || []).find(x => x.id === id);
   if (!p) return;
   if (scheduleLimitReached(p, new Date())) {
+    if (p.durable) return toast('This campaign has reached its run limit');
     p.enabled = false;
     await sbSet('posts', cachedData.posts || []);
     loadScheduled();
@@ -2216,6 +2314,7 @@ async function firePost(id) {
   }
   try {
     await createJob(p);
+    if (p.durable) return toast('One-time job queued from this campaign');
     p.schedule = p.schedule || {};
     p.schedule.firedCount = (Number(p.schedule.firedCount) || 0) + 1;
     p.schedule.lastManualFiredAt = new Date().toISOString();
@@ -2226,17 +2325,43 @@ async function firePost(id) {
 }
 
 async function togglePost(id) {
+  const existing = (cachedData.posts || []).find(p => p.id === id);
+  if (existing?.durable) {
+    if (!existing.enabled) {
+      toast('Edit this campaign and approve it to activate the schedule');
+      return editPost(id);
+    }
+    const { error } = await sb.from('reachr_campaign_schedules')
+      .update({ status: 'paused', enabled: false, updated_at: new Date().toISOString() })
+      .eq('id', id).eq('user_id', user.id).eq('status', 'active');
+    if (error) return toast('Could not pause campaign: ' + error.message);
+    try { await cancelPendingCampaignJobs(id); }
+    catch (e) { return toast('Campaign paused; queued jobs need review: ' + e.message); }
+    toast('Campaign paused');
+    return loadScheduled();
+  }
   const posts = (cachedData.posts || []).map(p => p.id === id ? { ...p, enabled: !p.enabled } : p);
-  cachedData.posts = posts;
-  await sbSet('posts', posts);
+  const legacyPosts = posts.filter(p => !p.durable);
+  const error = await sbSet('posts', legacyPosts);
+  if (error) return toast('Could not update schedule: ' + error.message);
   loadScheduled();
 }
 
 async function delPost(id) {
   if (!confirm('Delete this scheduled post?')) return;
   const existing = (cachedData.posts || []).find(p => p.id === id);
+  if (existing?.durable) {
+    const { error } = await sb.from('reachr_campaign_schedules')
+      .update({ status: 'archived', enabled: false, updated_at: new Date().toISOString() })
+      .eq('id', id).eq('user_id', user.id);
+    if (error) return toast('Could not archive campaign: ' + error.message);
+    try { await cancelPendingCampaignJobs(id); }
+    catch (e) { return toast('Campaign archived; queued jobs need review: ' + e.message); }
+    toast('Campaign archived');
+    return loadScheduled();
+  }
   const queuedIds = await pendingJobIdsForSubscription(existing);
-  const posts = (cachedData.posts || []).filter(p => p.id !== id);
+  const posts = (cachedData.posts || []).filter(p => p.id !== id && !p.durable);
   cachedData.posts = posts;
   const err = await sbSet('posts', posts);
   if (err) return toast('Error: ' + err.message);
@@ -2334,6 +2459,38 @@ function toggleSubscriptionEditDay(day) {
 async function editPost(id) {
   const p = (cachedData.posts || []).find(x => x.id === id);
   if (!p) return;
+  if (p.durable) {
+    const identity = findPostingIdentityByName(p.identityName);
+    if (!identity || identityKey(identity) !== p.identityKey) return toast('Sync this campaign’s Facebook identity before editing it');
+    await nav('create');
+    editingPostId = id;
+    setSelectedPostingIdentity(identityKey(identity));
+    const textInput = document.getElementById('createText');
+    if (textInput) { textInput.value = p.text || ''; textInput.dispatchEvent(new Event('input')); }
+    const imageInput = document.getElementById('createImageUrl');
+    if (imageInput) imageInput.value = p.imageUrl || '';
+    setCreateImagePreview(p.imageUrl || '', '');
+    const comment = document.getElementById('createFirstComment');
+    if (comment) comment.value = p.firstComment || '';
+    const name = document.getElementById('createCampaignName');
+    if (name) name.value = p.name || '';
+    const time = document.getElementById('createTime');
+    if (time) time.value = p.schedule?.time || '09:00';
+    const maxRuns = document.getElementById('scheduleMaxRuns');
+    if (maxRuns) maxRuns.value = p.schedule?.maxRuns || '';
+    selDays = [...(p.schedule?.days || [])];
+    renderDays();
+    selectCreateGroupsByUrl(p.groups || []);
+    for (const field of ['campaignOffer','campaignDisclosures','campaignDestination','campaignApproverName']) {
+      const input = document.getElementById(field);
+      if (input) input.value = '';
+    }
+    const approvalCheck = document.getElementById('campaignApprovalCheck');
+    if (approvalCheck) approvalCheck.checked = false;
+    setDeliveryMode('schedule');
+    goCreateStep(4, false);
+    return;
+  }
   subscriptionEditId = id;
 
   const identities = sanitizePostingIdentities(cachedData.postingIdentities || []);
@@ -3895,6 +4052,12 @@ function clearCreateForm() {
   if (maxRuns) maxRuns.value = '';
   const weeks = document.getElementById('scheduleWeeks');
   if (weeks) weeks.value = '';
+  for (const field of ['createCampaignName','campaignOffer','campaignDisclosures','campaignDestination','campaignApproverName']) {
+    const input = document.getElementById(field);
+    if (input) input.value = '';
+  }
+  const approvalCheck = document.getElementById('campaignApprovalCheck');
+  if (approvalCheck) approvalCheck.checked = false;
   const spin = document.getElementById('spinInfo');
   if (spin) spin.style.display = 'none';
   document.querySelectorAll('#createGroupSelect .group-chip.selected').forEach(c => c.classList.remove('selected'));
@@ -3935,7 +4098,9 @@ function goCreateStep(step, validate=true) {
   const back = document.getElementById('cpBackBtn');
   const next = document.getElementById('cpNextBtn');
   if (back) back.style.visibility = step === 1 ? 'hidden' : 'visible';
-  if (next) next.textContent = step === 4 ? (createDeliveryMode === 'schedule' ? 'Save schedule' : 'Queue post') : (step === 1 ? 'Continue to post' : 'Continue');
+  if (next) next.textContent = step === 4 ? (createDeliveryMode === 'schedule' ? 'Save & activate' : 'Queue post') : (step === 1 ? 'Continue to post' : 'Continue');
+  const draftButton = document.getElementById('cpSaveDraftBtn');
+  if (draftButton) draftButton.style.display = step === 4 && createDeliveryMode === 'schedule' ? 'inline-flex' : 'none';
   updateCreateWizardSummary();
 }
 
@@ -4124,3 +4289,4 @@ function updateNextFire() {
     indicator.style.display = 'none';
   }
 }
+
