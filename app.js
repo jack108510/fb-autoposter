@@ -976,10 +976,34 @@ async function latestIdentitySyncJob() {
   return data || null;
 }
 
+function isStalePendingIdentitySyncJob(job) {
+  if (job?.status !== 'pending') return false;
+  const created = Date.parse(job.created_at || '');
+  return Number.isFinite(created) && Date.now() - created > 15 * 60 * 1000;
+}
+
+async function cancelStalePendingIdentitySyncJob(job) {
+  if (!isStalePendingIdentitySyncJob(job)) return false;
+  const { data, error } = await sb.from('jsw_post_jobs')
+    .update({
+      status: 'cancelled',
+      error: 'Profile update was not picked up by the Chrome helper',
+      result: { text: 'Old profile update cancelled so it can be retried.' },
+      completed_at: new Date().toISOString()
+    })
+    .eq('id', job.id)
+    .eq('user_id', user.id)
+    .eq('status', 'pending')
+    .select('id');
+  if (error) throw new Error(error.message);
+  return !!data?.length;
+}
+
 function renderIdentitySyncStatus(job = null, identities = cachedData.postingIdentities || []) {
   const statuses = document.querySelectorAll('.identity-sync-status');
   const buttons = document.querySelectorAll('.identity-sync-btn');
-  const active = job && ['pending', 'processing'].includes(job.status);
+  const stalePending = isStalePendingIdentitySyncJob(job);
+  const active = job && ['pending', 'processing'].includes(job.status) && !stalePending;
   buttons.forEach(btn => { btn.disabled = !!active; btn.textContent = active ? 'Updating...' : 'Update profiles'; });
   const avatarCount = identities.filter(identityHasAvatar).length;
   let text = identities.length
@@ -989,7 +1013,8 @@ function renderIdentitySyncStatus(job = null, identities = cachedData.postingIde
   if (job) {
     const result = jobResult(job);
     const rel = timeAgo(job.completed_at || job.started_at || job.created_at);
-    if (active) { text = result.text || (job.status === 'pending' ? 'Waiting. Open Reachr in Chrome to continue.' : 'Reading your Facebook profiles...'); color = 'var(--yellow)'; }
+    if (stalePending) { text = 'Profile update was not picked up by the Chrome helper. Check its connection, then press Update profiles to retry.'; color = 'var(--yellow)'; }
+    else if (active) { text = result.text || (job.status === 'pending' ? 'Waiting. Open Reachr in Chrome to continue.' : 'Reading your Facebook profiles...'); color = 'var(--yellow)'; }
     else if (job.status === 'done') { const count = result.count ?? identities.length; const photos = result.avatar_count ?? avatarCount; text = `Last update found ${count} Facebook profile${count === 1 ? '' : 's'} · ${photos} photo${photos === 1 ? '' : 's'} · ${rel}.`; color = 'var(--green)'; }
     else if (job.status === 'failed') { text = `Profile update failed${rel ? ' · ' + rel : ''}: ${result.error || job.error || 'unknown error'}`; color = 'var(--red)'; }
   }
@@ -1017,9 +1042,11 @@ async function syncPostingIdentities() {
       .limit(1)
       .maybeSingle();
     if (existing) {
-      renderIdentitySyncStatus(existing, cachedData.postingIdentities || []);
-      toast('Profile update already running');
-      return existing;
+      if (!isStalePendingIdentitySyncJob(existing) || !await cancelStalePendingIdentitySyncJob(existing)) {
+        renderIdentitySyncStatus(existing, cachedData.postingIdentities || []);
+        toast('Profile update already running');
+        return existing;
+      }
     }
     const { error, data } = await sb.from('jsw_post_jobs').insert({
       user_id: user.id,
