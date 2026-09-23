@@ -2672,16 +2672,22 @@ function isHeartbeatFresh(heartbeat) {
   return Number.isFinite(ts) && Date.now() - ts < HEARTBEAT_STALE_MS;
 }
 
-function isStaleGroupSyncJob(job) {
+function isStaleGroupSyncJob(job, heartbeat = null) {
   if (!job || !['pending', 'processing'].includes(job.status)) return false;
-  const raw = job.started_at || job.created_at;
+  const raw = job.result?.progress_at || job.started_at || job.created_at;
   const ts = raw ? Date.parse(raw) : 0;
-  return Number.isFinite(ts) && Date.now() - ts > 15 * 60 * 1000;
+  if (!Number.isFinite(ts)) return false;
+  const age = Date.now() - ts;
+  if (!isHeartbeatFresh(heartbeat)) return age > 15 * 60 * 1000;
+  if (job.result?.progress_at) return age > 10 * 60 * 1000;
+  // Older workers have no per-pass timestamp. Give an active import enough time
+  // to scan every identity instead of cancelling it after 15 minutes.
+  return age > (job.status === 'processing' ? 45 : 60) * 60 * 1000;
 }
 
-async function cancelStaleGroupSyncJob(job) {
-  if (!job?.id || !isStaleGroupSyncJob(job)) return false;
-  const { error } = await sb.from('jsw_post_jobs')
+async function cancelStaleGroupSyncJob(job, heartbeat = null) {
+  if (!job?.id || !isStaleGroupSyncJob(job, heartbeat)) return false;
+  const { data, error } = await sb.from('jsw_post_jobs')
     .update({
       status: 'cancelled',
       error: 'Old group import replaced by a new request',
@@ -2689,9 +2695,11 @@ async function cancelStaleGroupSyncJob(job) {
       completed_at: new Date().toISOString()
     })
     .eq('id', job.id)
-    .eq('user_id', user.id);
+    .eq('user_id', user.id)
+    .eq('status', job.status)
+    .select('id');
   if (error) throw new Error(error.message);
-  return true;
+  return !!data?.length;
 }
 
 function groupScanDetailHtml(result = {}) {
@@ -2730,7 +2738,7 @@ function renderGroupSyncStatus(job, groups = cachedData.groups || [], heartbeat 
   });
 
   const active = job && ['pending', 'processing'].includes(job.status);
-  const stale = isStaleGroupSyncJob(job);
+  const stale = isStaleGroupSyncJob(job, heartbeat);
   const online = isHeartbeatFresh(heartbeat);
   setButtons(active && !stale ? 'Importing...' : stale ? 'Try again' : 'Import groups', active && !stale);
 
@@ -2748,11 +2756,14 @@ function renderGroupSyncStatus(job, groups = cachedData.groups || [], heartbeat 
   const result = job.result || {};
   if (active) {
     if (stale) {
-      setStatus(`Previous import is old${rel ? ' · ' + rel : ''}. Press Try again to replace it. ${online ? '' : 'Reachr in Chrome currently looks offline.'}`.trim(), 'var(--yellow)');
+      setStatus(`This import has stopped reporting progress${rel ? ' · started ' + rel : ''}. Reload the Reachr helper before pressing Try again. ${online ? '' : 'The helper currently looks offline.'}`.trim(), 'var(--yellow)');
     } else if (!online) {
       setStatus('Waiting. Open Reachr in Chrome and sign in; your groups will import automatically.', 'var(--yellow)');
     } else {
-      setStatus(result.text || (job.status === 'pending' ? 'Waiting. Open Reachr in Chrome to continue.' : 'Importing groups...'), 'var(--yellow)');
+      const progress = result.text || (job.status === 'pending' ? 'Waiting for the Chrome helper...' : 'Importing groups...');
+      setStatus(job.status === 'processing'
+        ? `${progress} Saved groups update after all profile checks finish. Please let this run without starting another import.`
+        : progress, 'var(--yellow)');
     }
   } else if (job.status === 'done') {
     const count = result.total_groups ?? result.count ?? groups.length;
@@ -2836,8 +2847,8 @@ async function syncFacebookGroups(automatic = false) {
     const online = isHeartbeatFresh(heartbeat);
 
     if (existing && ['pending', 'processing'].includes(existing.status)) {
-      if (isStaleGroupSyncJob(existing)) {
-        await cancelStaleGroupSyncJob(existing);
+      if (isStaleGroupSyncJob(existing, heartbeat)) {
+        if (!await cancelStaleGroupSyncJob(existing, heartbeat)) return refreshGroupSyncStatus();
       } else {
         renderGroupSyncStatus(existing, cachedData.groups || [], heartbeat);
         if (!automatic) toast('Group import already running');
@@ -4289,4 +4300,3 @@ function updateNextFire() {
     indicator.style.display = 'none';
   }
 }
-
