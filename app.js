@@ -2725,6 +2725,7 @@ function groupScanDetailHtml(result = {}) {
 function renderGroupSyncStatus(job, groups = cachedData.groups || [], heartbeat = null) {
   const statusEls = [...document.querySelectorAll('.group-sync-status')];
   const btns = [...document.querySelectorAll('.group-sync-btn')];
+  const selectedBtn = document.getElementById('groupImportSelectedBtn');
   if (statusEls.length === 0 && btns.length === 0) return;
 
   const setStatus = (content, color, html = false) => statusEls.forEach(el => {
@@ -2741,6 +2742,7 @@ function renderGroupSyncStatus(job, groups = cachedData.groups || [], heartbeat 
   const stale = isStaleGroupSyncJob(job, heartbeat);
   const online = isHeartbeatFresh(heartbeat);
   setButtons(active && !stale ? 'Importing...' : stale ? 'Try again' : 'Import groups', active && !stale);
+  if (selectedBtn) selectedBtn.disabled = (active && !stale) || !selectedGroupProfileKey || selectedGroupProfileKey === '__all__';
 
   if (!job) {
     setStatus(groups.length
@@ -2840,7 +2842,7 @@ function groupImportTargets() {
   })).filter(t => t.identity_name || t.url);
 }
 
-async function syncFacebookGroups(automatic = false) {
+async function syncFacebookGroups(automatic = false, onlyProfileKey = null) {
   try {
     const existing = await getLatestGroupSyncJob();
     const heartbeat = await getExtensionHeartbeat();
@@ -2865,7 +2867,11 @@ async function syncFacebookGroups(automatic = false) {
     if (!importTargets.length) {
       await refreshIdentitySyncStatus();
     }
-    const refreshedTargets = importTargets.length ? importTargets : groupImportTargets();
+    let refreshedTargets = importTargets.length ? importTargets : groupImportTargets();
+    if (onlyProfileKey && onlyProfileKey !== '__all__') {
+      refreshedTargets = refreshedTargets.filter(target => target.identity_key === onlyProfileKey);
+      if (!refreshedTargets.length) throw new Error('The selected Facebook profile is not synced. Update profiles first.');
+    }
     const { error, data } = await sb.from('jsw_post_jobs').insert({
       user_id: user.id,
       message: '__import_groups__',
@@ -3145,6 +3151,7 @@ function selectGroupProfile(key) {
   selectedGroupProfileKey = key || '__all__';
   localStorage.setItem('amplr_selected_group_profile', selectedGroupProfileKey);
   renderGroupsList(cachedData.groups || []);
+  refreshGroupSyncStatus();
 }
 
 function postFromGroupProfile(key) {

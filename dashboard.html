@@ -1268,6 +1268,7 @@ Example: Quick reminder for clinic owners — if your fee schedule is outdated, 
             <p>Pick a Facebook profile or Page to review its saved records. A saved record does not confirm that the profile or Page is currently joined.</p>
             <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;margin:18px 0;">
               <button type="button" class="btn btn-primary group-sync-btn" onclick="syncFacebookGroups(false)">Import groups</button>
+              <button type="button" class="btn btn-secondary" id="groupImportSelectedBtn" onclick="syncFacebookGroups(false, selectedGroupProfileKey)" disabled>Import selected profile</button>
               <div class="group-sync-status" role="status" aria-live="polite" style="font-size:13px;color:var(--text-3);">Checking latest group scan...</div>
             </div>
             <div class="groups-stat-grid">
@@ -1646,6 +1647,6 @@ Example: Quick reminder for clinic owners — if your fee schedule is outdated, 
       }
     }, 1200);
   </script>
-  <script src="app.js?v=84"></script>
+  <script src="app.js?v=85"></script>
 </body>
 </html>
