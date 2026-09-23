@@ -2545,7 +2545,7 @@ function groupScanDetailHtml(result = {}) {
       const missed = item.status === 'not_scanned' || !!item.error;
       const detail = missed
         ? `${esc(item.reason || 'No group list was available during this pass.')}`
-        : `${item.count || 0} group${(item.count || 0) === 1 ? '' : 's'} · ${item.new_count || 0} new`;
+        : `${item.count || 0} observed · ${item.new_count || 0} new · ${item.removed_count || 0} removed · ${esc(item.reconciliation || 'saved')}`;
       return `<div style="display:flex;justify-content:space-between;gap:12px;border-top:1px solid var(--border);padding-top:4px;">
         <span>${esc(name)}</span>
         <span style="color:${missed ? 'var(--yellow)' : 'var(--text-3)'};text-align:right;">${detail}</span>
@@ -3325,15 +3325,22 @@ function normalizeHistoryEntries(logs = [], jobs = []) {
         type: 'system',
         timestamp: j.completed_at || j.updated_at || j.created_at,
         title: 'Facebook group scan',
-        preview: identities.length ? `${identities.length} profile/page${identities.length === 1 ? '' : 's'} checked` : (j.error || result.error || 'Group import job'),
+        preview: result.text || (identities.length ? `${identities.length} profile/page${identities.length === 1 ? '' : 's'} checked` : (j.error || result.error || 'Group import job')),
         status: j.status || 'unknown',
         error: j.status === 'failed' ? (j.error || result.error) : '',
-        results: identities.map(item => ({
-          group: item.identity_name || item.identity_key || 'Profile/page',
-          success: item.status !== 'not_scanned' && !item.error && j.status === 'done',
-          failed: item.status === 'not_scanned' || !!item.error || j.status === 'failed',
-          error: item.reason || (item.error ? 'No group list was available during this pass.' : ''),
-        })),
+        results: identities.map(item => {
+          const name = item.identity_name || item.identity_key || 'Profile/page';
+          const scanned = item.status === 'scanned' && item.scan_complete === true && item.active_identity_verified === true;
+          const change = item.reconciliation === 'baseline_recorded' ? 'baseline saved; cleanup after next matching scan'
+            : item.reconciliation === 'awaiting_consistent_scan' ? `${item.pending_removal_count || 0} removals held for another scan`
+            : item.reconciliation === 'complete' ? 'reconciled' : 'legacy import';
+          return {
+            group: scanned ? `${name}: ${item.count || 0} observed, ${item.new_count || 0} new, ${item.removed_count || 0} removed · ${change}` : name,
+            success: scanned && j.status === 'done',
+            failed: item.status === 'not_scanned' || !!item.error || j.status === 'failed',
+            error: item.reason || (item.error ? 'No group list was available during this pass.' : ''),
+          };
+        }),
       });
       return;
     }
