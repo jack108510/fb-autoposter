@@ -2576,7 +2576,7 @@ function renderGroupSyncStatus(job, groups = cachedData.groups || [], heartbeat 
 
   if (!job) {
     setStatus(groups.length
-      ? `Last loaded: ${groups.length} group${groups.length === 1 ? '' : 's'}. Reachr refreshes this daily when Chrome is open.`
+      ? `Saved records: ${groups.length}. Membership has not been verified by a current scan.`
       : online
         ? 'No groups added yet. Press Import groups.'
         : 'No groups added yet. Open Reachr in Chrome, sign in, then press Import groups.', online ? 'var(--text-3)' : 'var(--yellow)');
@@ -2714,19 +2714,10 @@ async function syncFacebookGroups(automatic = false) {
   }
 }
 
-async function maybeAutoSyncFacebookGroups(groups) {
-  if (!user) return;
-  const latest = await refreshGroupSyncStatus();
-  if (latest && ['pending', 'processing'].includes(latest.status) && !isStaleGroupSyncJob(latest)) return;
-
-  const now = Date.now();
-  const lastLocal = Number(localStorage.getItem(`amplr_last_group_auto_sync_${user.id}`) || 0);
-  if (now - lastLocal < 6 * 60 * 60 * 1000) return; // local throttle
-
-  const lastDoneAt = latest?.status === 'done' ? new Date(latest.completed_at || latest.updated_at || latest.created_at).getTime() : 0;
-  const stale = !lastDoneAt || now - lastDoneAt > 24 * 60 * 60 * 1000;
-  const empty = !groups || groups.length === 0;
-  if (empty || stale) await syncFacebookGroups(true);
+async function maybeAutoSyncFacebookGroups() {
+  // Saved Supabase rows do not prove current Facebook membership. Do not
+  // run background imports while scan provenance is being corrected.
+  await refreshGroupSyncStatus();
 }
 
 async function saveGroupTags(url, tags) {
