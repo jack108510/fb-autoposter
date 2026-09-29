@@ -578,10 +578,8 @@ function isSystemJob(j) {
   return !j || j.message === '__import_groups__' || (j.message || '').startsWith('__');
 }
 function jobResultCounts(j) {
-  const count = Math.max((Array.isArray(j.groups) ? j.groups.length : 0), 1);
-  if (j.status === 'done') return { ok: count, fail: 0 };
-  if (j.status === 'failed') return { ok: 0, fail: count };
-  return { ok: 0, fail: 0 };
+  const summary = ReachrCampaignOutcomes.summarize(j);
+  return { ok: summary.counts.published, fail: summary.counts.failed, ...summary.counts };
 }
 
 function sanitizeReachrSnapshotValue(value) {
@@ -2173,6 +2171,9 @@ async function loadScheduled() {
 
   const health = analyzeReachrHealth(cachedData.posts || [], healthJobs || []);
   renderReachrHealthPanel(health);
+  const runnerPanel = document.createElement('div');
+  document.getElementById('reachrHealthPanel')?.prepend(runnerPanel);
+  if (typeof ReachrRunnerDashboard !== 'undefined') await ReachrRunnerDashboard.mount(runnerPanel, { sb, userId: user.id, getAccountId: () => user?.id });
   const legacyActiveCount = (cachedData.posts || []).filter(p => !p.durable && p.enabled && p.schedule?.time).length;
   if (legacyActiveCount) {
     document.getElementById('reachrHealthPanel')?.insertAdjacentHTML('beforeend',
@@ -3550,10 +3551,19 @@ async function loadLogs() {
   const el = document.getElementById('logsList');
   if (!el) return;
   const entries = normalizeHistoryEntries(cachedData.logs || [], jobs || []);
-  renderHistory(entries);
+  el.replaceChildren();
+  const historyPanel=document.createElement('div');
+  el.append(historyPanel);
+  renderHistory(entries,historyPanel);
+  const runnerPanel=document.createElement('div');
+  el.prepend(runnerPanel);
+  if(typeof ReachrRunnerDashboard!=='undefined')await ReachrRunnerDashboard.mount(runnerPanel,{sb,userId:user.id,getAccountId:()=>user?.id});
+  const monitorPanel=document.createElement('div');
+  el.prepend(monitorPanel);
+  if (typeof ReachrPostDashboard!=='undefined') await ReachrPostDashboard.mount(monitorPanel,{sb,userId:user.id,getAccountId:()=>user?.id,onRows:rows=>renderHistory(normalizeHistoryEntries(cachedData.logs||[],jobs||[],rows),historyPanel)});
 }
 
-function normalizeHistoryEntries(logs = [], jobs = []) {
+function normalizeHistoryEntries(logs = [], jobs = [], monitors = []) {
   const entries = [];
   (jobs || []).forEach(j => {
     const result = j.result || {};
@@ -3585,7 +3595,7 @@ function normalizeHistoryEntries(logs = [], jobs = []) {
     if (isSystemJob(j)) return;
     const status = j.status || 'unknown';
     const groups = Array.isArray(j.groups) ? j.groups : [];
-    const success = status === 'done';
+    const success = false; // Execution completion alone is not publication evidence.
     const failed = status === 'failed';
     entries.push({
       type: 'post',
@@ -3594,7 +3604,11 @@ function normalizeHistoryEntries(logs = [], jobs = []) {
       preview: scheduledEventText(j).replace(/\s+/g, ' ').trim() || 'No message text saved',
       status,
       error: j.error || '',
-      results: groups.map(g => ({ group: groupDisplayName(g), success, failed, error: j.error })),
+      outcomes: ReachrCampaignOutcomes.summarize(j,monitors).counts,
+      execution_label: ReachrCampaignOutcomes.summarize(j,monitors).execution,
+      results: ReachrCampaignOutcomes.summarize(j,monitors).targets.map(r=>({
+        group:r.group_name||r.group_url||'Group',success:r.outcome==='published',failed:r.outcome==='failed',outcome:r.outcome,error:r.error||'',evidence_url:r.evidence_url
+      })),
     });
   });
 
@@ -3605,7 +3619,7 @@ function normalizeHistoryEntries(logs = [], jobs = []) {
     preview: l.postPreview || l.text || '',
     status: l.status || '',
     error: l.error || '',
-    results: Array.isArray(l.results) ? l.results : [],
+    results: Array.isArray(l.results) ? l.results.map(r=>({...r,success:r.publication_verified===true&&r.status==='posted',outcome:r.publication_verified===true&&r.status==='posted'?'published':r.pending_approval===true?'pending_approval':r.failed?'failed':'unconfirmed'})) : [],
   }));
 
   return entries.sort((a, b) => new Date(b.timestamp || 0) - new Date(a.timestamp || 0));
@@ -3618,8 +3632,8 @@ function historyCounts(entries) {
     const fail = results.filter(r => r.failed || (!r.success && entry.status === 'failed')).length;
     if (entry.type === 'post') acc.posts += 1;
     if (entry.type === 'system') acc.system += 1;
-    if (fail > 0 || entry.status === 'failed') acc.failed += 1;
-    if (ok > 0 && fail === 0) acc.success += 1;
+    if (fail > 0 || ['failed','paused'].includes(entry.status) || results.some(r=>['unconfirmed','declined','removed'].includes(r.outcome)) || entry.outcomes?.unconfirmed > 0) acc.failed += 1;
+    if (ok > 0) acc.success += 1;
     return acc;
   }, { posts: 0, system: 0, failed: 0, success: 0 });
 }
@@ -3636,23 +3650,22 @@ function historyEntryState(entry) {
   const total = results.length;
   const status = entry.status || (ok > 0 ? 'done' : 'unknown');
   const pending = ['pending', 'queued', 'processing'].includes(status);
-  const iconClass = pending ? 'pending' : fail && ok ? 'mix' : fail || status === 'failed' || status === 'cancelled' ? 'fail' : ok || status === 'done' ? 'ok' : 'mix';
-  const icon = entry.type === 'system' ? 'SYS' : pending ? '...' : fail && ok ? 'MIX' : fail || status === 'failed' ? 'FAIL' : 'OK';
+  const iconClass = pending ? 'pending' : fail && ok ? 'mix' : fail || status === 'failed' || status === 'cancelled' ? 'fail' : ok && ok===total ? 'ok' : 'mix';
+  const icon = entry.type === 'system' ? 'SYS' : pending ? '...' : fail && ok ? 'MIX' : fail || status === 'failed' ? 'FAIL' : ok && ok===total ? 'OK' : 'REVIEW';
   return { ok, fail, total, status, iconClass, icon };
 }
 
-function renderHistory(entries) {
-  const el = document.getElementById('logsList');
+function renderHistory(entries, el = document.getElementById('logsList')) {
   const counts = historyCounts(entries);
   const filtered = entries.filter(e => {
     if (historyFilter === 'posts') return e.type === 'post';
-    if (historyFilter === 'failed') return historyEntryState(e).fail > 0 || e.status === 'failed';
+    if (historyFilter === 'failed') return historyEntryState(e).fail > 0 || ['failed','paused'].includes(e.status) || (e.results||[]).some(r=>['unconfirmed','declined','removed'].includes(r.outcome)) || e.outcomes?.unconfirmed > 0;
     if (historyFilter === 'system') return e.type === 'system';
     return true;
   });
   const tabs = [
     ['posts', `Posts (${counts.posts})`],
-    ['failed', `Failures (${counts.failed})`],
+    ['failed', `Needs review (${counts.failed})`],
     ['system', `System (${counts.system})`],
     ['all', `All (${entries.length})`],
   ];
@@ -3660,7 +3673,7 @@ function renderHistory(entries) {
   el.innerHTML = `<div class="history-shell">
     <div class="history-summary">
       <div class="history-stat"><strong>${counts.posts}</strong><span>post runs</span></div>
-      <div class="history-stat"><strong>${counts.success}</strong><span>clean runs</span></div>
+      <div class="history-stat"><strong>${counts.success}</strong><span>runs with verified publications</span></div>
       <div class="history-stat"><strong>${counts.failed}</strong><span>needs attention</span></div>
       <div class="history-stat"><strong>${counts.system}</strong><span>helper jobs</span></div>
     </div>
@@ -3676,20 +3689,22 @@ function historyItemHtml(entry) {
   const state = historyEntryState(entry);
   const results = entry.results || [];
   const visibleResults = results.slice(0, 8);
-  const statusLabel = entry.status === 'done' ? 'complete' : entry.status || 'unknown';
+  const statusLabel = entry.execution_label || (entry.status === 'done' ? 'Execution finished' : entry.status || 'unknown');
+  const outcomeText=entry.outcomes?Object.entries(entry.outcomes).filter(([key])=>['published','pending_approval','declined','removed','unconfirmed'].includes(key)).map(([key,n])=>`${n} ${ReachrCampaignOutcomes.labels[key].toLowerCase()}`).join(' · '):'';
   const groupHtml = visibleResults.length ? visibleResults.map(r => {
-    const cls = r.success ? 'ok' : r.failed ? 'fail' : 'warn';
-    const label = `${r.success ? 'OK' : r.failed ? 'FAIL' : 'WAIT'} ${r.group || 'Group'}${r.error ? ` — ${String(r.error).slice(0, 90)}` : ''}`;
-    return `<span class="history-group-pill ${cls}" title="${esc(label)}">${esc(label)}</span>`;
+    const cls = r.success ? 'ok' : r.failed || ['declined','removed'].includes(r.outcome) ? 'fail' : 'warn';
+    const label = `${r.outcome==='pending_approval'?'PENDING APPROVAL':r.outcome==='unconfirmed'?'UNCONFIRMED':r.outcome==='declined'?'DECLINED':r.outcome==='removed'?'REMOVED':r.success ? 'PUBLISHED' : r.failed ? 'FAILED' : 'WAIT'} ${r.group || 'Group'}${r.error ? ` — ${String(r.error).slice(0, 90)}` : ''}`;
+    const evidence=typeof ReachrPostDashboard!=='undefined'?ReachrPostDashboard.safeUrl(r.evidence_url):null;
+    return evidence?`<a class="history-group-pill ${cls}" href="${esc(evidence)}" target="_blank" rel="noopener noreferrer">${esc(label)}</a>`:`<span class="history-group-pill ${cls}" title="${esc(label)}">${esc(label)}</span>`;
   }).join('') + (results.length > visibleResults.length ? `<span class="history-group-pill">+${results.length - visibleResults.length} more</span>` : '') : `<span class="history-group-pill warn">No group-level result yet</span>`;
   return `<div class="history-item">
     <div class="history-icon ${state.iconClass}">${state.icon}</div>
     <div class="history-main">
       <div class="history-title-row"><div class="history-title">${esc(entry.title || (entry.type === 'system' ? 'Helper activity' : 'Post run'))}</div><span class="badge ${state.iconClass === 'fail' ? 'badge-off' : state.iconClass === 'ok' ? 'badge-green' : 'badge-yellow'}">${esc(statusLabel)}</span><span class="history-time">${entry.timestamp ? new Date(entry.timestamp).toLocaleString() : 'No time'}</span></div>
       <div class="history-preview">${esc(entry.error || entry.preview || 'No details saved')}</div>
-      <div class="history-groups">${groupHtml}</div>
+      ${outcomeText?`<div style="font-size:12px;margin:8px 0">${esc(outcomeText)}</div>`:''}<div class="history-groups">${groupHtml}</div>
     </div>
-    <div class="history-side"><div class="history-score">${state.total ? `${state.ok}/${state.total}` : '—'}</div><div class="history-score-label">succeeded</div></div>
+    <div class="history-side"><div class="history-score">${state.total ? `${state.ok}/${state.total}` : '—'}</div><div class="history-score-label">${entry.type==='system'?'succeeded':'verified published'}</div></div>
   </div>`;
 }
 
@@ -3717,10 +3732,11 @@ async function exportLogs() {
 
   if (logs.length === 0 && (!jobs || jobs.length === 0)) return toast('No activity to export');
 
-  const rows = [['Timestamp', 'Source', 'Preview', 'Group', 'Success', 'Error']];
+  const { data: monitored } = await sb.from('reachr_post_monitors').select('*').eq('user_id',user.id).limit(1000);
+  const rows = [['Timestamp', 'Source', 'Preview', 'Group', 'Publication outcome', 'Error']];
   logs.forEach(l => {
     (l.results || []).forEach(r => {
-      rows.push([l.timestamp, 'legacy', l.postPreview || '', r.group || '', r.success ? 'YES' : 'NO', r.error || '']);
+      rows.push([l.timestamp, 'legacy', l.postPreview || '', r.group || '', r.publication_verified===true?'published':r.pending_approval===true?'pending_approval':'unconfirmed', r.error || '']);
     });
   });
   (jobs || []).filter(j => !isSystemJob(j)).forEach(j => {
@@ -3731,7 +3747,7 @@ async function exportLogs() {
         'extension',
         j.message || '',
         groupDisplayName(ref),
-        j.status === 'done' ? 'YES' : (j.status === 'failed' ? 'NO' : j.status || ''),
+        ReachrCampaignOutcomes.summarize(j,monitored||[]).targets.find(r=>r.group_url===(typeof ref==='string'?ref:ref.url||ref.group_url))?.outcome || 'unconfirmed',
         j.error || ''
       ]);
     });
