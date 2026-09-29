@@ -1513,6 +1513,7 @@ Example: Quick reminder for clinic owners — if your fee schedule is outdated, 
     </div>
   </div>
 
+  <script src="reachr-session-owner.js?v=1"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script>
     // ─── Auth ───
@@ -1562,7 +1563,8 @@ Example: Quick reminder for clinic owners — if your fee schedule is outdated, 
       if (!window.supabase?.createClient) throw new Error('Supabase auth library did not load. Refresh and try again.');
       window.sb = window.supabase.createClient(
         window.AMPLR_SUPABASE_URL,
-        window.AMPLR_SUPABASE_KEY
+        window.AMPLR_SUPABASE_KEY,
+        { global: { fetch: window.reachrAuthFetch || window.fetch.bind(window) } }
       );
       return window.sb;
     }
@@ -1630,6 +1632,7 @@ Example: Quick reminder for clinic owners — if your fee schedule is outdated, 
     }
 
     async function logout() {
+      window.reachrForgetSessionOwner?.();
       ['amplr_draft', 'amplr_create_content_type'].forEach(k => localStorage.removeItem(k));
       Object.keys(localStorage).filter(k => k.startsWith('amplr_last_group_auto_sync_')).forEach(k => localStorage.removeItem(k));
       if (window.sb) await window.sb.auth.signOut();
@@ -1650,6 +1653,6 @@ Example: Quick reminder for clinic owners — if your fee schedule is outdated, 
   <script src="campaign-outcomes.js?v=1"></script>
   <script src="runner-dashboard.js?v=1"></script>
   <script src="post-status-dashboard.js?v=2"></script>
-  <script src="app.js?v=87"></script>
+  <script src="app.js?v=88"></script>
 </body>
 </html>

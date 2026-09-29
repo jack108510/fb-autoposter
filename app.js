@@ -11,7 +11,9 @@ let sb = null;
 let user = null;
 
 try {
-  sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+  sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
+    global: { fetch: window.reachrAuthFetch || window.fetch.bind(window) }
+  });
   window.sb = sb;
 } catch(e) {
   console.error('[Reachr] Supabase client failed', e);
