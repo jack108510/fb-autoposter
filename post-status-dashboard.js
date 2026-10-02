@@ -8,6 +8,9 @@
   function html(rows,events,online){
     const counts={};for(const r of rows)counts[r.status]=(counts[r.status]||0)+1;
     const summary=Object.entries(labels).map(([s,l])=>`${counts[s]||0} ${l.toLowerCase()}`).join(' · ');
+    const due=rows.filter(r=>r.next_check_at&&Date.parse(r.next_check_at)<=Date.now()).length;
+    const checked=rows.map(r=>Date.parse(r.last_checked_at||'')).filter(Number.isFinite);
+    const lastCheck=checked.length?new Date(Math.max(...checked)).toISOString():null;
     const alerts=events.filter(e=>e.kind!=='observed').map(e=>{
       const r=rows.find(a=>a.id===e.attempt_id);const url=safeUrl(e.evidence?.post_url||e.evidence?.source_view);
       const title=e.kind==='approved'?'Post approved':e.kind==='monitoring_unavailable'?'Monitoring needs attention':`Post ${e.kind}`;
@@ -23,7 +26,8 @@
       </article>`;
     }).join('');
     return `<section style="padding:20px;border:1px solid var(--border,#ddd);border-radius:18px;margin-bottom:16px;background:var(--surface,var(--card,#fff))"><h3 style="margin-bottom:8px">Post status and approvals</h3>
-      <p style="font-size:13px;margin-bottom:8px">${online?'Worker online; checks wait while campaigns run.':'Worker offline or disconnected; approval checks will resume when it reconnects.'} Checks use the Page currently selected in Facebook.</p>
+      <p style="font-size:13px;margin-bottom:8px">${online?'Worker online; posting and verification take turns.':'Worker offline or disconnected; approval checks will resume when it reconnects.'} Checks use the Page currently selected in Facebook.</p>
+      ${due?`<p role="status" style="font-size:13px;margin-bottom:8px">${due} verification checks due · Last check ${esc(date(lastCheck))}. Publication labels reflect the last confirmed observation.</p>`:''}
       <p style="font-size:13px;margin-bottom:12px">${rows.length?`Latest ${rows.length} monitored targets: ${esc(summary)}`:'No monitored submissions yet. New and recent saved submissions appear when the worker connects.'}</p>
       ${alerts?`<details open><summary>Recent approval and status alerts</summary><ul style="padding:12px 20px">${alerts}</ul></details>`:''}
       ${cards}${rows.length>50?'<p>Showing the newest 50 targets.</p>':''}<div data-monitor-feedback role="status" style="font-size:12px;margin-top:8px"></div></section>`;
