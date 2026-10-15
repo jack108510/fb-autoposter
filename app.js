@@ -511,7 +511,7 @@ async function createJob(post) {
   const campaignId = String(post.source_campaign_id || post.campaign_id || post.id || '').trim();
   if (!campaignId) throw new Error('Campaign identity is required before posting');
   const settings = cachedData.settings || {};
-  const minDelay = Math.max(parseInt(settings.delay, 10) || 90, 90);
+  const minDelay = Math.max(parseInt(settings.delay, 10) || 90, 10);
   const aiEnabled = post.aiEnabled ?? post.ai_enabled ?? document.getElementById('aiToggle')?.classList.contains('on');
   const maxGroupsPerJob = 8;
   const batchCount = Math.ceil(groups.length / maxGroupsPerJob);
@@ -1379,7 +1379,7 @@ async function savePost(activate = true) {
     first_comment: document.getElementById('createFirstComment')?.value.trim() || null,
     groups, identity_name: identityName, identity_key: selectedKey,
     identity_type: identity?.type || null, identity_url: identity?.url || null,
-    delay: Math.max(parseInt(cachedData.settings?.delay, 10) || 90, 90),
+    delay: Math.max(parseInt(cachedData.settings?.delay, 10) || 90, 10),
     ai_enabled: !!document.getElementById('aiToggle')?.classList.contains('on'),
     ai_prompt: cachedData.settings?.ai_prompt || null,
     timezone, local_time: time, days: [...selDays], max_runs: maxRuns,
@@ -3958,7 +3958,7 @@ async function saveSettings() {
 
   const settings = {
     ...(cachedData.settings || {}),
-    delay: Math.max(parseInt(document.getElementById('setDelay').value) || 90, 90),
+    delay: Math.max(parseInt(document.getElementById('setDelay').value) || 90, 10),
     maxGroups: Math.max(parseInt(document.getElementById('setMaxGroups').value) || 8, 1),
     daily_post_cap: Math.max(parseInt(document.getElementById('setDailyCap')?.value) || 120, 1),
     jitter: Math.max(parseInt(document.getElementById('setJitter').value) || 75, 0),
