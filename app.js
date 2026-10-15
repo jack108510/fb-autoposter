@@ -581,7 +581,7 @@ function isSystemJob(j) {
 }
 function jobResultCounts(j) {
   const summary = ReachrCampaignOutcomes.summarize(j);
-  return { ok: summary.counts.published, fail: summary.counts.failed, ...summary.counts };
+  return { ok: summary.counts.submitted, fail: summary.counts.failed, ...summary.counts };
 }
 
 function sanitizeReachrSnapshotValue(value) {
@@ -3560,12 +3560,9 @@ async function loadLogs() {
   const runnerPanel=document.createElement('div');
   el.prepend(runnerPanel);
   if(typeof ReachrRunnerDashboard!=='undefined')await ReachrRunnerDashboard.mount(runnerPanel,{sb,userId:user.id,getAccountId:()=>user?.id});
-  const monitorPanel=document.createElement('div');
-  el.prepend(monitorPanel);
-  if (typeof ReachrPostDashboard!=='undefined') await ReachrPostDashboard.mount(monitorPanel,{sb,userId:user.id,getAccountId:()=>user?.id,onRows:rows=>renderHistory(normalizeHistoryEntries(cachedData.logs||[],jobs||[],rows),historyPanel)});
 }
 
-function normalizeHistoryEntries(logs = [], jobs = [], monitors = []) {
+function normalizeHistoryEntries(logs = [], jobs = []) {
   const entries = [];
   (jobs || []).forEach(j => {
     const result = j.result || {};
@@ -3597,8 +3594,8 @@ function normalizeHistoryEntries(logs = [], jobs = [], monitors = []) {
     if (isSystemJob(j)) return;
     const status = j.status || 'unknown';
     const groups = Array.isArray(j.groups) ? j.groups : [];
-    const success = false; // Execution completion alone is not publication evidence.
     const failed = status === 'failed';
+    const summary = ReachrCampaignOutcomes.summarize(j);
     entries.push({
       type: 'post',
       timestamp: j.completed_at || j.updated_at || j.started_at || j.created_at,
@@ -3606,10 +3603,10 @@ function normalizeHistoryEntries(logs = [], jobs = [], monitors = []) {
       preview: scheduledEventText(j).replace(/\s+/g, ' ').trim() || 'No message text saved',
       status,
       error: j.error || '',
-      outcomes: ReachrCampaignOutcomes.summarize(j,monitors).counts,
-      execution_label: ReachrCampaignOutcomes.summarize(j,monitors).execution,
-      results: ReachrCampaignOutcomes.summarize(j,monitors).targets.map(r=>({
-        group:r.group_name||r.group_url||'Group',success:r.outcome==='published',failed:r.outcome==='failed',outcome:r.outcome,error:r.error||'',evidence_url:r.evidence_url
+      outcomes: summary.counts,
+      execution_label: summary.execution,
+      results: summary.targets.map(r=>({
+        group:r.group_name||r.group_url||'Group',success:r.outcome==='submitted',failed:r.outcome==='failed',outcome:r.outcome,error:r.error||'',evidence_url:r.evidence_url
       })),
     });
   });
@@ -3621,7 +3618,7 @@ function normalizeHistoryEntries(logs = [], jobs = [], monitors = []) {
     preview: l.postPreview || l.text || '',
     status: l.status || '',
     error: l.error || '',
-    results: Array.isArray(l.results) ? l.results.map(r=>({...r,success:r.publication_verified===true&&r.status==='posted',outcome:r.publication_verified===true&&r.status==='posted'?'published':r.pending_approval===true?'pending_approval':r.failed?'failed':'unconfirmed'})) : [],
+    results: Array.isArray(l.results) ? l.results.map(r=>({...r,success:['posted','submitted_unconfirmed','pending_approval'].includes(r.status)||r.success===true,outcome:['posted','submitted_unconfirmed','pending_approval'].includes(r.status)||r.success===true?'submitted':r.failed?'failed':'unconfirmed'})) : [],
   }));
 
   return entries.sort((a, b) => new Date(b.timestamp || 0) - new Date(a.timestamp || 0));
@@ -3675,7 +3672,7 @@ function renderHistory(entries, el = document.getElementById('logsList')) {
   el.innerHTML = `<div class="history-shell">
     <div class="history-summary">
       <div class="history-stat"><strong>${counts.posts}</strong><span>post runs</span></div>
-      <div class="history-stat"><strong>${counts.success}</strong><span>runs with verified publications</span></div>
+      <div class="history-stat"><strong>${counts.success}</strong><span>runs with submissions</span></div>
       <div class="history-stat"><strong>${counts.failed}</strong><span>needs attention</span></div>
       <div class="history-stat"><strong>${counts.system}</strong><span>helper jobs</span></div>
     </div>
@@ -3687,16 +3684,24 @@ function renderHistory(entries, el = document.getElementById('logsList')) {
   </div>`;
 }
 
+function safeHistoryGroupUrl(value) {
+  try {
+    const url = new URL(value);
+    return url.protocol === 'https:' && url.hostname === 'www.facebook.com' && !url.port
+      && !url.username && !url.password && /^\/groups\//.test(url.pathname) ? url.href : null;
+  } catch (_) { return null; }
+}
+
 function historyItemHtml(entry) {
   const state = historyEntryState(entry);
   const results = entry.results || [];
   const visibleResults = results.slice(0, 8);
   const statusLabel = entry.execution_label || (entry.status === 'done' ? 'Execution finished' : entry.status || 'unknown');
-  const outcomeText=entry.outcomes?Object.entries(entry.outcomes).filter(([key])=>['published','pending_approval','declined','removed','unconfirmed'].includes(key)).map(([key,n])=>`${n} ${ReachrCampaignOutcomes.labels[key].toLowerCase()}`).join(' · '):'';
+  const outcomeText=entry.outcomes?Object.entries(entry.outcomes).filter(([key,n])=>n>0 && ['submitted','unconfirmed','failed','skipped','waiting'].includes(key)).map(([key,n])=>`${n} ${ReachrCampaignOutcomes.labels[key].toLowerCase()}`).join(' · '):'';
   const groupHtml = visibleResults.length ? visibleResults.map(r => {
-    const cls = r.success ? 'ok' : r.failed || ['declined','removed'].includes(r.outcome) ? 'fail' : 'warn';
-    const label = `${r.outcome==='pending_approval'?'PENDING APPROVAL':r.outcome==='unconfirmed'?'UNCONFIRMED':r.outcome==='declined'?'DECLINED':r.outcome==='removed'?'REMOVED':r.success ? 'PUBLISHED' : r.failed ? 'FAILED' : 'WAIT'} ${r.group || 'Group'}${r.error ? ` — ${String(r.error).slice(0, 90)}` : ''}`;
-    const evidence=typeof ReachrPostDashboard!=='undefined'?ReachrPostDashboard.safeUrl(r.evidence_url):null;
+    const cls = r.success ? 'ok' : r.failed ? 'fail' : 'warn';
+    const label = `${r.success ? 'SUBMITTED' : r.failed ? 'FAILED' : r.outcome==='skipped' ? 'SKIPPED' : 'WAIT'} ${r.group || 'Group'}${r.error ? ` — ${String(r.error).slice(0, 90)}` : ''}`;
+    const evidence=safeHistoryGroupUrl(r.evidence_url);
     return evidence?`<a class="history-group-pill ${cls}" href="${esc(evidence)}" target="_blank" rel="noopener noreferrer">${esc(label)}</a>`:`<span class="history-group-pill ${cls}" title="${esc(label)}">${esc(label)}</span>`;
   }).join('') + (results.length > visibleResults.length ? `<span class="history-group-pill">+${results.length - visibleResults.length} more</span>` : '') : `<span class="history-group-pill warn">No group-level result yet</span>`;
   return `<div class="history-item">
@@ -3706,7 +3711,7 @@ function historyItemHtml(entry) {
       <div class="history-preview">${esc(entry.error || entry.preview || 'No details saved')}</div>
       ${outcomeText?`<div style="font-size:12px;margin:8px 0">${esc(outcomeText)}</div>`:''}<div class="history-groups">${groupHtml}</div>
     </div>
-    <div class="history-side"><div class="history-score">${state.total ? `${state.ok}/${state.total}` : '—'}</div><div class="history-score-label">${entry.type==='system'?'succeeded':'verified published'}</div></div>
+    <div class="history-side"><div class="history-score">${state.total ? `${state.ok}/${state.total}` : '—'}</div><div class="history-score-label">${entry.type==='system'?'succeeded':'submitted'}</div></div>
   </div>`;
 }
 
@@ -3734,11 +3739,10 @@ async function exportLogs() {
 
   if (logs.length === 0 && (!jobs || jobs.length === 0)) return toast('No activity to export');
 
-  const { data: monitored } = await sb.from('reachr_post_monitors').select('*').eq('user_id',user.id).limit(1000);
-  const rows = [['Timestamp', 'Source', 'Preview', 'Group', 'Publication outcome', 'Error']];
+  const rows = [['Timestamp', 'Source', 'Preview', 'Group', 'Submission outcome', 'Error']];
   logs.forEach(l => {
     (l.results || []).forEach(r => {
-      rows.push([l.timestamp, 'legacy', l.postPreview || '', r.group || '', r.publication_verified===true?'published':r.pending_approval===true?'pending_approval':'unconfirmed', r.error || '']);
+      rows.push([l.timestamp, 'legacy', l.postPreview || '', r.group || '', ['posted','submitted_unconfirmed','pending_approval'].includes(r.status)||r.success===true?'submitted':r.failed?'failed':'unconfirmed', r.error || '']);
     });
   });
   (jobs || []).filter(j => !isSystemJob(j)).forEach(j => {
@@ -3749,7 +3753,7 @@ async function exportLogs() {
         'extension',
         j.message || '',
         groupDisplayName(ref),
-        ReachrCampaignOutcomes.summarize(j,monitored||[]).targets.find(r=>r.group_url===(typeof ref==='string'?ref:ref.url||ref.group_url))?.outcome || 'unconfirmed',
+        ReachrCampaignOutcomes.summarize(j).targets.find(r=>r.group_url===(typeof ref==='string'?ref:ref.url||ref.group_url))?.outcome || 'unconfirmed',
         j.error || ''
       ]);
     });
