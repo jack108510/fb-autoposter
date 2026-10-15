@@ -170,10 +170,92 @@ function nav(page) {
     case 'dashboard': return loadDashboard();
     case 'create': return loadCreate();
     case 'scheduled': return loadScheduled();
+    case 'submissions': return loadPartnerSubmissions();
     case 'groups': return loadGroups();
     case 'logs': return loadLogs();
     case 'settings': loadSettings(); return refreshIdentitySyncStatus();
   }
+}
+
+async function loadPartnerSubmissions() {
+  const target = document.getElementById('partnerSubmissionsList');
+  if (!target || !user) return;
+  target.textContent = 'Loading…';
+  const { data, error } = await sb.from('amplr_data')
+    .select('key,value,updated_at')
+    .eq('user_id', user.id).like('key', 'partner_submission:%')
+    .order('updated_at', { ascending: false }).limit(100);
+  if (error) {
+    target.textContent = `Could not load submissions: ${error.message}`;
+    return;
+  }
+  target.replaceChildren();
+  if (!data?.length) {
+    target.textContent = 'No partner submissions yet.';
+    return;
+  }
+  const line = (label, value) => {
+    const node = document.createElement('p');
+    node.style.cssText = 'white-space:pre-wrap;overflow-wrap:anywhere;margin:8px 0;color:var(--text-2);font-size:13px;';
+    const strong = document.createElement('strong');
+    strong.textContent = `${label}: `;
+    node.append(strong, document.createTextNode(value));
+    return node;
+  };
+  for (const row of data) {
+    const item = { ...row.value, id: row.key, created_at: row.value?.created_at || row.updated_at };
+    if (!item.title || !item.message) continue;
+    const card = document.createElement('article');
+    card.style.cssText = 'border:1px solid var(--border);border-radius:14px;padding:18px;margin:12px 0;background:var(--surface);';
+    const heading = document.createElement('h3');
+    heading.style.cssText = 'font-size:16px;margin:0 0 4px;';
+    heading.textContent = item.title;
+    card.append(heading, line('Status', `${item.status} · ${new Date(item.created_at).toLocaleString()}`),
+      line('Post copy', item.message));
+    if (item.destination_url) card.append(line('Destination', item.destination_url));
+    if (item.image_url) card.append(line('Image', item.image_url));
+    if (item.notes) card.append(line('Partner notes', item.notes));
+    if (item.external_id) card.append(line('External ID', item.external_id));
+    if (item.review_notes) card.append(line('Review notes', item.review_notes));
+    const actions = document.createElement('div');
+    actions.style.cssText = 'display:flex;flex-wrap:wrap;gap:8px;margin-top:14px;';
+    const use = document.createElement('button');
+    use.className = 'btn btn-secondary btn-sm';
+    use.textContent = 'Load into New Post';
+    use.onclick = async () => {
+      const current = document.getElementById('createText')?.value.trim();
+      if (current && !confirm('Replace the current New Post draft with this submission?')) return;
+      await nav('create');
+      clearCreateForm();
+      document.getElementById('createText').value = item.message;
+      document.getElementById('createCampaignName').value = item.title;
+      document.getElementById('createImageUrl').value = item.image_url || '';
+      document.getElementById('campaignDestination').value = item.destination_url || '';
+      document.getElementById('createText').dispatchEvent(new Event('input', { bubbles: true }));
+      document.getElementById('createImageUrl').dispatchEvent(new Event('input', { bubbles: true }));
+      toast('Draft loaded. Review the link, image, posting identity, groups, and timing before saving.');
+    };
+    actions.append(use);
+    if (item.status === 'submitted') {
+      for (const [status, label] of [['reviewed', 'Mark reviewed'], ['declined', 'Decline']]) {
+        const button = document.createElement('button');
+        button.className = 'btn btn-secondary btn-sm';
+        button.textContent = label;
+        button.onclick = () => reviewPartnerSubmission(row, status);
+        actions.append(button);
+      }
+    }
+    card.append(actions);
+    target.append(card);
+  }
+}
+
+async function reviewPartnerSubmission(row, status) {
+  const { error } = await sb.from('amplr_data')
+    .update({ value: { ...row.value, status, reviewed_at: new Date().toISOString() }, updated_at: new Date().toISOString() })
+    .eq('key', row.key).eq('user_id', user.id);
+  if (error) return toast(`Could not update submission: ${error.message}`);
+  await loadPartnerSubmissions();
 }
 
 // ═══ SUPABASE DATA LAYER ═══

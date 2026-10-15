@@ -1051,6 +1051,7 @@ window.siteTrack=function(name){try{if(window.clarity&&name)window.clarity("even
       <div class="nav">
         <div class="nav-section">Post</div>
         <div class="nav-item active" data-page="create"><span class="icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 2L14 4L6 12L2 13L3 9L12 2Z"/></svg></span> New Post</div>
+        <div class="nav-item" data-page="submissions"><span class="icon">↧</span> Partner submissions</div>
         <div class="nav-item" data-page="scheduled"><span class="icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="6"/><polyline points="8,4 8,8 11,9"/></svg></span> Upcoming <span class="nav-badge" id="navCount">0</span></div>
 
         <div class="nav-section">Library</div>
@@ -1248,6 +1249,15 @@ Example: Quick reminder for clinic owners — if your fee schedule is outdated, 
       </div>
 
       <!-- ═══ SCHEDULED ═══ -->
+      <div class="page" id="page-submissions">
+        <div class="page-title">Partner submissions</div>
+        <div class="page-subtitle">Draft ideas sent by your partner. Review each one, then use New Post to choose the posting identity, groups, and timing.</div>
+        <div class="card">
+          <div class="card-header"><div class="card-title">Review queue</div><button class="btn btn-secondary btn-sm" type="button" onclick="loadPartnerSubmissions()">Refresh</button></div>
+          <div id="partnerSubmissionsList" aria-live="polite">Loading…</div>
+        </div>
+      </div>
+
       <div class="page" id="page-scheduled">
         <div class="page-title">Upcoming Posts</div>
         <div class="page-subtitle">Next 7 days.</div>
@@ -1652,6 +1662,6 @@ Example: Quick reminder for clinic owners — if your fee schedule is outdated, 
   </script>
   <script src="campaign-outcomes.js?v=2"></script>
   <script src="runner-dashboard.js?v=1"></script>
-  <script src="app.js?v=90"></script>
+  <script src="app.js?v=91"></script>
 </body>
 </html>
