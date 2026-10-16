@@ -69,6 +69,14 @@ class PartnerSubmitTests(unittest.TestCase):
             'posted': 1, 'pending_approval': 1, 'unconfirmed': 1, 'failed': 1,
         })
 
+    def test_video_cover_cannot_be_published_as_video(self):
+        checks = submit.technical_checks({'notes': 'VIDEO post. Ask for the full-quality video before posting.'})
+        self.assertEqual(checks['media'], 'video_not_supported_by_reachr_post_jobs')
+        self.assertFalse(checks['ok'])
+        poll = submit.technical_checks({'notes': 'Use the poll feature if available.'})
+        self.assertEqual(poll['media'], 'text_poll_only')
+        self.assertTrue(poll['ok'])
+
     def test_publish_queues_only_stored_copy_to_mapped_groups(self):
         draft = {'title': 'For web designers', 'message': 'Exact approved draft copy',
                  'image_url': 'https://i.imgur.com/ad.png', 'destination_url': 'https://wildroseautomations.ca',

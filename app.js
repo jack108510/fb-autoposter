@@ -226,7 +226,7 @@ async function loadPartnerSubmissions() {
     if (item.review_notes) card.append(line('Review notes', item.review_notes));
     if (item.suggested_audience) card.append(line('Campaign audience', item.suggested_audience));
     if (item.technical_checks) card.append(line('Technical checks',
-      `Destination: ${item.technical_checks.destination} · Image: ${item.technical_checks.image}`));
+      `Destination: ${item.technical_checks.destination} · Image: ${item.technical_checks.image} · Media: ${item.technical_checks.media || 'not_checked'}`));
     if (item.target_groups?.length) card.append(line('Selected groups', item.target_groups.join(', ')));
     const job = item.publish_job_id && jobsById.get(item.publish_job_id);
     if (job) {

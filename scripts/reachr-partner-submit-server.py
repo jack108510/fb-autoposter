@@ -119,7 +119,13 @@ def suggested_audience(submission):
 
 
 def technical_checks(submission):
-    checks = {'checked_at': datetime.now(timezone.utc).isoformat(), 'destination': 'not_provided', 'image': 'not_provided'}
+    checks = {'checked_at': datetime.now(timezone.utc).isoformat(), 'destination': 'not_provided',
+              'image': 'not_provided', 'media': 'ok'}
+    notes = str(submission.get('notes') or '').lower()
+    if re.search(r'\bvideo post\b|full.quality.*video', notes):
+        checks['media'] = 'video_not_supported_by_reachr_post_jobs'
+    elif 'poll feature' in notes:
+        checks['media'] = 'text_poll_only'
     for field_name, check_name in (('destination_url', 'destination'), ('image_url', 'image')):
         url = submission.get(field_name)
         if not url:
@@ -136,7 +142,9 @@ def technical_checks(submission):
                 checks[check_name] = 'ok' if 200 <= status < 400 else 'unreachable'
         except (HTTPError, URLError, TimeoutError, ValueError):
             checks[check_name] = 'unreachable'
-    checks['ok'] = checks['destination'] in ('ok', 'not_provided') and checks['image'] in ('ok', 'not_provided')
+    checks['ok'] = (checks['destination'] in ('ok', 'not_provided')
+                    and checks['image'] in ('ok', 'not_provided')
+                    and checks['media'] != 'video_not_supported_by_reachr_post_jobs')
     return checks
 
 
@@ -317,7 +325,7 @@ class Handler(BaseHTTPRequestHandler):
                     'user_id': 'eq.' + OWNER_ID, 'key': 'eq.' + draft_key,
                 }), {'value': draft, 'updated_at': datetime.now(timezone.utc).isoformat()})
                 if not checks['ok']:
-                    return self.response(422, {'error': 'The submitted link or image did not pass the technical check',
+                    return self.response(422, {'error': 'The submitted asset or media type did not pass the technical check',
                                                'technical_checks': checks})
                 schedules = self.db('GET', 'reachr_campaign_schedules?' + urlencode({
                     'select': 'name,groups,next_at', 'user_id': 'eq.' + OWNER_ID,

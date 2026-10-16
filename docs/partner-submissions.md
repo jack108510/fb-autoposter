@@ -42,3 +42,5 @@ python3 scripts/publish-partner-post.py --all-six
 ```
 
 `--all-six --status` reports each job's status and group outcomes. A creative quality score does not block publishing; invalid assets or unavailable eligible groups do. Reachr's normal runner still applies its posting safety holds and reports Facebook's actual outcomes.
+
+Reachr's current post jobs support text plus an optional image. A draft marked as a video post stays stored but cannot be queued from a cover image alone. A draft asking for a Facebook poll is published as a regular text post with the listed choices; the API does not create a native Facebook poll.
