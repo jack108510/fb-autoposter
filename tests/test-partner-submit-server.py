@@ -1,7 +1,9 @@
 import hashlib
 import importlib.util
 import unittest
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from unittest.mock import patch
 
 
 SCRIPT = Path(__file__).resolve().parents[1] / 'scripts/reachr-partner-submit-server.py'
@@ -14,7 +16,7 @@ class PartnerSubmitTests(unittest.TestCase):
     def test_accepts_only_draft_fields(self):
         item = submit.validate_submission({
             'title': 'Weekend offer', 'message': 'Local draft',
-            'destination_url': 'https://example.com/book', 'external_id': 'offer-1',
+            'destination_url': 'https://wildroseautomations.ca/book', 'external_id': 'offer-1',
         })
         self.assertEqual(item['message'], 'Local draft')
         for forbidden in ('groups', 'status', 'schedule', 'identity_name'):
@@ -33,6 +35,83 @@ class PartnerSubmitTests(unittest.TestCase):
         self.assertEqual(submit.submission_key(draft), submit.submission_key(draft))
         self.assertTrue(submit.same_submission(draft, draft))
         self.assertFalse(submit.same_submission({**draft, 'message': 'Changed'}, draft))
+
+    def test_publish_uses_stored_id_and_campaign_audience(self):
+        self.assertEqual(submit.publish_request({'action': 'publish', 'external_id': 'wildrose-ads-3'}), 'wildrose-ads-3')
+        with self.assertRaises(ValueError):
+            submit.publish_request({'action': 'publish', 'external_id': 'wildrose-ads-3', 'group_urls': ['https://example.com']})
+        self.assertEqual(submit.publish_job_id('wildrose-ads-3'), submit.publish_job_id('wildrose-ads-3'))
+        self.assertEqual(submit.suggested_audience({'external_id': 'wildrose-ads-3'}), 'agency')
+        self.assertEqual(submit.suggested_audience({'external_id': 'wildrose-ads-5'}), 'promotion')
+        self.assertEqual(submit.suggested_audience({'external_id': 'wildrose-ads-1'}), 'local')
+
+    def test_group_mapping_excludes_campaign_and_recent_targets(self):
+        now = datetime(2026, 10, 16, 15, tzinfo=timezone.utc)
+        schedules = [{'name': 'Rose · agency · batch 01', 'groups': [{'url': 'https://fb/active'}],
+                      'next_at': (now + timedelta(hours=2)).isoformat()}]
+        inventory = [
+            {'group_url': 'https://fb/active', 'group_name': 'Canada Web Design', 'identity_key': 'wildrose automations'},
+            {'group_url': 'https://fb/eligible', 'group_name': 'Canada Web Design Business', 'identity_key': 'wildrose automations'},
+            {'group_url': 'https://fb/recent', 'group_name': 'Web Design Agency', 'identity_key': 'wildrose automations',
+             'last_posted_at': (now - timedelta(days=1)).isoformat()},
+            {'group_url': 'https://fb/wrong', 'group_name': 'Web Design Agency', 'identity_key': 'vet inc'},
+            {'group_url': 'https://fb/busy', 'group_name': 'Web Design Agency', 'identity_key': 'wildrose automations'},
+        ]
+        jobs = [{'groups': [{'url': 'https://fb/busy'}]}]
+        result = submit.select_campaign_groups(schedules, inventory, jobs, 'agency', now)
+        self.assertEqual([group['url'] for group in result], ['https://fb/eligible'])
+        self.assertEqual(submit.next_partner_slot(schedules, [], now), now + timedelta(hours=2, minutes=15))
+
+    def test_group_outcome_counts(self):
+        job = {'result': {'results': [{'status': 'posted'}, {'status': 'pending_approval'},
+                                      {'status': 'failed'}, {'status': 'submitted_unconfirmed'}]}}
+        self.assertEqual(submit.outcome_counts(job), {
+            'posted': 1, 'pending_approval': 1, 'unconfirmed': 1, 'failed': 1,
+        })
+
+    def test_publish_queues_only_stored_copy_to_mapped_groups(self):
+        draft = {'title': 'For web designers', 'message': 'Exact approved draft copy',
+                 'image_url': 'https://i.imgur.com/ad.png', 'destination_url': 'https://wildroseautomations.ca',
+                 'external_id': 'test-designers', 'status': 'submitted'}
+        schedule = {'name': 'Rose · agency · batch 01', 'groups': [{'url': 'https://fb/active'}],
+                    'next_at': (datetime.now(timezone.utc) + timedelta(hours=1)).isoformat()}
+        inventory = [{'group_url': f'https://fb/eligible-{i}', 'group_name': f'Canada Web Designer Group {i}',
+                      'identity_key': 'wildrose automations', 'ban_risk': 'low', 'removal_count': 0}
+                     for i in range(3)]
+
+        class FakeHandler:
+            def __init__(self):
+                self.inserted = None
+
+            def response(self, status, body):
+                return status, body
+
+            def db(self, method, path, payload=None):
+                if method == 'PATCH':
+                    return [payload]
+                if method == 'POST':
+                    self.inserted = payload
+                    return [payload]
+                if path.startswith('jsw_post_jobs?') and 'id=eq.' in path:
+                    return []
+                if path.startswith('amplr_data?'):
+                    return [{'value': draft}]
+                if path.startswith('reachr_campaign_schedules?'):
+                    return [schedule]
+                if path.startswith('jsw_groups?'):
+                    return inventory
+                if path.startswith('jsw_post_jobs?'):
+                    return []
+                raise AssertionError(path)
+
+        fake = FakeHandler()
+        with patch.object(submit, 'technical_checks', return_value={'ok': True, 'image': 'ok', 'destination': 'ok'}):
+            status, body = submit.Handler.publish(fake, {'action': 'publish', 'external_id': 'test-designers'})
+        self.assertEqual(status, 201)
+        self.assertEqual(fake.inserted['message'], 'Exact approved draft copy')
+        self.assertEqual(fake.inserted['identity_name'], 'Wildrose Automations')
+        self.assertEqual(len(fake.inserted['groups']), 3)
+        self.assertEqual(body['group_count'], 3)
 
 
 if __name__ == '__main__':

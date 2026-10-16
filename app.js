@@ -194,6 +194,13 @@ async function loadPartnerSubmissions() {
     target.textContent = 'No partner submissions yet.';
     return;
   }
+  const jobIds = data.map(row => row.value?.publish_job_id).filter(Boolean);
+  let jobsById = new Map();
+  if (jobIds.length) {
+    const { data: jobs, error: jobsError } = await sb.from('jsw_post_jobs')
+      .select('id,status,result,error,scheduled_for').eq('user_id', user.id).in('id', jobIds);
+    if (!jobsError) jobsById = new Map((jobs || []).map(job => [job.id, job]));
+  }
   const line = (label, value) => {
     const node = document.createElement('p');
     node.style.cssText = 'white-space:pre-wrap;overflow-wrap:anywhere;margin:8px 0;color:var(--text-2);font-size:13px;';
@@ -217,6 +224,24 @@ async function loadPartnerSubmissions() {
     if (item.notes) card.append(line('Partner notes', item.notes));
     if (item.external_id) card.append(line('External ID', item.external_id));
     if (item.review_notes) card.append(line('Review notes', item.review_notes));
+    if (item.suggested_audience) card.append(line('Campaign audience', item.suggested_audience));
+    if (item.technical_checks) card.append(line('Technical checks',
+      `Destination: ${item.technical_checks.destination} · Image: ${item.technical_checks.image}`));
+    if (item.target_groups?.length) card.append(line('Selected groups', item.target_groups.join(', ')));
+    const job = item.publish_job_id && jobsById.get(item.publish_job_id);
+    if (job) {
+      card.append(line('Reachr job', `${job.status}${job.scheduled_for ? ' · ' + new Date(job.scheduled_for).toLocaleString() : ''}`));
+      const results = Array.isArray(job.result?.results) ? job.result.results : [];
+      if (results.length) {
+        const counts = {};
+        for (const result of results) {
+          const status = result.status || result.outcome || (result.success ? 'submitted' : result.failed ? 'failed' : 'unconfirmed');
+          counts[status] = (counts[status] || 0) + 1;
+        }
+        card.append(line('Group outcomes', Object.entries(counts).map(([status, count]) => `${status}: ${count}`).join(' · ')));
+      }
+      if (job.error) card.append(line('Job error', job.error));
+    }
     const actions = document.createElement('div');
     actions.style.cssText = 'display:flex;flex-wrap:wrap;gap:8px;margin-top:14px;';
     const use = document.createElement('button');
