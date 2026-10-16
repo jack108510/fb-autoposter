@@ -411,12 +411,14 @@ class Handler(BaseHTTPRequestHandler):
             }))
             if not rows and not daily:
                 drafts = self.db('GET', 'amplr_data?' + urlencode({
-                    'select': 'key', 'user_id': 'eq.' + OWNER_ID,
+                    'select': 'value', 'user_id': 'eq.' + OWNER_ID,
                     'key': 'eq.' + submission_key({'external_id': external_id}),
                 }))
                 if not drafts:
                     return self.response(404, {'error': 'Submission not found'})
-                return self.response(200, {'status': 'accepted_for_daily_test', 'group_count': 0,
+                checks = (drafts[0].get('value') or {}).get('technical_checks') or {}
+                return self.response(200, {'status': 'accepted_for_daily_test' if checks.get('ok') else 'needs_asset',
+                                           'technical_checks': checks, 'group_count': 0,
                                            'outcomes': {'posted': 0, 'pending_approval': 0, 'unconfirmed': 0, 'failed': 0}})
             jobs = rows + daily
             totals = {'posted': 0, 'pending_approval': 0, 'unconfirmed': 0, 'failed': 0}
