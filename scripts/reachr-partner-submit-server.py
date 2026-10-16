@@ -67,7 +67,7 @@ def validate_submission(value):
         'destination_url': field(value.get('destination_url'), 'destination_url', 2048),
         'image_url': field(value.get('image_url'), 'image_url', 2048),
         'notes': field(value.get('notes'), 'notes', 2000),
-        'external_id': field(value.get('external_id'), 'external_id', 120),
+        'external_id': field(value.get('external_id'), 'external_id', 120, True),
     }
     for name in ('destination_url', 'image_url'):
         if submission[name]:
@@ -290,10 +290,14 @@ class Handler(BaseHTTPRequestHandler):
             return json.load(response)
 
     def publish(self, value):
+        status, body = Handler.publish_result(self, value)
+        return self.response(status, body)
+
+    def publish_result(self, value):
         try:
             external_id = publish_request(value)
         except ValueError as error:
-            return self.response(400, {'error': str(error)})
+            return 400, {'error': str(error)}
         draft_key = submission_key({'external_id': external_id})
         job_id = publish_job_id(external_id)
         with PUBLISH_LOCK:
@@ -303,21 +307,21 @@ class Handler(BaseHTTPRequestHandler):
                 }))
                 if existing:
                     row = existing[0]
-                    return self.response(200, {'job_id': job_id, 'status': row['status'],
+                    return (200, {'job_id': job_id, 'status': row['status'],
                                                'scheduled_for': row.get('scheduled_for'),
                                                'group_count': len(row.get('groups') or []), 'duplicate': True})
                 drafts = self.db('GET', 'amplr_data?' + urlencode({
                     'select': 'value', 'user_id': 'eq.' + OWNER_ID, 'key': 'eq.' + draft_key,
                 }))
                 if len(drafts) != 1:
-                    return self.response(404, {'error': 'Submitted draft not found'})
+                    return (404, {'error': 'Submitted draft not found'})
                 draft = drafts[0]['value']
                 if draft.get('external_id') != external_id or not draft.get('title') or not draft.get('message'):
-                    return self.response(409, {'error': 'Submitted draft is incomplete'})
+                    return (409, {'error': 'Submitted draft is incomplete'})
                 try:
                     validate_submission({name: draft.get(name) for name in ALLOWED_FIELDS})
                 except ValueError as error:
-                    return self.response(422, {'error': str(error)})
+                    return (422, {'error': str(error)})
                 checks = technical_checks(draft)
                 audience = suggested_audience(draft)
                 draft = {**draft, 'technical_checks': checks, 'suggested_audience': audience}
@@ -325,7 +329,7 @@ class Handler(BaseHTTPRequestHandler):
                     'user_id': 'eq.' + OWNER_ID, 'key': 'eq.' + draft_key,
                 }), {'value': draft, 'updated_at': datetime.now(timezone.utc).isoformat()})
                 if not checks['ok']:
-                    return self.response(422, {'error': 'The submitted asset or media type did not pass the technical check',
+                    return (422, {'error': 'The submitted asset or media type did not pass the technical check',
                                                'technical_checks': checks})
                 schedules = self.db('GET', 'reachr_campaign_schedules?' + urlencode({
                     'select': 'name,groups,next_at', 'user_id': 'eq.' + OWNER_ID,
@@ -342,7 +346,7 @@ class Handler(BaseHTTPRequestHandler):
                 now = datetime.now(timezone.utc)
                 groups = select_campaign_groups(schedules, inventory, active_jobs, audience, now, submission=draft)
                 if len(groups) < TEST_GROUP_COUNT:
-                    return self.response(409, {'error': f'Only {len(groups)} eligible {audience} groups are available; no post was queued'})
+                    return (409, {'error': f'Only {len(groups)} eligible {audience} groups are available; no post was queued'})
                 scheduled_for = next_partner_slot(schedules, active_jobs, now).isoformat()
                 job = {
                     'id': job_id, 'user_id': OWNER_ID, 'message': draft['message'],
@@ -368,12 +372,12 @@ class Handler(BaseHTTPRequestHandler):
                     }), {'value': draft, 'updated_at': datetime.now(timezone.utc).isoformat()})
                 except (HTTPError, URLError, ValueError):
                     print('Reachr partner job queued but draft metadata update failed:', job_id, flush=True)
-                return self.response(201, {'job_id': job_id, 'status': 'pending',
+                return (201, {'job_id': job_id, 'status': 'pending',
                                            'scheduled_for': scheduled_for, 'audience': audience,
                                            'group_count': len(groups), 'groups': [g['name'] for g in groups]})
             except (HTTPError, URLError, ValueError, KeyError, RuntimeError) as error:
                 print('Reachr partner publish error:', type(error).__name__, flush=True)
-                return self.response(503, {'error': 'Could not queue the post'})
+                return (503, {'error': 'Could not queue the post'})
 
     def publish_status(self, value):
         try:
@@ -396,6 +400,16 @@ class Handler(BaseHTTPRequestHandler):
             return self.response(400, {'error': str(error)})
         except (HTTPError, URLError, KeyError):
             return self.response(503, {'error': 'Could not read posting status'})
+
+    def finish_submission(self, submission, key, stored, duplicate=False):
+        queue_status, queue = Handler.publish_result(self, {
+            'action': 'publish', 'external_id': submission['external_id'],
+        })
+        result = {'id': key, 'external_id': submission['external_id'],
+                  'created_at': stored['created_at'], 'duplicate': duplicate,
+                  'status': 'queued' if queue_status in (200, 201) else 'submitted',
+                  'queue': queue}
+        return self.response(200 if duplicate else 201, result)
 
     def do_POST(self):
         if self.path != '/reachr-submit':
@@ -428,15 +442,15 @@ class Handler(BaseHTTPRequestHandler):
             rows = self.db('POST', 'amplr_data', {'user_id': OWNER_ID, 'key': key, 'value': value})
             if len(rows) != 1:
                 raise RuntimeError('Submission write returned no row')
-            return self.response(201, {'id': key, 'status': 'submitted', 'created_at': value['created_at']})
+            return Handler.finish_submission(self, submission, key, value)
         except HTTPError as error:
-            if error.code == 409 and submission['external_id']:
+            if error.code == 409:
                 try:
                     rows = self.db('GET', 'amplr_data?select=value&user_id=eq.' + OWNER_ID + '&key=eq.' + quote(key, safe=''))
                     if len(rows) == 1:
                         existing = rows[0]['value']
                         if same_submission(existing, submission):
-                            return self.response(200, {'id': key, 'status': existing['status'], 'created_at': existing['created_at'], 'duplicate': True})
+                            return Handler.finish_submission(self, submission, key, existing, duplicate=True)
                         return self.response(409, {'error': 'external_id already used for different content'})
                 except (HTTPError, URLError, KeyError, ValueError):
                     pass

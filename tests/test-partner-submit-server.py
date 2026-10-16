@@ -19,11 +19,31 @@ class PartnerSubmitTests(unittest.TestCase):
             'destination_url': 'https://wildroseautomations.ca/book', 'external_id': 'offer-1',
         })
         self.assertEqual(item['message'], 'Local draft')
+        with self.assertRaisesRegex(ValueError, 'external_id is required'):
+            submit.validate_submission({'title': 'Offer', 'message': 'Draft'})
         for forbidden in ('groups', 'status', 'schedule', 'identity_name'):
             with self.assertRaisesRegex(ValueError, 'Unsupported fields'):
-                submit.validate_submission({'title': 'Offer', 'message': 'Draft', forbidden: 'value'})
+                submit.validate_submission({'title': 'Offer', 'message': 'Draft', 'external_id': 'offer-2', forbidden: 'value'})
         with self.assertRaisesRegex(ValueError, 'HTTPS URL'):
-            submit.validate_submission({'title': 'Offer', 'message': 'Draft', 'image_url': 'javascript:alert(1)'})
+            submit.validate_submission({'title': 'Offer', 'message': 'Draft', 'external_id': 'offer-3', 'image_url': 'javascript:alert(1)'})
+
+    def test_submission_queues_automatically_and_reports_stored_failure(self):
+        draft = {'title': 'Offer', 'message': 'Draft', 'external_id': 'test-auto',
+                 'created_at': '2026-10-16T12:00:00+00:00'}
+
+        class FakeHandler:
+            def response(self, status, body):
+                return status, body
+
+        fake = FakeHandler()
+        queued = {'job_id': 'job-1', 'groups': ['Group 1'], 'scheduled_for': 'tomorrow'}
+        with patch.object(submit.Handler, 'publish_result', return_value=(201, queued)) as publish:
+            status, result = submit.Handler.finish_submission(fake, draft, 'draft-1', draft)
+        self.assertEqual((status, result['status'], result['queue']), (201, 'queued', queued))
+        publish.assert_called_once_with(fake, {'action': 'publish', 'external_id': 'test-auto'})
+        with patch.object(submit.Handler, 'publish_result', return_value=(422, {'error': 'Invalid video'})):
+            status, result = submit.Handler.finish_submission(fake, draft, 'draft-1', draft, duplicate=True)
+        self.assertEqual((status, result['status'], result['queue']['error']), (200, 'submitted', 'Invalid video'))
 
     def test_key_auth_and_idempotency(self):
         key = 'rsub_test_key'

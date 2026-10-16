@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Send one draft to the Reachr review queue from Claude Code or a shell."""
+"""Submit and automatically queue one Reachr group post from Claude Code or a shell."""
 
 import argparse
 import json
@@ -42,7 +42,7 @@ def main() -> int:
         method="POST",
     )
     try:
-        with urllib.request.urlopen(request, timeout=20) as response:
+        with urllib.request.urlopen(request, timeout=75) as response:
             result = json.load(response)
     except urllib.error.HTTPError as error:
         try:
@@ -56,6 +56,9 @@ def main() -> int:
         print(f"Could not reach Reachr: {error.reason}", file=sys.stderr)
         return 1
     print(json.dumps(result, indent=2))
+    if result.get('status') != 'queued':
+        print('Reachr stored the submission but could not queue it; see queue.error above.', file=sys.stderr)
+        return 1
     return 0
 
 
