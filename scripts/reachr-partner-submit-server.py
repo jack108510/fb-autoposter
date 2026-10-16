@@ -402,26 +402,46 @@ class Handler(BaseHTTPRequestHandler):
                 'select': 'id,status,scheduled_for,groups,result,error',
                 'user_id': 'eq.' + OWNER_ID, 'id': 'eq.' + job_id,
             }))
-            if not rows:
-                return self.response(404, {'error': 'No Reachr post job for this submission'})
-            job = rows[0]
-            return self.response(200, {'job_id': job_id, 'status': job['status'],
-                                       'scheduled_for': job.get('scheduled_for'),
-                                       'group_count': len(job.get('groups') or []),
-                                       'outcomes': outcome_counts(job), 'error': job.get('error')})
+            daily = self.db('GET', 'jsw_post_jobs?' + urlencode({
+                'select': 'id,status,scheduled_for,groups,result,error',
+                'user_id': 'eq.' + OWNER_ID,
+                'result': 'cs.' + json.dumps({'partner_submission_key': submission_key({'external_id': external_id}),
+                                              'published_by': 'partner_daily_optimizer'}, separators=(',', ':')),
+                'order': 'scheduled_for.desc', 'limit': '200',
+            }))
+            if not rows and not daily:
+                drafts = self.db('GET', 'amplr_data?' + urlencode({
+                    'select': 'key', 'user_id': 'eq.' + OWNER_ID,
+                    'key': 'eq.' + submission_key({'external_id': external_id}),
+                }))
+                if not drafts:
+                    return self.response(404, {'error': 'Submission not found'})
+                return self.response(200, {'status': 'accepted_for_daily_test', 'group_count': 0,
+                                           'outcomes': {'posted': 0, 'pending_approval': 0, 'unconfirmed': 0, 'failed': 0}})
+            jobs = rows + daily
+            totals = {'posted': 0, 'pending_approval': 0, 'unconfirmed': 0, 'failed': 0}
+            for job in jobs:
+                for name, count in outcome_counts(job).items():
+                    totals[name] += count
+            latest = daily[0] if daily else rows[0]
+            return self.response(200, {'job_id': job_id if rows else None,
+                                       'status': latest['status'],
+                                       'scheduled_for': latest.get('scheduled_for'),
+                                       'group_count': sum(len(job.get('groups') or []) for job in jobs),
+                                       'job_count': len(jobs), 'outcomes': totals,
+                                       'error': latest.get('error')})
         except ValueError as error:
             return self.response(400, {'error': str(error)})
         except (HTTPError, URLError, KeyError):
             return self.response(503, {'error': 'Could not read posting status'})
 
     def finish_submission(self, submission, key, stored, duplicate=False):
-        queue_status, queue = Handler.publish_result(self, {
-            'action': 'publish', 'external_id': submission['external_id'],
-        })
+        checks = stored.get('technical_checks') or technical_checks(submission)
         result = {'id': key, 'external_id': submission['external_id'],
                   'created_at': stored['created_at'], 'duplicate': duplicate,
-                  'status': 'queued' if queue_status in (200, 201) else 'submitted',
-                  'queue': queue}
+                  'status': 'accepted_for_daily_test' if checks.get('ok') else 'needs_asset',
+                  'audience': suggested_audience(submission), 'technical_checks': checks,
+                  'posting_message': posting_message(submission)}
         return self.response(200 if duplicate else 201, result)
 
     def do_POST(self):
@@ -440,7 +460,7 @@ class Handler(BaseHTTPRequestHandler):
         try:
             value = json.loads(self.rfile.read(length))
             if isinstance(value, dict) and value.get('action') == 'publish':
-                return self.publish(value)
+                return self.response(409, {'error': 'Reachr now allocates submitted ads through the daily 400-target experiment'})
             if isinstance(value, dict) and value.get('action') == 'status':
                 return self.publish_status(value)
             submission = validate_submission(value)

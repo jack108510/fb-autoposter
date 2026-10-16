@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Submit and automatically queue one Reachr group post from Claude Code or a shell."""
+"""Submit one ad to Reachr's automatic daily group-copy experiment."""
 
 import argparse
 import json
@@ -56,8 +56,8 @@ def main() -> int:
         print(f"Could not reach Reachr: {error.reason}", file=sys.stderr)
         return 1
     print(json.dumps(result, indent=2))
-    if result.get('status') != 'queued':
-        print('Reachr stored the submission but could not queue it; see queue.error above.', file=sys.stderr)
+    if result.get('status') not in ('accepted_for_daily_test', 'queued'):
+        print('Reachr stored the submission, but its asset needs attention.', file=sys.stderr)
         return 1
     return 0
 

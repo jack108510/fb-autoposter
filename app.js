@@ -194,12 +194,28 @@ async function loadPartnerSubmissions() {
     target.textContent = 'No partner submissions yet.';
     return;
   }
+  const { data: planRows } = await sb.from('amplr_data')
+    .select('value,updated_at').eq('user_id', user.id)
+    .like('key', 'reachr_ad_plan:%').order('updated_at', { ascending: false }).limit(1);
+  const latestPlan = planRows?.[0]?.value || null;
   const jobIds = data.map(row => row.value?.publish_job_id).filter(Boolean);
   let jobsById = new Map();
   if (jobIds.length) {
     const { data: jobs, error: jobsError } = await sb.from('jsw_post_jobs')
       .select('id,status,result,error,scheduled_for').eq('user_id', user.id).in('id', jobIds);
     if (!jobsError) jobsById = new Map((jobs || []).map(job => [job.id, job]));
+  }
+  const dailyJobsBySubmission = new Map();
+  const { data: dailyJobs } = await sb.from('jsw_post_jobs')
+    .select('id,status,result,error,scheduled_for,groups')
+    .eq('user_id', user.id)
+    .contains('result', { published_by: 'partner_daily_optimizer' })
+    .order('scheduled_for', { ascending: false }).limit(1000);
+  for (const job of dailyJobs || []) {
+    const key = job.result?.partner_submission_key;
+    if (!key) continue;
+    if (!dailyJobsBySubmission.has(key)) dailyJobsBySubmission.set(key, []);
+    dailyJobsBySubmission.get(key).push(job);
   }
   const line = (label, value) => {
     const node = document.createElement('p');
@@ -209,6 +225,17 @@ async function loadPartnerSubmissions() {
     node.append(strong, document.createTextNode(value));
     return node;
   };
+  if (latestPlan) {
+    const summary = document.createElement('article');
+    summary.style.cssText = 'border:1px solid var(--border);border-radius:14px;padding:18px;margin:12px 0;background:var(--surface);';
+    const heading = document.createElement('h3');
+    heading.style.cssText = 'font-size:16px;margin:0 0 4px;';
+    heading.textContent = `Daily ad experiment · ${latestPlan.date || ''}`;
+    summary.append(heading,
+      line('Planned group targets', `${latestPlan.total_planned || 0} total · ${latestPlan.campaign_group_count || 0} existing campaign · ${latestPlan.partner_group_count || 0} partner ads`),
+      line('Evidence', `${Object.values(latestPlan.partner_performance || {}).reduce((count, row) => count + (row.engaged_visits_14d || 0), 0)} attributed engaged visits across partner copy in 14 days`));
+    target.append(summary);
+  }
   for (const row of data) {
     const item = { ...row.value, id: row.key, created_at: row.value?.created_at || row.updated_at };
     if (!item.title || !item.message) continue;
@@ -225,6 +252,9 @@ async function loadPartnerSubmissions() {
     if (item.external_id) card.append(line('External ID', item.external_id));
     if (item.review_notes) card.append(line('Review notes', item.review_notes));
     if (item.suggested_audience) card.append(line('Campaign audience', item.suggested_audience));
+    const experiment = latestPlan?.partner_performance?.[item.external_id];
+    if (experiment) card.append(line('Copy test',
+      `${experiment.state} · ${experiment.engaged_visits_14d} engaged visits / ${experiment.delivery_attempts_14d} delivery attempts in 14 days · ${latestPlan.partner_by_ad?.[item.external_id] || 0} group targets in this plan`));
     if (item.technical_checks) card.append(line('Technical checks',
       `Destination: ${item.technical_checks.destination} · Image: ${item.technical_checks.image} · Media: ${item.technical_checks.media || 'not_checked'}`));
     if (item.target_groups?.length) card.append(line('Selected groups', item.target_groups.join(', ')));
@@ -241,6 +271,24 @@ async function loadPartnerSubmissions() {
         card.append(line('Group outcomes', Object.entries(counts).map(([status, count]) => `${status}: ${count}`).join(' · ')));
       }
       if (job.error) card.append(line('Job error', job.error));
+    }
+    const rotationJobs = dailyJobsBySubmission.get(item.id) || [];
+    if (rotationJobs.length) {
+      const latestDay = rotationJobs[0].scheduled_for?.slice(0, 10) || 'unknown';
+      const groupTotal = rotationJobs.reduce((count, run) => count + (run.groups?.length || 0), 0);
+      const states = {};
+      const outcomes = {};
+      for (const run of rotationJobs) {
+        states[run.status] = (states[run.status] || 0) + 1;
+        for (const result of run.result?.results || []) {
+          const status = result.status || result.outcome || (result.success ? 'submitted' : result.failed ? 'failed' : 'unconfirmed');
+          outcomes[status] = (outcomes[status] || 0) + 1;
+        }
+      }
+      card.append(line('Daily rotation', `${rotationJobs.length} jobs · ${groupTotal} group targets · latest ${latestDay}`),
+        line('Rotation status', Object.entries(states).map(([status, count]) => `${status}: ${count}`).join(' · ')));
+      if (Object.keys(outcomes).length) card.append(line('Rotation outcomes',
+        Object.entries(outcomes).map(([status, count]) => `${status}: ${count}`).join(' · ')));
     }
     const actions = document.createElement('div');
     actions.style.cssText = 'display:flex;flex-wrap:wrap;gap:8px;margin-top:14px;';
