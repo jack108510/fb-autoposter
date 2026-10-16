@@ -27,6 +27,7 @@ DESTINATION_HOSTS = {'wildroseautomations.ca', 'www.wildroseautomations.ca'}
 IMAGE_HOSTS = DESTINATION_HOSTS | {'i.imgur.com', 'jack108510.github.io'}
 PUBLISH_IDENTITY = 'Wildrose Automations'
 PUBLISH_IDENTITY_KEY = 'wildrose automations'
+DEFAULT_ROSE_LINK = 'https://wildroseautomations.ca/ai-tool-mockup-final.html'
 PUBLISH_LOCK = Lock()
 TEST_GROUP_COUNT = 3
 
@@ -146,6 +147,13 @@ def technical_checks(submission):
                     and checks['image'] in ('ok', 'not_provided')
                     and checks['media'] != 'video_not_supported_by_reachr_post_jobs')
     return checks
+
+
+def posting_message(submission):
+    message = submission['message']
+    if re.search(r'https?://', message):
+        return message
+    return message.rstrip() + '\n\nSee how Rose works: ' + (submission.get('destination_url') or DEFAULT_ROSE_LINK)
 
 
 def publish_request(value):
@@ -354,7 +362,7 @@ class Handler(BaseHTTPRequestHandler):
                     return (409, {'error': f'Only {len(groups)} eligible {audience} groups are available; no post was queued'})
                 scheduled_for = next_partner_slot(schedules, active_jobs, now).isoformat()
                 job = {
-                    'id': job_id, 'user_id': OWNER_ID, 'message': draft['message'],
+                    'id': job_id, 'user_id': OWNER_ID, 'message': posting_message(draft),
                     'image_url': draft.get('image_url'), 'groups': groups, 'delay': 90,
                     'ai_enabled': False, 'ai_prompt': None, 'first_comment': None, 'status': 'pending',
                     'scheduled_for': scheduled_for, 'identity_name': PUBLISH_IDENTITY,

@@ -101,6 +101,13 @@ class PartnerSubmitTests(unittest.TestCase):
         self.assertEqual(poll['media'], 'text_poll_only')
         self.assertTrue(poll['ok'])
 
+    def test_linkless_copy_gets_a_measurable_rose_link(self):
+        message = submit.posting_message({'message': 'What would help your team most?', 'destination_url': None})
+        self.assertIn(submit.DEFAULT_ROSE_LINK, message)
+        self.assertEqual(submit.posting_message({'message': 'Visit https://wildroseautomations.ca/rose',
+                                                 'destination_url': None}),
+                         'Visit https://wildroseautomations.ca/rose')
+
     def test_publish_queues_only_stored_copy_to_mapped_groups(self):
         draft = {'title': 'For web designers', 'message': 'Exact approved draft copy',
                  'image_url': 'https://i.imgur.com/ad.png', 'destination_url': 'https://wildroseautomations.ca',
@@ -140,7 +147,8 @@ class PartnerSubmitTests(unittest.TestCase):
         with patch.object(submit, 'technical_checks', return_value={'ok': True, 'image': 'ok', 'destination': 'ok'}):
             status, body = submit.Handler.publish(fake, {'action': 'publish', 'external_id': 'test-designers'})
         self.assertEqual(status, 201)
-        self.assertEqual(fake.inserted['message'], 'Exact approved draft copy')
+        self.assertEqual(fake.inserted['message'],
+                         'Exact approved draft copy\n\nSee how Rose works: https://wildroseautomations.ca')
         self.assertEqual(fake.inserted['identity_name'], 'Wildrose Automations')
         self.assertEqual(len(fake.inserted['groups']), 3)
         self.assertEqual(body['group_count'], 3)
