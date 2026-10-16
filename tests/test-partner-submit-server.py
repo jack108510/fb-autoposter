@@ -63,7 +63,7 @@ class PartnerSubmitTests(unittest.TestCase):
         self.assertEqual(submit.next_partner_slot(schedules, [], now), now + timedelta(hours=2, minutes=15))
 
     def test_group_outcome_counts(self):
-        job = {'result': {'results': [{'status': 'posted'}, {'status': 'pending_approval'},
+        job = {'result': {'results': [{'status': 'posted'}, {'status': 'pending_approval', 'success': True},
                                       {'status': 'failed'}, {'status': 'submitted_unconfirmed'}]}}
         self.assertEqual(submit.outcome_counts(job), {
             'posted': 1, 'pending_approval': 1, 'unconfirmed': 1, 'failed': 1,

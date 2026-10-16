@@ -158,14 +158,14 @@ def outcome_counts(job):
     counts = {'posted': 0, 'pending_approval': 0, 'unconfirmed': 0, 'failed': 0}
     for result in (job.get('result') or {}).get('results') or []:
         status = result.get('status') or result.get('outcome') or ''
-        if status in ('posted', 'submitted') or result.get('success') is True:
-            counts['posted'] += 1
-        elif status == 'pending_approval':
+        if status == 'pending_approval':
             counts['pending_approval'] += 1
         elif status in ('submitted_unconfirmed', 'unconfirmed'):
             counts['unconfirmed'] += 1
         elif status == 'failed' or result.get('failed'):
             counts['failed'] += 1
+        elif status in ('posted', 'submitted') or result.get('success') is True:
+            counts['posted'] += 1
     return counts
 
 
