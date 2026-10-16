@@ -203,7 +203,12 @@ def group_relevance(row, submission=None):
 
 
 def parse_time(value):
-    return datetime.fromisoformat(value.replace('Z', '+00:00')) if value else None
+    if not value:
+        return None
+    normalized = value.replace('Z', '+00:00')
+    normalized = re.sub(r'\.(\d{1,6})(?=[+-]\d\d:\d\d$)',
+                        lambda match: '.' + match.group(1).ljust(6, '0'), normalized)
+    return datetime.fromisoformat(normalized)
 
 
 def publish_job_id(external_id):

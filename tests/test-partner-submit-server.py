@@ -89,6 +89,10 @@ class PartnerSubmitTests(unittest.TestCase):
             'posted': 1, 'pending_approval': 1, 'unconfirmed': 1, 'failed': 1,
         })
 
+    def test_supabase_timestamps_with_short_fraction(self):
+        self.assertEqual(submit.parse_time('2026-10-08T18:42:35.6+00:00').microsecond, 600000)
+        self.assertEqual(submit.parse_time('2026-10-08T18:42:35.09455+00:00').microsecond, 94550)
+
     def test_video_cover_cannot_be_published_as_video(self):
         checks = submit.technical_checks({'notes': 'VIDEO post. Ask for the full-quality video before posting.'})
         self.assertEqual(checks['media'], 'video_not_supported_by_reachr_post_jobs')
